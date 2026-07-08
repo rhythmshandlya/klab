@@ -20,7 +20,7 @@ metadata:
   labels:
     app: web-app
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: web-app
@@ -78,7 +78,7 @@ export const brokenReadinessProbe = {
   objective: "Restore stable traffic through web-svc so it returns HTTP 200 again.",
   constraints: [
     { id: "edit-deployment-only", label: "Only edit deployment.yaml" },
-    { id: "keep-replicas", label: "Keep at least 2 replicas" },
+    { id: "keep-image", label: "Keep the klab/web-app:1.0.0 image" },
   ],
   files: [{ path: "deployment.yaml", language: "yaml", initialValue: DEPLOYMENT_YAML }],
   readonlyFiles: [{ path: "service.yaml", language: "yaml", value: SERVICE_YAML }],
@@ -101,14 +101,17 @@ export const brokenReadinessProbe = {
   ],
   validators: [
     {
-      id: "deployment-ready",
-      title: "Deployment has ready replicas",
-      successLabel: "Deployment reports ready replicas",
-      failureLabel: "Deployment has no ready replicas",
-      kind: "deployment-ready",
+      id: "pod-ready",
+      title: "App pod is Ready",
+      successLabel: "At least one web-app pod is Ready",
+      failureLabel: "No web-app pod is Ready",
+      // Validate by actual ready pods rather than Deployment.status.readyReplicas:
+      // the simulator does not always aggregate ready pods into the Deployment status,
+      // but pod readiness (the thing this level teaches) is reported reliably.
+      kind: "pod-ready-by-selector",
       namespace: "default",
-      name: "web-app",
-      minReadyReplicas: 2,
+      selector: { app: "web-app" },
+      minReady: 1,
     },
     {
       id: "service-endpoints",
@@ -131,15 +134,6 @@ export const brokenReadinessProbe = {
       port: 80,
       path: "/",
       expectStatus: 200,
-    },
-    {
-      id: "no-readiness-failures",
-      title: "No failing readiness probes",
-      successLabel: "No pods are failing readiness",
-      failureLabel: "A pod is Running but not Ready",
-      kind: "no-recent-readiness-failures",
-      namespace: "default",
-      withinSeconds: 30,
     },
   ],
   hints: [

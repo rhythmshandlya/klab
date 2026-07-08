@@ -33,6 +33,13 @@ const eslintConfig = [
       ],
     },
   },
+  {
+    // Tests occasionally need `any` to bridge to browser globals (e.g. window.monaco).
+    files: ["src/tests/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ];
 
 export default eslintConfig;

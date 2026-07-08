@@ -69,7 +69,6 @@ const VALIDATORS: LevelValidatorDefinition[] = [
   },
 ];
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- minimal fixture objects cast to V1 types */
 function brokenSnapshot(): ClusterSnapshot {
   const snap = emptySnapshot();
   snap.deployments = [
@@ -111,7 +110,6 @@ function fixedSnapshot(): ClusterSnapshot {
   (snap.endpointSlices[0] as any).endpoints[0].conditions.ready = true;
   return snap;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 describe("runValidators", () => {
   it("fails every relevant check in the broken state", async () => {

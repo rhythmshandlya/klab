@@ -1,27 +1,26 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { SectionPlaceholder } from "@/components/ui/section-placeholder";
+import { getLevelBySlug, LEVELS } from "@/content/levels";
+import { LevelWorkspace } from "@/features/problems/components/level-workspace";
 
-export const metadata: Metadata = { title: "Level" };
+export function generateStaticParams() {
+  return LEVELS.map((level) => ({ levelId: level.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ levelId: string }>;
+}): Promise<Metadata> {
+  const { levelId } = await params;
+  const level = getLevelBySlug(levelId);
+  return { title: level ? level.title : "Level" };
+}
 
 export default async function LevelPage({ params }: { params: Promise<{ levelId: string }> }) {
   const { levelId } = await params;
-  return (
-    <SectionPlaceholder
-      icon="problems"
-      eyebrow="Incident lab"
-      title={levelId}
-      description="This level's full investigation workspace is under construction. Phase 3 delivers the Broken Readiness Probe level end-to-end as the polished reference, with the terminal, editor, topology, evidence board and validators fully wired."
-      phase="Phase 3"
-      planned={[
-        "Incident brief, objective & constraints",
-        "Editable deployment.yaml in Monaco",
-        "Terminal-driven investigation",
-        "Live cluster explorer & object details",
-        "Events timeline & network probe",
-        "Run Validation with success state",
-      ]}
-      cta={{ href: "/problems", label: "Back to all problems" }}
-    />
-  );
+  const level = getLevelBySlug(levelId);
+  if (!level) notFound();
+  return <LevelWorkspace level={level} />;
 }
