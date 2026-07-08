@@ -4,7 +4,7 @@
 > Brand string in nav: **`klab`**. Reference mockups say "KubeQuest" — reference-only; shipped brand stays `klab`.
 
 **Last updated:** 2026-07-09
-**Overall status:** 🟢 Phases 1–2 complete. 🟡 Phase 3 workspace built & mostly verified (one known in-browser bug, below). ⬜ Phases 4–6 pending.
+**Overall status:** 🟢 Phases 1–3 complete & verified (Broken Readiness Probe solves end-to-end in a real browser). ⬜ Phases 4–6 pending.
 
 ---
 
@@ -81,7 +81,7 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 - **Acceptance: MET.** 22 unit tests green (parser/command-parser/validators/evidence) + a real-boot integration test (boot → apply Deployment+Service → reconcile to ready pod + ready endpoints → validators pass → `kubectl get pods/svc` show objects). Unknown commands return helpful output.
 - **Deferred to Phase 3 (need UI):** React error boundary around the simulator; `fixtures/` (levels supply their own manifests, so no shared fixtures needed yet).
 
-### Phase 3 — Problems + Broken Readiness Probe (reference level) 🟡 BUILT (1 known bug)
+### Phase 3 — Problems + Broken Readiness Probe (reference level) ✅ DONE
 - [x] `/problems` content-driven level list; `/problems/[levelId]` renders the workspace (SSG)
 - [x] Three-column workspace matching `problems.png`: left (incident brief, hints w/ XP penalty + progressive unlock, evidence board, level progress), center (tabbed Terminal/Logs/Events/Network/Diff over a Monaco editor + Apply/Reset/Run Validation toolbar), right (cluster explorer, object details, React Flow topology)
 - [x] Real Monaco editor (dynamic, ssr:false, custom dark theme) + diff view
@@ -91,8 +91,8 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 - [x] Level store (Zustand), evidence collection, hints, network probe, validation dialog + post-solve teaching
 - [x] Throttled local progress persistence (`lib/storage/local-progress.ts`)
 - [x] Playwright E2E of investigate → collect evidence → author fix (passing); Vitest content + evidence tests
-- **Verified working in-browser:** boot, terminal (real kubectl), evidence collection, YAML editing → store, validation dialog. **Solve mechanic verified end-to-end in node** (`level-solve.test.ts`).
-- **⚠️ KNOWN BUG (top priority): in-browser auto-resolve after Apply.** The broken Deployment has never-Ready pods; Webernetes drives toward `readyReplicas`, so it keeps creating pods (10+). In headless Chromium this churn overloads the single-threaded event loop → after clicking **Apply**, the simulator instance goes not-ready / its `getSnapshot()` returns an empty/torn-down cluster while the UI shows a stale populated one → validators report "cluster not ready / service not found / 0 pods" and the level never shows "Incident resolved". Reproduces reliably in the browser, NOT in node (where the same apply→reconcile→validate passes). Playwright full-solve is `test.fixme`. **Next-session fix candidates:** (a) redesign the broken state as a bare Pod (no ReplicaSet → no churn); (b) find why the workspace's simulator instance re-boots/tears down after Apply (suspected component re-mount re-initializing `useState`); (c) cap/short-circuit churn in the `KubeSimulator` facade.
+- **Verified end-to-end in a real browser (Playwright):** boot → `kubectl get pods` → evidence collected → validation fails → edit `/readyz`→`/healthz` → Apply → Run Validation → **Incident resolved** + post-solve teaching.
+- **✅ FIXED — the in-browser churn/validation bug.** Root cause: the broken **Deployment** had never-Ready pods; Webernetes drives toward `readyReplicas`, so its ReplicaSet kept creating pods (10+). In headless Chromium that churn overloaded the event loop and destabilized the workspace's simulator after Apply (validators then read a torn-down/empty cluster). **Fix:** (1) redesigned the level's broken workload as a **bare Pod** — no ReplicaSet, so exactly one pod and zero churn (verified: 1 pod vs. 10+); (2) since Pods are immutable, the `KubeSimulator.applyManifests` now **deletes an existing Pod, waits for it to be gone, then recreates it** so an edited probe actually takes effect; (3) validators check real ready pods (`pod-ready-by-selector`) + Service endpoints + HTTP-200 rather than the unreliable `Deployment.status.readyReplicas`. Also hardened `useSimulator` to boot once (deps `[simulator]`, level via ref) so a prop-identity change can't tear the cluster down mid-session.
 
 ### Phase 4 — Playground ⬜ NEXT
 ### Phase 5 — Interactive Docs ⬜
@@ -101,11 +101,11 @@ _(Full criteria unchanged from prior plan; see git history if trimmed.)_
 
 ## 5. Verification log
 
-- **2026-07-09 — Phase 3 (workspace) verified.**
+- **2026-07-09 — Phase 3 fully verified (level solves end-to-end in-browser).**
   - `pnpm build` → **exit 0**; `/problems/broken-readiness-probe` prerenders (SSG).
   - `pnpm typecheck` / `pnpm lint` → **exit 0**.
-  - `pnpm test` (vitest) → **10 files / 35 tests passed** (adds level content, evidence, and the `level-solve` integration test that proves apply-broken → fix → all validators pass in node).
-  - `pnpm test:e2e` → **1 passed** (investigate + author-fix flow in a real browser), **1 skipped** (`test.fixme` full auto-resolve — see the Phase 3 known bug).
+  - `pnpm test` (vitest) → **10 files / 35 tests passed** (level content, evidence, validators, and the `level-solve` integration test: apply-broken → fix → all validators pass).
+  - `pnpm test:e2e` (Playwright, production build) → **1 passed**: the FULL happy path — boot, `kubectl get pods`, evidence, validation-fails, edit `/readyz`→`/healthz`, Apply, Run Validation, **Incident resolved**.
 - **2026-07-09 — Phase 2 verified.**
   - `pnpm typecheck` → **exit 0** (whole simulator layer typechecked against real Webernetes model types on first try).
   - `pnpm lint` → **exit 0**.
@@ -124,16 +124,14 @@ _(Full criteria unchanged from prior plan; see git history if trimmed.)_
 
 ## 6. Next command to run
 
-**Priority: fix the Phase 3 in-browser auto-resolve bug** (see the ⚠️ note in Phase 3). Reproduce
-and iterate against the production build with the Playwright `test.fixme` re-enabled:
+Begin **Phase 4 (Playground)** — a free sandbox reusing the already-built simulator, Monaco
+editor, xterm terminal, topology, cluster-explorer, and object-details components. Author the
+playground templates in `src/content/playground-templates/`, build the sandbox workspace
+(`/playground` + `/playground/[templateId]`), and wire save/load of local sandbox state.
 
 ```bash
-pnpm exec playwright test -g "validation passes"   # currently fixme; the target to make green
+pnpm dev   # build /playground on top of the Phase 1–3 components
 ```
-
-Most promising fix: redesign the broken state as a bare **Pod** (no ReplicaSet → no pod churn →
-no browser overload). Then continue to **Phase 4 (Playground)**, which reuses the same simulator,
-editor, terminal, and topology components already built.
 
 _Original Phase-3 kickoff command (kept for reference):_
 

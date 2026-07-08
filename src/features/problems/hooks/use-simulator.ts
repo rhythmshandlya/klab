@@ -93,7 +93,6 @@ export function useSimulator(level: ProblemLevel | null): UseSimulator {
     };
     // Boot once for the lifetime of this simulator instance; never re-run on level
     // identity changes (see levelRef above).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulator]);
 
   const applyFiles = useCallback(

@@ -12,43 +12,34 @@ import type { ProblemLevel } from "@/lib/domain/types";
  * `/healthz`. Evidence exposes the signals; the learner connects them.
  */
 
-const DEPLOYMENT_YAML = `apiVersion: apps/v1
-kind: Deployment
+const POD_YAML = `apiVersion: v1
+kind: Pod
 metadata:
   name: web-app
   namespace: default
   labels:
     app: web-app
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: web-app
-  template:
-    metadata:
-      labels:
-        app: web-app
-    spec:
-      containers:
-        - name: web-app
-          image: klab/web-app:1.0.0
-          ports:
-            - name: http
-              containerPort: 8080
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: 8080
-            initialDelaySeconds: 3
-            periodSeconds: 5
-            timeoutSeconds: 2
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 2
+  containers:
+    - name: web-app
+      image: klab/web-app:1.0.0
+      ports:
+        - name: http
+          containerPort: 8080
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: 8080
+        initialDelaySeconds: 2
+        periodSeconds: 3
+        timeoutSeconds: 2
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 2
 `;
 
 const SERVICE_YAML = `apiVersion: v1
@@ -74,13 +65,13 @@ export const brokenReadinessProbe = {
   xp: 300,
   concepts: ["readiness-probes", "services", "endpointslices", "endpoints", "pods", "debugging"],
   story:
-    "On-call paged you: users are getting intermittent 503s from web-svc. The pods look like they started fine, but traffic isn't flowing. Figure out why the Service isn't serving.",
-  objective: "Restore stable traffic through web-svc so it returns HTTP 200 again.",
+    "On-call paged you: users are getting 503s from web-svc. The pod looks like it started fine, but traffic isn't flowing. Figure out why the Service isn't serving.",
+  objective: "Restore traffic through web-svc so it returns HTTP 200 again.",
   constraints: [
-    { id: "edit-deployment-only", label: "Only edit deployment.yaml" },
+    { id: "edit-pod-only", label: "Only edit pod.yaml" },
     { id: "keep-image", label: "Keep the klab/web-app:1.0.0 image" },
   ],
-  files: [{ path: "deployment.yaml", language: "yaml", initialValue: DEPLOYMENT_YAML }],
+  files: [{ path: "pod.yaml", language: "yaml", initialValue: POD_YAML }],
   readonlyFiles: [{ path: "service.yaml", language: "yaml", value: SERVICE_YAML }],
   initialManifests: [SERVICE_YAML],
   registeredImages: [

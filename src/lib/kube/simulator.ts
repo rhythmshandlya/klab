@@ -207,6 +207,20 @@ export class KubeSimulator {
     if (!cluster.ok) return cluster;
     if (manifests.length === 0) return ok([]);
     try {
+      // Pods are immutable in Kubernetes — a plain apply of a changed Pod is a no-op on
+      // the running pod. To let learners re-apply an edited Pod (e.g. fixing a probe),
+      // delete any existing Pod of the same name first and wait for it to be removed,
+      // then create the replacement. Non-Pod kinds apply normally.
+      const existingPods = manifests.filter(
+        (m) => m.kind === "Pod" && this.podExists(m.name, m.namespace),
+      );
+      for (const pod of existingPods) {
+        await cluster.value.api.corev1
+          .deleteNamespacedPod({ name: pod.name, namespace: pod.namespace })
+          .catch(() => undefined);
+      }
+      if (existingPods.length > 0) await this.waitForPodsGone(existingPods);
+
       // The parser validated structure; Webernetes validates the deep spec on apply.
       // The raw objects are Kubernetes manifests; cast to the apply union at this boundary.
       const resources = manifests.map((m) => m.raw) as unknown as ClusterApplyResource[];
@@ -214,6 +228,23 @@ export class KubeSimulator {
       return ok(manifests.map((m) => ({ kind: m.kind, name: m.name, namespace: m.namespace })));
     } catch (error) {
       return err(describeError(error, "Failed to apply manifest"));
+    }
+  }
+
+  private podExists(name: string, namespace: string): boolean {
+    return this.snapshot.pods.some(
+      (p) => p.metadata?.name === name && (p.metadata?.namespace ?? "default") === namespace,
+    );
+  }
+
+  private async waitForPodsGone(
+    refs: { name: string; namespace: string }[],
+    timeoutMs = 8000,
+  ): Promise<void> {
+    const gone = () => refs.every((r) => !this.podExists(r.name, r.namespace));
+    const start = Date.now();
+    while (!gone() && Date.now() - start < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
 

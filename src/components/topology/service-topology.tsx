@@ -107,7 +107,10 @@ export function ServiceTopology({ snapshot, namespace = "default", onSelect }: T
         },
         style: nodeStyle(ok),
       });
+      // Connect pods to the Deployment when present, otherwise straight to the Service
+      // (bare-Pod levels have no Deployment/ReplicaSet).
       if (deployment) edges.push({ id: `deploy-${id}`, source: "deploy", target: id });
+      else if (service) edges.push({ id: `svc-${id}`, source: "svc", target: id, animated: true });
     });
 
     return { nodes, edges };
