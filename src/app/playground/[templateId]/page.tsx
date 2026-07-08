@@ -1,8 +1,22 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { SectionPlaceholder } from "@/components/ui/section-placeholder";
+import { getTemplateById, PLAYGROUND_TEMPLATES } from "@/content/playground-templates";
+import { PlaygroundWorkspace } from "@/features/playground/components/playground-workspace";
 
-export const metadata: Metadata = { title: "Playground template" };
+export function generateStaticParams() {
+  return PLAYGROUND_TEMPLATES.map((t) => ({ templateId: t.id }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ templateId: string }>;
+}): Promise<Metadata> {
+  const { templateId } = await params;
+  const template = getTemplateById(templateId);
+  return { title: template ? `${template.title} · Playground` : "Playground" };
+}
 
 export default async function PlaygroundTemplatePage({
   params,
@@ -10,20 +24,7 @@ export default async function PlaygroundTemplatePage({
   params: Promise<{ templateId: string }>;
 }) {
   const { templateId } = await params;
-  return (
-    <SectionPlaceholder
-      icon="playground"
-      eyebrow="Sandbox template"
-      title={templateId}
-      description="This starter template will boot a preconfigured sandbox in the playground. The full sandbox workspace ships in Phase 4."
-      phase="Phase 4"
-      planned={[
-        "Preloaded manifests for this template",
-        "Editable multi-file workspace",
-        "Apply & observe reconciliation",
-        "Reset back to the template",
-      ]}
-      cta={{ href: "/playground", label: "Back to playground" }}
-    />
-  );
+  const template = getTemplateById(templateId);
+  if (!template) notFound();
+  return <PlaygroundWorkspace key={template.id} template={template} />;
 }

@@ -4,7 +4,7 @@
 > Brand string in nav: **`klab`**. Reference mockups say "KubeQuest" — reference-only; shipped brand stays `klab`.
 
 **Last updated:** 2026-07-09
-**Overall status:** 🟢 Phases 1–3 complete & verified (Broken Readiness Probe solves end-to-end in a real browser). ⬜ Phases 4–6 pending.
+**Overall status:** 🟢 Phases 1–4 complete & verified (Problems solves end-to-end; Playground apply→observe works in a real browser). ⬜ Phases 5–6 pending.
 
 ---
 
@@ -94,12 +94,23 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 - **Verified end-to-end in a real browser (Playwright):** boot → `kubectl get pods` → evidence collected → validation fails → edit `/readyz`→`/healthz` → Apply → Run Validation → **Incident resolved** + post-solve teaching.
 - **✅ FIXED — the in-browser churn/validation bug.** Root cause: the broken **Deployment** had never-Ready pods; Webernetes drives toward `readyReplicas`, so its ReplicaSet kept creating pods (10+). In headless Chromium that churn overloaded the event loop and destabilized the workspace's simulator after Apply (validators then read a torn-down/empty cluster). **Fix:** (1) redesigned the level's broken workload as a **bare Pod** — no ReplicaSet, so exactly one pod and zero churn (verified: 1 pod vs. 10+); (2) since Pods are immutable, the `KubeSimulator.applyManifests` now **deletes an existing Pod, waits for it to be gone, then recreates it** so an edited probe actually takes effect; (3) validators check real ready pods (`pod-ready-by-selector`) + Service endpoints + HTTP-200 rather than the unreliable `Deployment.status.readyReplicas`. Also hardened `useSimulator` to boot once (deps `[simulator]`, level via ref) so a prop-identity change can't tear the cluster down mid-session.
 
-### Phase 4 — Playground ⬜ NEXT
-### Phase 5 — Interactive Docs ⬜
+### Phase 4 — Playground ✅ DONE
+- [x] `/playground` (default template) + `/playground/[templateId]` (SSG for all templates)
+- [x] Left sidebar: templates list, saved sandboxes (save/load/delete, localStorage), object shortcuts (+ Pod/Service/Deployment), command cheatsheet — matches `playground.png`
+- [x] Center: multi-file YAML workspace (file tabs, add/remove) + terminal + Apply Manifests/Reset/Copy YAML
+- [x] Right: live React Flow topology + tabbed Explorer (cluster tree + object details) / Events / Resource summary
+- [x] Six Zod-validated templates in `src/content/playground-templates/`: empty, pod-service, deployment-service, probes, namespaces, dns (all HEALTHY → churn-free)
+- [x] Reuses the Phase 1–3 simulator/editor/terminal/topology/explorer components; `useSimulator` generalized to a `SimulatorBootSpec` (powers both Problems and Playground). `ResourceSummary` counts user-namespace resources only.
+- [x] Playground store (Zustand) + local sandbox persistence; save/load/copy-YAML
+- **Verified:** unit (template loading), integration (`playground-template.test.ts`: boot → apply → reconcile ready → **stays stable, no churn** → scale 2→3 reconciles → observable via kubectl), and a **Playwright E2E** (open Deployment+Service → pods appear → add a Pod via shortcut → Apply → observe it). Note: healthy Deployment pods report their ready-count with some lag in-browser (webernetes deployment status), so UI/tests key on pod presence + topology, not the raw ready-count.
+
+### Phase 5 — Interactive Docs ⬜ NEXT
 ### Phase 6 — Tests, polish, a11y, README/CI ⬜
 _(Full criteria unchanged from prior plan; see git history if trimmed.)_
 
 ## 5. Verification log
+
+- **2026-07-09 — Phase 4 (Playground) verified.** `pnpm typecheck`/`lint`/`build` → exit 0 (all 6 template routes prerender). `pnpm test` (vitest) → **12 files / 40 tests** (adds playground template loading + a boot→apply→reconcile→scale integration test proving no churn). `pnpm test:e2e` → **2 passed**: the Problems full solve AND the Playground apply→observe (`/playground/deployment-service` → pods appear → add Pod → Apply → observe).
 
 - **2026-07-09 — Phase 3 fully verified (level solves end-to-end in-browser).**
   - `pnpm build` → **exit 0**; `/problems/broken-readiness-probe` prerenders (SSG).
@@ -124,17 +135,11 @@ _(Full criteria unchanged from prior plan; see git history if trimmed.)_
 
 ## 6. Next command to run
 
-Begin **Phase 4 (Playground)** — a free sandbox reusing the already-built simulator, Monaco
-editor, xterm terminal, topology, cluster-explorer, and object-details components. Author the
-playground templates in `src/content/playground-templates/`, build the sandbox workspace
-(`/playground` + `/playground/[templateId]`), and wire save/load of local sandbox state.
+Begin **Phase 5 (Interactive Docs)** — MDX lessons under `src/content/docs/` with inline
+runnable labs that reuse the simulator + editor + a compact topology. Build `/docs` +
+`/docs/[...slug]` with left section nav, reading area, right TOC/related-labs, and
+"Open in Playground" / "Related problem level" links. Prefer bare-Pod labs (churn-free).
 
 ```bash
-pnpm dev   # build /playground on top of the Phase 1–3 components
-```
-
-_Original Phase-3 kickoff command (kept for reference):_
-
-```bash
-pnpm dev   # then build the /problems/broken-readiness-probe workspace against the ready simulator
+pnpm dev   # build /docs on top of the Phase 1–4 components
 ```

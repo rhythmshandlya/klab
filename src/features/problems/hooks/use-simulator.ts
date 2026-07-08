@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { LevelValidatorDefinition, ProblemLevel } from "@/lib/domain/types";
+import type { LevelValidatorDefinition } from "@/lib/domain/types";
 import {
   KubeSimulator,
   type ClusterSnapshot,
@@ -27,8 +27,20 @@ function joinDocs(docs: string[]): string {
   return docs.filter((d) => d.trim() !== "").join("\n---\n");
 }
 
-function applyInitial(sim: KubeSimulator, level: ProblemLevel): Promise<Result<unknown, string>> {
-  const docs = [...level.initialManifests, ...level.files.map((f) => f.initialValue)];
+/**
+ * Minimal boot payload the hook needs. Both `ProblemLevel` and `PlaygroundTemplate`
+ * satisfy it, so the same hook powers Problems and Playground.
+ */
+export interface SimulatorBootSpec {
+  initialManifests: string[];
+  files: ReadonlyArray<{ initialValue: string }>;
+}
+
+function applyInitial(
+  sim: KubeSimulator,
+  spec: SimulatorBootSpec,
+): Promise<Result<unknown, string>> {
+  const docs = [...spec.initialManifests, ...spec.files.map((f) => f.initialValue)];
   return sim.applyYaml(joinDocs(docs));
 }
 
@@ -51,7 +63,7 @@ export interface UseSimulator {
  * ever mutated from async callbacks/subscriptions, never synchronously in an effect.
  * Webernetes only loads inside `boot()` (client-side).
  */
-export function useSimulator(level: ProblemLevel | null): UseSimulator {
+export function useSimulator(level: SimulatorBootSpec | null): UseSimulator {
   const [simulator] = useState(() => new KubeSimulator());
   const [status, setStatus] = useState<SimulatorStatus>("booting");
   const [error, setError] = useState<string | null>(null);

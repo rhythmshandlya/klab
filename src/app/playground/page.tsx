@@ -1,28 +1,13 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { SectionPlaceholder } from "@/components/ui/section-placeholder";
+import { DEFAULT_TEMPLATE_ID, getTemplateById } from "@/content/playground-templates";
+import { PlaygroundWorkspace } from "@/features/playground/components/playground-workspace";
 
 export const metadata: Metadata = { title: "Playground" };
 
 export default function PlaygroundPage() {
-  return (
-    <SectionPlaceholder
-      icon="playground"
-      eyebrow="Sandbox"
-      title="Playground"
-      description="A free Kubernetes scratchpad. Start from a template or an empty cluster, edit manifests across multiple files, apply them, and watch the control plane reconcile in a live topology. Break things on purpose and learn how the pieces fit."
-      phase="Phase 4"
-      planned={[
-        "Starter templates & saved sandboxes",
-        "Multi-file YAML workspace",
-        "kubectl-style terminal",
-        "Live cluster topology (React Flow)",
-        "Object explorer with spec vs status",
-        "Events stream & resource summary",
-        "Save / load local sandbox state",
-        "Copy shareable YAML snippets",
-      ]}
-      cta={{ href: "/playground/deployment-service", label: "Preview a template" }}
-    />
-  );
+  const template = getTemplateById(DEFAULT_TEMPLATE_ID);
+  if (!template) notFound();
+  return <PlaygroundWorkspace key={template.id} template={template} />;
 }
