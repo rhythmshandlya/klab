@@ -152,18 +152,59 @@ Add a `PlaygroundTemplate` to `src/content/playground-templates/index.ts` (id, t
 - **Accessibility**: jest-axe component checks; keyboard flows (⌘K palette, tabs,
   skip-to-content), reduced-motion, and color-not-sole-indicator throughout.
 
-CI (`.github/workflows/ci.yml`) runs lint → typecheck → test → build on every push/PR, with
-a separate Playwright E2E job.
+- **API / database** (`pnpm test:api`): the progress/merge/stats repositories run against
+  an in-process real Postgres (`@electric-sql/pglite`) — no external service needed.
+
+CI (`.github/workflows/ci.yml`) runs lint → typecheck → test → test:api → build on every
+push/PR, with a separate Playwright E2E job and a nightly job that applies the Drizzle
+migrations to a real Postgres to catch schema drift.
+
+## Backend & accounts (optional)
+
+klab is **guest-first**: with no environment variables set it runs as a zero-config static
+app — progress lives in `localStorage`, there are no accounts, and the production build is
+byte-identical to a fully-configured one. Accounts and cloud-synced progress light up
+progressively as you provide the matching secrets; nothing here is required to run or
+contribute to klab.
+
+The design is **local-first, intent-synced, server-derived**: the client always writes to
+`localStorage` first, then (when signed in) pushes named idempotent *intents* to the server.
+XP, streaks, and hint penalties are **derived** from grow-only rows server-side, never stored
+as counters, so every sync is safe under retries, concurrent devices, and guest→account merge.
+See `src/lib/storage/*` (client), `src/lib/db/*` (Drizzle schema + repositories), and
+`src/lib/auth/*` (Better Auth).
+
+### Provisioning checklist
+
+Copy `.env.example` to `.env.local` and fill in as much as you want. Guards in
+`src/lib/env.ts` mean a feature only activates once *all* of its variables are present.
+
+1. **Database — [Neon](https://neon.tech) Postgres** (via the Vercel Marketplace, or standalone).
+   Set `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct). Then apply the schema:
+   ```bash
+   pnpm db:migrate     # applies drizzle/*.sql to DATABASE_URL_UNPOOLED
+   ```
+   With just the database set, signed-in sync has somewhere to live — but auth is still off.
+2. **Better Auth secret.** `BETTER_AUTH_SECRET=$(openssl rand -base64 32)` and
+   `BETTER_AUTH_URL` (your deployment's absolute URL; `http://localhost:3000` in dev).
+3. **At least one login method:**
+   - **GitHub OAuth** — create an app at <https://github.com/settings/developers> with callback
+     `<BETTER_AUTH_URL>/api/auth/callback/github`; set `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`.
+   - **Email (magic link + verification)** via [Resend](https://resend.com) — set `RESEND_API_KEY`
+     and `EMAIL_FROM`.
+
+   Auth turns on once you have the database **and** a secret **and** at least one of the above.
+4. **Rate limiting (optional)** — [Upstash](https://console.upstash.com) Redis:
+   `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`. When unset, limiting is a no-op.
+
+Guest → account merge happens automatically on first sign-in (the client POSTs its local
+progress to `/api/merge`, which reconstructs per-level awarded XP from the code catalog).
 
 ## Roadmap / placeholders
 
-- More levels (Service Selector Mismatch, Port Routing Bug, Namespace Confusion, Rolling
-  Update Gone Wrong) — listed as "coming soon" in the catalog.
 - Achievement badges and per-concept mastery on `/progress`.
-- **Future backend/auth (not implemented):** klab is client-only today; progress lives in
-  `localStorage`. A backend for accounts, cloud-synced progress, and shareable sandboxes
-  would slot in behind `src/lib/storage/*`. The demo user chip in the nav
-  (`src/lib/config/placeholders.ts`) is a marked placeholder.
+- Community problem levels via reviewed PRs (`pnpm new:problem`) and an AI-assisted
+  candidate generator (`pnpm gen:problem`, human-reviewed before merge).
 - Brand name (`klab`) and logo (`ClusterMark`) are placeholders you can replace.
 
 ## License

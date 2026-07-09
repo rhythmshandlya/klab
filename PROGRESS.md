@@ -3,8 +3,8 @@
 > Gamified, hands-on Kubernetes learning platform. Vercel-quality dev tool: dark, minimal, fast, accessible.
 > Brand string in nav: **`klab`**. Reference mockups say "KubeQuest" — reference-only; shipped brand stays `klab`.
 
-**Last updated:** 2026-07-09
-**Overall status:** ✅ ALL PHASES COMPLETE (1–6) + dev-mode hardening + **Phase 7: full problem catalog & UX overhaul**. 12 playable levels (4 beginner / 4 intermediate / 4 advanced), every one proven solvable by a red→green integration test. /problems is a full dashboard (filters, stats, table, daily challenge, progress rail — per `referance-images/problem-dashboard.png`); the solving screen implements the guided-investigation UX review (terminal-first, quick-command chips, live failing-checks card, evidence-gated hints, selector-aware topology). `pnpm lint`, `pnpm typecheck`, `pnpm test` (68), and `pnpm build` (28 pages) all pass; 3 Playwright E2E specs pass.
+**Last updated:** 2026-07-10
+**Overall status:** ✅ ALL PHASES COMPLETE (1–7) + dev-mode hardening + **Phase 8: backend foundation (accounts + cloud-synced progress), fully wired and guarded — ready for keys.** 12 playable levels (4 beginner / 4 intermediate / 4 advanced), every one proven solvable by a red→green integration test. /problems is a full dashboard (filters, stats, table, daily challenge, progress rail — per `referance-images/problem-dashboard.png`); the solving screen implements the guided-investigation UX review (terminal-first, quick-command chips, live failing-checks card, evidence-gated hints, selector-aware topology). The backend (Neon/Drizzle + Better Auth + local-first intent sync) is complete behind config guards: with no env set the app is byte-identical to the guest-only build. `pnpm lint`, `pnpm typecheck`, `pnpm test` (75), `pnpm test:api` (12), and `pnpm build` (guest **and** configured) all pass; 3 Playwright E2E specs pass.
 
 ---
 
@@ -123,7 +123,55 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 - [x] Future backend/auth documented as placeholders (README roadmap + `lib/config/placeholders.ts`)
 - **Verified:** `pnpm lint` / `pnpm typecheck` / `pnpm test` (14 files, 50 tests) / `pnpm build` all exit 0; `pnpm test:e2e` → 3/3 pass.
 
+### Phase 8 — Backend foundation (accounts + cloud-synced progress) ✅ DONE (needs keys)
+
+Complete "Vercel stack" wiring so accounts and cloud-synced progress work end-to-end the
+moment credentials are supplied. **Zero behavior change for guests**: every backend feature
+is gated by a config guard in `src/lib/env.ts`, and with no env the app is byte-identical to
+the guest-only build (`pnpm build` verified with **and** without env).
+
+- **Architecture: local-first, intent-synced, server-derived.** Mutations are named
+  idempotent *intents* (solved / attempted / setSaved / revealHint / submission), not
+  whole-blob writes. XP, streaks, and hint penalties are **derived** from grow-only rows
+  server-side — never stored as counters — so every sync is safe under retries, concurrent
+  devices, and guest→account merge.
+- **Database (Neon + Drizzle):** `src/lib/db/schema.ts` (Better Auth core tables + app tables:
+  progressSolved/Attempted, bookmarks, hintReveals, submissions with a unique
+  `clientMutationId`, sandboxes, mergeLog), lazy `getDb()` that never connects at import, and
+  repositories (`progress-repo`, `merge-repo`, `stats-repo`) typed driver-agnostically so they
+  run on both Neon HTTP and pglite. Migration checked in at `drizzle/0000_init.sql`.
+- **Auth (Better Auth, self-hosted):** `src/lib/auth/*` — email+password, GitHub OAuth,
+  magic link, and the anonymous (guest) plugin. Routes: `/api/auth/[...all]`, `/api/progress`
+  (GET/POST intents), `/api/merge` (one-shot guest→account merge). All gated 501 when
+  unconfigured, 401 when unauthenticated.
+- **Client sync:** identity-aware `progress-store` (optimistic local write + background
+  intent push, localStorage outbox, guest→account merge on first sign-in), `progress-sync`
+  session bridge mounted only when `authEnabled`.
+- **Hardening:** best-effort Upstash sliding-window rate limiting on the write endpoints
+  (`src/lib/rate-limit.ts`, no-op when unconfigured, fail-open on Redis error);
+  `pnpm test:api` (pglite in-process Postgres) in CI + a nightly real-Postgres migrate/drift
+  job.
+- **Content stays code.** The DB is user-data only (keyed by `level_slug` text, no FK to
+  content). Community levels arrive as reviewed PRs (`pnpm new:problem`); `pnpm gen:problem`
+  is an AI-assisted candidate generator whose output is human-reviewed before merge.
+- **To go live:** fill `.env.local` (see README → *Backend & accounts*), run `pnpm db:migrate`.
+- **Verified:** `pnpm lint` → 0 · `pnpm typecheck` → 0 · `pnpm test` → **18 files / 75 tests** ·
+  `pnpm test:api` → **3 files / 12 tests** · `pnpm build` → 0 both guest (no env) and configured.
+
 ## 5. Verification log
+
+- **2026-07-10 — Phase 8: backend foundation verified end-to-end (ready for keys).** Built the
+  complete local-first / intent-synced / server-derived backend behind config guards so guests
+  are unaffected. DB (Neon + Drizzle schema + repos + `drizzle/0000_init.sql`), auth (Better
+  Auth: password/GitHub/magic-link/anonymous), API routes (`/api/auth`, `/api/progress`,
+  `/api/merge`, all 501/401-guarded), identity-aware client sync with guest→account merge, and
+  Upstash rate limiting (no-op when unset) on the write paths. Added `pnpm test:api` (pglite,
+  in-process real Postgres) and a nightly CI job that applies the migrations to a real Postgres
+  and fails on schema drift. **Gate:** `pnpm lint` → 0 · `pnpm typecheck` → 0 · `pnpm test` →
+  **18 files / 75 tests** · `pnpm test:api` → **3 files / 12 tests** · `pnpm build` → 0 verified
+  **both** with no env (guest build, byte-identical) **and** with backend env configured. The
+  only remaining step to go live is provisioning credentials (Neon, Better Auth secret, a login
+  method, optional Upstash) and running `pnpm db:migrate` — see README → *Backend & accounts*.
 
 - **2026-07-09 — Phase 7: full problem catalog + problems UX overhaul verified.** Scope (user request + UX review): expand problems across all difficulty ranges per `referance-images/problem-dashboard.png`, audit/rebuild the dashboard, keep the structure server-side, and rework the solving screen into a guided investigation.
   - **Catalog: 1 → 12 playable levels.** Beginner: Service Selector Mismatch, Port Routing Bug, Broken Readiness Probe, Namespace Confusion (100 XP each). Intermediate: Service Has No Endpoints, Pod CrashLoop Mystery, Rolling Update Gone Wrong, DNS Resolution Failure (150 XP). Advanced (locked until 2 solves): Liveness Probe Death Spiral, Config Drift, Broken Service Chain, Zombie ReplicaSet (200 XP). Three reference names weren't simulable (no ConfigMap/NetworkPolicy/StatefulSet in webernetes) and were honestly adapted: ConfigMap Drift → Config Drift (env/port drift), Network Policy Meltdown → Broken Service Chain (3-tier masked failure), StatefulSet Orphaned PVCs → Zombie ReplicaSet (orphaned RS poisoning a Service). New fake images: `klab/worker:1.0.0` (exits without DATABASE_URL → real CrashLoopBackOff), `klab/web-app:2.0.0` (broken release, 500s), `klab/web-app:0.9.0` (legacy: healthz 200 but / 500). New validator kinds: `pod-restarts-below`, `no-pods-matching`.

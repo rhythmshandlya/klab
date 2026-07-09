@@ -2,6 +2,7 @@ import { getAuth } from "@/lib/auth/server";
 import { getDb, hasDb } from "@/lib/db";
 import { applyIntents, readProgress } from "@/lib/db/progress-repo";
 import { isAuthConfigured } from "@/lib/env";
+import { allowRequest } from "@/lib/rate-limit";
 import { parseIntents } from "@/lib/storage/progress-intent";
 
 /**
@@ -33,6 +34,10 @@ export async function POST(request: Request): Promise<Response> {
   }
   const userId = await currentUserId(request);
   if (!userId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  // Sync is chatty (batched pushes + flushes); keep the ceiling generous.
+  if (!(await allowRequest(`progress:${userId}`, { limit: 120, windowSec: 60 }))) {
+    return Response.json({ error: "rate limited" }, { status: 429 });
+  }
   const body: unknown = await request.json().catch(() => null);
   const intents = parseIntents(body);
   const db = getDb();

@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Nightly (06:00 UTC): run the Drizzle migrations against a real Postgres to
+    # catch schema/migration drift the pglite API tests can't (extensions, types).
+    - cron: "0 6 * * *"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -35,6 +40,9 @@ jobs:
 
       - name: Unit + integration tests
         run: pnpm test
+
+      - name: API tests (pglite — in-process Postgres)
+        run: pnpm test:api
 
       - name: Build
         run: pnpm build
@@ -69,3 +77,45 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  db-migrate:
+    name: db migrate (real Postgres)
+    # Nightly + manual only — verifies drizzle/*.sql applies cleanly to a real
+    # Postgres. Skipped on push/PR to keep those fast and secret-free.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: klab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL_UNPOOLED: postgres://postgres:postgres@localhost:5432/klab
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack (pnpm)
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Verify schema is in sync (no pending diff)
+        run: pnpm db:generate --name ci_drift_check && git diff --exit-code drizzle/

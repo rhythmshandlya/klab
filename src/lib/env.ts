@@ -27,6 +27,9 @@ const serverSchema = z.object({
   RESEND_API_KEY: z.string().min(1).optional(),
   /** From-address for transactional email (e.g. "klab <no-reply@klab.dev>"). */
   EMAIL_FROM: z.string().min(1).optional(),
+  /** Upstash Redis REST endpoint for rate limiting (optional; no-op when unset). */
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
   /** Enables the test-only login route used by the authed E2E project. Never set in prod. */
   E2E_TEST_LOGIN: z.enum(["1"]).optional(),
 });
@@ -68,4 +71,10 @@ export function isAuthConfigured(): boolean {
 export function isEmailConfigured(): boolean {
   const e = read();
   return Boolean(e.RESEND_API_KEY && e.EMAIL_FROM);
+}
+
+/** True when Upstash Redis is configured for rate limiting (else limiting is a no-op). */
+export function isRateLimitConfigured(): boolean {
+  const e = read();
+  return Boolean(e.UPSTASH_REDIS_REST_URL && e.UPSTASH_REDIS_REST_TOKEN);
 }
