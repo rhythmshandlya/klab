@@ -11,7 +11,9 @@ test("apply a manifest in the playground and observe the new pod", async ({ page
   await page.goto("/playground/deployment-service");
 
   await test.step("sandbox boots and the template's pods appear", async () => {
-    await expect(page.getByText("Ready", { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Simulator ready", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
     const terminal = page.locator(".xterm-helper-textarea");
     await terminal.click();
     await expect(async () => {

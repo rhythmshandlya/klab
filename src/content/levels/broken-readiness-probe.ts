@@ -1,9 +1,9 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
 /**
- * Level: Broken Readiness Probe (the fully-authored reference level).
+ * Level: Broken Readiness Probe.
  *
- * The bug lives in `deployment.yaml`: the readiness probe targets `/readyz`, which the
+ * The bug lives in `pod.yaml`: the readiness probe targets `/readyz`, which the
  * `klab/web-app` image answers with 404. The container is healthy (`/healthz` → 200) so
  * it keeps running, but the kubelet marks it NotReady, the EndpointSlice controller
  * drops it, and the Service ends up with zero endpoints → 503s.
@@ -60,10 +60,13 @@ export const brokenReadinessProbe = {
   id: "broken-readiness-probe",
   slug: "broken-readiness-probe",
   title: "Broken Readiness Probe",
-  difficulty: "intermediate",
+  difficulty: "beginner",
   severity: "high",
-  xp: 300,
-  concepts: ["readiness-probes", "services", "endpointslices", "endpoints", "pods", "debugging"],
+  xp: 100,
+  estimatedMinutes: 15,
+  successRate: 76,
+  concepts: ["readiness-probes", "pods", "services", "endpointslices", "debugging"],
+  blurb: "Pods run but never go Ready, and the Service serves 503s.",
   story:
     "On-call paged you: users are getting 503s from web-svc. The pod looks like it started fine, but traffic isn't flowing. Figure out why the Service isn't serving.",
   objective: "Restore traffic through web-svc so it returns HTTP 200 again.",
@@ -90,6 +93,14 @@ export const brokenReadinessProbe = {
     "curl <url>",
     "dig web-svc",
   ],
+  quickCommands: [
+    "kubectl get pods",
+    "kubectl describe pod <pod>",
+    "kubectl get endpoints web-svc",
+    "kubectl get events",
+    "kubectl logs <pod>",
+  ],
+  probeTargets: ["http://web-svc/", "http://web-svc/healthz"],
   validators: [
     {
       id: "pod-ready",
@@ -132,20 +143,20 @@ export const brokenReadinessProbe = {
       id: "hint-1",
       title: "Start with the pods",
       body: "Are the pods Running? Are they Ready? Those are different things. `kubectl get pods` shows the READY column — check what it says.",
-      xpPenalty: 50,
+      xpPenalty: 15,
     },
     {
       id: "hint-2",
       title: "Ask why it isn't Ready",
       body: "A pod that is Running but not Ready usually failed a readiness probe. `kubectl describe pod <name>` and `kubectl get events` will tell you which probe failed, and with what HTTP status.",
-      xpPenalty: 100,
+      xpPenalty: 25,
       unlockAfter: ["r-pod-not-ready"],
     },
     {
       id: "hint-3",
       title: "Compare what the app serves",
       body: "The container answers /healthz with 200 but /readyz with 404. Probe both with curl. Then look closely at which path your readiness probe is checking.",
-      xpPenalty: 150,
+      xpPenalty: 35,
       unlockAfter: ["r-readyz-404"],
     },
   ],
@@ -154,6 +165,7 @@ export const brokenReadinessProbe = {
       id: "r-pod-running",
       evidenceId: "pod-running",
       label: "Pod is Running",
+      hiddenLabel: "Pod status checked",
       source: "terminal",
       trigger: { type: "command", commandMatches: "get pods", outputMatches: "Running" },
     },
@@ -161,6 +173,7 @@ export const brokenReadinessProbe = {
       id: "r-pod-not-ready",
       evidenceId: "pod-not-ready",
       label: "Pod is Running but not Ready (0/1)",
+      hiddenLabel: "Pod readiness inspected",
       source: "terminal",
       trigger: { type: "command", commandMatches: "get pods", outputMatches: "0/1" },
     },
@@ -168,6 +181,7 @@ export const brokenReadinessProbe = {
       id: "r-no-endpoints",
       evidenceId: "svc-no-endpoints",
       label: "Service has zero ready endpoints",
+      hiddenLabel: "Service endpoints inspected",
       source: "terminal",
       trigger: { type: "command", commandMatches: "get endpoints", outputMatches: "<none>" },
     },
@@ -175,6 +189,7 @@ export const brokenReadinessProbe = {
       id: "r-probe-event",
       evidenceId: "probe-failed-event",
       label: "Events show the readiness probe failed",
+      hiddenLabel: "Recent events reviewed",
       source: "events",
       trigger: { type: "event-reason", reason: "Unhealthy" },
     },
@@ -182,6 +197,7 @@ export const brokenReadinessProbe = {
       id: "r-readyz-404",
       evidenceId: "readyz-404",
       label: "GET /readyz returns 404",
+      hiddenLabel: "Probe endpoint tested",
       source: "network",
       trigger: { type: "probe", pathMatches: "/readyz", status: 404 },
     },
@@ -189,6 +205,7 @@ export const brokenReadinessProbe = {
       id: "r-healthz-200",
       evidenceId: "healthz-200",
       label: "GET /healthz returns 200",
+      hiddenLabel: "Health endpoint tested",
       source: "network",
       trigger: { type: "probe", pathMatches: "/healthz", status: 200 },
     },

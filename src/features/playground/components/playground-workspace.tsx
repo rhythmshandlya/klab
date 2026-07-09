@@ -215,7 +215,13 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
 }
 
 function StatusPill({ status }: { status: string }) {
-  const label = status === "ready" ? "Ready" : status === "error" ? "Error" : "Booting…";
+  // "Simulator ready" (not bare "Ready") so it can't be misread as workload health.
+  const label =
+    status === "ready"
+      ? "Simulator ready"
+      : status === "error"
+        ? "Simulator error"
+        : "Simulator booting…";
   return (
     <span className="flex items-center gap-1.5 px-1 text-xs">
       <span

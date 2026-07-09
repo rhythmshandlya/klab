@@ -1,7 +1,7 @@
 import type { LevelValidatorDefinition } from "@/lib/domain/types";
 import { assertNever } from "@/lib/utils/exhaustive";
 
-import { isPodReady, podPhase, readyEndpointCount } from "./kubectl/format";
+import { isPodReady, podPhase, podRestarts, readyEndpointCount } from "./kubectl/format";
 import type { ClusterSnapshot, KubeSimulator } from "./simulator";
 
 /**
@@ -130,6 +130,37 @@ async function evaluate(
       };
     }
 
+    case "pod-restarts-below": {
+      const matching = snapshot.pods.filter(
+        (p) =>
+          (p.metadata?.namespace ?? "default") === validator.namespace &&
+          matchesSelector(p.metadata?.labels, validator.selector),
+      );
+      const worst = Math.max(0, ...matching.map((p) => podRestarts(p)));
+      return {
+        passed: matching.length > 0 && worst <= validator.maxRestarts,
+        detail:
+          matching.length === 0
+            ? "no matching pods"
+            : `highest restart count is ${worst} (limit ${validator.maxRestarts})`,
+      };
+    }
+
+    case "no-pods-matching": {
+      const matching = snapshot.pods.filter(
+        (p) =>
+          (p.metadata?.namespace ?? "default") === validator.namespace &&
+          matchesSelector(p.metadata?.labels, validator.selector),
+      );
+      return {
+        passed: matching.length === 0,
+        detail:
+          matching.length === 0
+            ? "no pods match the selector"
+            : `${matching.length} pod(s) still match ${formatSelectorInline(validator.selector)}`,
+      };
+    }
+
     default:
       return assertNever(validator);
   }
@@ -141,4 +172,10 @@ function matchesSelector(
 ): boolean {
   if (!labels) return false;
   return Object.entries(selector).every(([key, value]) => labels[key] === value);
+}
+
+function formatSelectorInline(selector: Record<string, string>): string {
+  return Object.entries(selector)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(",");
 }

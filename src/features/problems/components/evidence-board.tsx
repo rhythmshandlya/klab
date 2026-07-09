@@ -11,6 +11,8 @@ import { useLevelStore } from "../level-store";
 interface EvidenceEntry {
   evidenceId: string;
   label: string;
+  /** Neutral pre-collection description of the investigative act. */
+  hiddenLabel: string;
   source: string;
 }
 
@@ -26,6 +28,7 @@ export function EvidenceBoard() {
         seen.set(rule.evidenceId, {
           evidenceId: rule.evidenceId,
           label: rule.label,
+          hiddenLabel: rule.hiddenLabel ?? "Undiscovered clue",
           source: rule.source,
         });
       }
@@ -67,7 +70,7 @@ export function EvidenceBoard() {
                   aria-hidden
                 />
               )}
-              <span className="flex-1">{isCollected ? entry.label : "Not yet discovered"}</span>
+              <span className="flex-1">{isCollected ? entry.label : entry.hiddenLabel}</span>
               {isCollected ? (
                 <span className="text-subtle text-[10px] tracking-wide uppercase">
                   {entry.source}

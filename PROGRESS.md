@@ -4,7 +4,7 @@
 > Brand string in nav: **`klab`**. Reference mockups say "KubeQuest" — reference-only; shipped brand stays `klab`.
 
 **Last updated:** 2026-07-09
-**Overall status:** ✅ ALL PHASES COMPLETE (1–6) + dev-mode hardening. MVP is feature-complete and release-polished. `pnpm lint`, `pnpm typecheck`, `pnpm test` (53), and `pnpm build` all pass; 3 Playwright E2E specs pass. Two dev-only bugs that froze every workspace under `next dev` were found via chrome-devtools and fixed (see B3/B4 + verification log).
+**Overall status:** ✅ ALL PHASES COMPLETE (1–6) + dev-mode hardening + **Phase 7: full problem catalog & UX overhaul**. 12 playable levels (4 beginner / 4 intermediate / 4 advanced), every one proven solvable by a red→green integration test. /problems is a full dashboard (filters, stats, table, daily challenge, progress rail — per `referance-images/problem-dashboard.png`); the solving screen implements the guided-investigation UX review (terminal-first, quick-command chips, live failing-checks card, evidence-gated hints, selector-aware topology). `pnpm lint`, `pnpm typecheck`, `pnpm test` (68), and `pnpm build` (28 pages) all pass; 3 Playwright E2E specs pass.
 
 ---
 
@@ -125,6 +125,14 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 
 ## 5. Verification log
 
+- **2026-07-09 — Phase 7: full problem catalog + problems UX overhaul verified.** Scope (user request + UX review): expand problems across all difficulty ranges per `referance-images/problem-dashboard.png`, audit/rebuild the dashboard, keep the structure server-side, and rework the solving screen into a guided investigation.
+  - **Catalog: 1 → 12 playable levels.** Beginner: Service Selector Mismatch, Port Routing Bug, Broken Readiness Probe, Namespace Confusion (100 XP each). Intermediate: Service Has No Endpoints, Pod CrashLoop Mystery, Rolling Update Gone Wrong, DNS Resolution Failure (150 XP). Advanced (locked until 2 solves): Liveness Probe Death Spiral, Config Drift, Broken Service Chain, Zombie ReplicaSet (200 XP). Three reference names weren't simulable (no ConfigMap/NetworkPolicy/StatefulSet in webernetes) and were honestly adapted: ConfigMap Drift → Config Drift (env/port drift), Network Policy Meltdown → Broken Service Chain (3-tier masked failure), StatefulSet Orphaned PVCs → Zombie ReplicaSet (orphaned RS poisoning a Service). New fake images: `klab/worker:1.0.0` (exits without DATABASE_URL → real CrashLoopBackOff), `klab/web-app:2.0.0` (broken release, 500s), `klab/web-app:0.9.0` (legacy: healthz 200 but / 500). New validator kinds: `pod-restarts-below`, `no-pods-matching`.
+  - **Solvability proof:** `src/tests/integration/levels.test.ts` boots a real cluster per level, asserts the broken state FAILS validation and the canonical fix (`src/content/levels/solutions.ts`) PASSES — **12/12 green, 81s** (cross-namespace DNS `svc.ns`, CrashLoopBackOff, liveness kills, multi-version images, standalone RS all confirmed working in webernetes 0.1.4).
+  - **Dashboard (`/problems`):** server component passes the static catalog to a client dashboard — filter rail (difficulty/status/topics with counts), 5 stat cards, All/Saved/Completed tabs, search + sort, full problem table (status icons incl. padlocks, difficulty pills, topic chips, XP, success %, est. time, bookmarks), right rail (Daily Challenge picked per-day, Continue Learning from attempted levels, Recommended, progress donut + XP-to-level). All numbers real (localStorage progress; attempted/saved/streak fields added with schema-safe defaults). Advanced tier locked until 2 solves; `LevelGate` renders a lock screen (verified in a fresh isolated browser context) and never boots the simulator behind it.
+  - **Solving screen (per the user's UX review):** Terminal default tab + per-level quick-command chips (`<pod>` resolves to the most relevant live pod); "Simulator ready" split from a live "Challenge failing · n/m checks" chip; new Failing-Checks card quietly re-runs validators on boot/apply/reset (observational details only); evidence board shows neutral `hiddenLabel`s pre-collection; hints collapsed by default ("Need help?") and still evidence-gated; single Run Validation CTA (nav + ⌘R) with the editor toolbar reduced to Apply/Show Diff/Reset; auto-selects the most broken workload object; structured Logs tab (time | pod | message, All/HTTP/Errors + per-pod filters, live streaming); topology rewritten to render ALL services/deployments/pods with selector-derived edges (a zombie pod shows as a red direct service→pod edge; a selector mismatch shows as a disconnected graph), namespace-aware (`name · ns`) with control-plane namespaces hidden; explorer gains ReplicaSets + namespace suffixes; describe pod/svc now print Port/TargetPort/Environment; `kubectl get namespaces` added; XP demoted to a footer line.
+  - **Live browser verification (dev):** dashboard renders with real progress + clean console; solved Service Selector Mismatch end-to-end via chips → 4/5 evidence → Monaco edit → Apply → checks flip to "Challenge passing" → Run Validation → "Incident resolved" (+100 XP, streak 1); advanced tier unlocked at 2 solves; Zombie ReplicaSet workspace shows both RSes + red orphan edge; Namespace Confusion shows dual-namespace explorer/topology and a live cross-namespace validator. Known benign console items: webernetes falls back to a real fetch for intentionally-unresolvable upstreams (`ERR_NAME_NOT_RESOLVED` — the broken state working as designed), and Chrome's autofill hint for xterm/Monaco internal textareas.
+  - **Gate:** `pnpm lint` → 0 · `pnpm typecheck` → 0 · `pnpm test` → **16 files / 68 tests** · `pnpm build` → 0 (**28 pages**, all 12 levels SSG) · `pnpm test:e2e` → 3/3.
+
 - **2026-07-09 — Dev-mode hardening (chrome-devtools bug hunt).** User reported "none of the features work" under `next dev`. Root-caused two bugs by driving the running app with chrome-devtools MCP (not guessing): (1) an infinite render loop in `useRegisterWorkspaceAction` — "Maximum update depth exceeded", froze Problems + Playground (B3); (2) a StrictMode `boot → close → boot` race in `KubeSimulator` leaving status `error` with Apply disabled — broke the Docs inline lab (B4). Fixed both (latest-ref pattern; lifecycle serialization). Re-verified **live in the browser (dev)**: Problems solved end-to-end ("Incident resolved", all 3 validators pass), Playground template reconciled 2/2, Docs lab boots Ready with 1 endpoint; consoles clean. Full gate re-run all green: `pnpm lint` → 0, `pnpm typecheck` → 0, `pnpm test` → **15 files / 53 tests** (+3: 2 workspace-action, 1 simulator StrictMode race), `pnpm build` → 0 (17 routes), `pnpm test:e2e` → **3/3**.
 
 - **2026-07-09 — Phase 6 (polish) verified; PROJECT COMPLETE.** Final gate all green:
@@ -160,12 +168,13 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 
 ## 6. Next command to run
 
-All six phases are complete — the MVP is done. To run it:
+All phases are complete — the MVP is done, with a 12-level catalog. To run it:
 
 ```bash
 corepack enable && pnpm install && pnpm dev   # http://localhost:3000
 ```
 
-Future work (not blocking the MVP): more levels (the 4 "coming soon" catalog entries),
-achievement badges + per-concept mastery on `/progress`, and an optional backend for
-accounts / cloud-synced progress behind `src/lib/storage/*`.
+Future work (not blocking): achievement badges + per-concept mastery on `/progress`,
+"Study Plan" / learning-path grouping on the problems dashboard, a focus/expand mode
+for the topology panel, and an optional backend for accounts / cloud-synced progress
+behind `src/lib/storage/*`.

@@ -27,6 +27,8 @@ function findObject(snapshot: ClusterSnapshot, selected: SelectedObject): KubeOb
       return snapshot.services.find(match);
     case "Deployment":
       return snapshot.deployments.find(match);
+    case "ReplicaSet":
+      return snapshot.replicaSets.find(match);
     case "EndpointSlice":
       return snapshot.endpointSlices.find(match);
     default:
@@ -110,8 +112,11 @@ function Details({
   selected: SelectedObject;
   object: KubeObject;
 }) {
+  const inNs = <T extends KubeObject>(o: T) =>
+    o.metadata?.name === selected.name &&
+    (o.metadata?.namespace ?? "default") === selected.namespace;
   if (selected.kind === "Pod") {
-    const pod = snapshot.pods.find((p) => p.metadata?.name === selected.name);
+    const pod = snapshot.pods.find(inNs);
     if (!pod) return null;
     const ready = isPodReady(pod);
     return (
@@ -125,7 +130,7 @@ function Details({
     );
   }
   if (selected.kind === "Service") {
-    const svc = snapshot.services.find((s) => s.metadata?.name === selected.name);
+    const svc = snapshot.services.find(inNs);
     if (!svc) return null;
     const endpoints = readyEndpointCount(svc, snapshot.endpointSlices);
     return (
@@ -143,7 +148,7 @@ function Details({
     );
   }
   if (selected.kind === "Deployment") {
-    const dep = snapshot.deployments.find((d) => d.metadata?.name === selected.name);
+    const dep = snapshot.deployments.find(inNs);
     if (!dep) return null;
     const ready = dep.status?.readyReplicas ?? 0;
     const desired = dep.spec?.replicas ?? 0;
@@ -156,6 +161,28 @@ function Details({
         />
         <Row label="Updated" value={String(dep.status?.updatedReplicas ?? 0)} />
         <LabelList label="Selector" labels={dep.spec?.selector?.matchLabels} />
+      </div>
+    );
+  }
+  if (selected.kind === "ReplicaSet") {
+    const rs = snapshot.replicaSets.find(inNs);
+    if (!rs) return null;
+    const ready = rs.status?.readyReplicas ?? 0;
+    const desired = rs.spec?.replicas ?? 0;
+    const owner = rs.metadata?.ownerReferences?.[0];
+    return (
+      <div>
+        <Row
+          label="Ready replicas"
+          value={`${ready}/${desired}`}
+          tone={ready >= desired ? "ok" : "bad"}
+        />
+        <Row
+          label="Owned by"
+          value={owner ? `${owner.kind}/${owner.name}` : "<none> (orphaned)"}
+          tone={owner ? undefined : "bad"}
+        />
+        <LabelList label="Selector" labels={rs.spec?.selector?.matchLabels} />
       </div>
     );
   }

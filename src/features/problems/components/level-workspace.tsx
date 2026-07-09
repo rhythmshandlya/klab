@@ -1,24 +1,29 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorBoundary } from "@/components/app-shell/error-boundary";
 import { useRegisterWorkspaceAction } from "@/components/app-shell/workspace-action";
 import { DiffView } from "@/components/editor/diff-editor";
 import { EventsTimeline } from "@/components/events/events-timeline";
 import { icons } from "@/components/icons";
+import { LogsView } from "@/components/logs/logs-view";
 import { ClusterExplorer } from "@/components/object-explorer/cluster-explorer";
 import { ObjectDetails } from "@/components/object-explorer/object-details";
 import { XtermTerminal, type TerminalRunResult } from "@/components/terminal/xterm-terminal";
+import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { YamlEditor } from "@/components/editor/yaml-editor";
 import type { Hint, ProblemLevel } from "@/lib/domain/types";
 import { runCommandLine } from "@/lib/kube/command-runner";
 import { matchEvidence, type InvestigationSignal } from "@/lib/kube/evidence";
+import { isPodReady, readyEndpointCount } from "@/lib/kube/kubectl/format";
+import type { ClusterSnapshot } from "@/lib/kube/simulator";
 import {
   loadProgress,
+  recordAttempted,
   recordHintPenalty,
   recordSolved,
   saveProgress,
@@ -28,9 +33,9 @@ import { cn } from "@/lib/utils/cn";
 import { useSimulator } from "../hooks/use-simulator";
 import { useLevelStore, type CenterTab } from "../level-store";
 import { EvidenceBoard } from "./evidence-board";
+import { FailingChecks } from "./failing-checks";
 import { HintsCard } from "./hints-card";
 import { IncidentBrief } from "./incident-brief";
-import { LevelProgress } from "./level-progress";
 import { NetworkProbe } from "./network-probe";
 import { ValidationDialog } from "./validation-dialog";
 
@@ -57,6 +62,54 @@ function safePath(url: string): string {
   }
 }
 
+/** Control-plane namespaces are simulator machinery, not part of any level's puzzle. */
+function isWorkloadNamespace(namespace: string | undefined): boolean {
+  return !(namespace ?? "default").startsWith("kube-");
+}
+
+/** Pick the most diagnostically interesting broken object for auto-selection. */
+function findBrokenObject(
+  snapshot: ClusterSnapshot,
+): { kind: string; name: string; namespace: string } | null {
+  const notReadyPod = snapshot.pods.find(
+    (p) => !isPodReady(p) && p.metadata?.name && isWorkloadNamespace(p.metadata.namespace),
+  );
+  if (notReadyPod?.metadata?.name) {
+    return {
+      kind: "Pod",
+      name: notReadyPod.metadata.name,
+      namespace: notReadyPod.metadata.namespace ?? "default",
+    };
+  }
+  const emptyService = snapshot.services.find(
+    (s) =>
+      s.metadata?.name &&
+      isWorkloadNamespace(s.metadata.namespace) &&
+      readyEndpointCount(s, snapshot.endpointSlices) === 0,
+  );
+  if (emptyService?.metadata?.name) {
+    return {
+      kind: "Service",
+      name: emptyService.metadata.name,
+      namespace: emptyService.metadata.namespace ?? "default",
+    };
+  }
+  const strugglingDeployment = snapshot.deployments.find(
+    (d) =>
+      d.metadata?.name &&
+      isWorkloadNamespace(d.metadata.namespace) &&
+      (d.status?.readyReplicas ?? 0) < (d.spec?.replicas ?? 0),
+  );
+  if (strugglingDeployment?.metadata?.name) {
+    return {
+      kind: "Deployment",
+      name: strugglingDeployment.metadata.name,
+      namespace: strugglingDeployment.metadata.namespace ?? "default",
+    };
+  }
+  return null;
+}
+
 export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const initLevel = useLevelStore((s) => s.initLevel);
   useEffect(() => {
@@ -74,12 +127,28 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const revealHint = useLevelStore((s) => s.revealHint);
   const validation = useLevelStore((s) => s.validation);
   const setValidation = useLevelStore((s) => s.setValidation);
+  const checks = useLevelStore((s) => s.checks);
+  const setChecks = useLevelStore((s) => s.setChecks);
   const setSolved = useLevelStore((s) => s.setSolved);
+  const solved = useLevelStore((s) => s.solved);
+  const revealedHintIds = useLevelStore((s) => s.revealedHintIds);
 
   const sim = useSimulator(level);
   const [validationOpen, setValidationOpen] = useState(false);
   const [applying, setApplying] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [refreshingChecks, setRefreshingChecks] = useState(false);
+
+  const terminalRunnerRef = useRef<((line: string) => void) | null>(null);
+  const autoSelectedRef = useRef(false);
+  const attemptedRef = useRef(false);
+  const checksTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const markAttempted = useCallback(() => {
+    if (attemptedRef.current) return;
+    attemptedRef.current = true;
+    saveProgress(recordAttempted(loadProgress(), level.slug));
+  }, [level.slug]);
 
   const collectSignals = useCallback(
     (signals: InvestigationSignal[]) => {
@@ -89,11 +158,57 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
     [level.evidenceRules, addEvidence],
   );
 
+  /** Quietly evaluate the level's checks (no dialog, no solve) for the status card. */
+  const refreshChecks = useCallback(async () => {
+    if (!sim.ready) return;
+    setRefreshingChecks(true);
+    try {
+      setChecks(await sim.validate(level.validators));
+    } finally {
+      setRefreshingChecks(false);
+    }
+  }, [sim, level.validators, setChecks]);
+
+  /** Refresh now and again after the controllers have had time to reconcile. */
+  const scheduleChecks = useCallback(
+    (delays: number[] = [400, 2500]) => {
+      for (const delay of delays) {
+        checksTimersRef.current.push(setTimeout(() => void refreshChecks(), delay));
+      }
+    },
+    [refreshChecks],
+  );
+  useEffect(() => {
+    const timers = checksTimersRef.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  // First quiet check once the cluster is up and the broken state has settled.
+  const bootedOnceRef = useRef(false);
+  useEffect(() => {
+    if (sim.ready && !bootedOnceRef.current) {
+      bootedOnceRef.current = true;
+      scheduleChecks([1200, 4000]);
+    }
+  }, [sim.ready, scheduleChecks]);
+
+  // Auto-select the most relevant broken object once, so the details panel is never
+  // an empty "select something" placeholder while the incident is live.
+  useEffect(() => {
+    if (autoSelectedRef.current || selected !== null) return;
+    const broken = findBrokenObject(sim.snapshot);
+    if (broken) {
+      autoSelectedRef.current = true;
+      select(broken);
+    }
+  }, [sim.snapshot, selected, select]);
+
   const runCommand = useCallback(
     async (line: string): Promise<TerminalRunResult> => {
       if (!sim.simulator || !sim.ready) {
         return { output: "Cluster is still booting — try again in a moment.", isError: true };
       }
+      markAttempted();
       const result = await runCommandLine(line, {
         simulator: sim.simulator,
         namespace: NAMESPACE,
@@ -102,35 +217,41 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
       collectSignals(result.signals);
       return { output: result.output, isError: result.isError, clear: result.clear };
     },
-    [sim.simulator, sim.ready, collectSignals],
+    [sim.simulator, sim.ready, collectSignals, markAttempted],
   );
 
   const handleProbe = useCallback(
     async (url: string) => {
+      markAttempted();
       const result = await sim.probe(url);
       collectSignals([{ type: "probe", path: safePath(url), status: result.status }]);
       return result;
     },
-    [sim, collectSignals],
+    [sim, collectSignals, markAttempted],
   );
 
   const handleApply = useCallback(async () => {
     setApplying(true);
+    markAttempted();
     try {
       const result = await sim.applyFiles(useLevelStore.getState().files);
       if (!result.ok) {
         setValidation({ passed: false, results: [] });
       }
+      scheduleChecks();
     } finally {
       setApplying(false);
     }
-  }, [sim, setValidation]);
+  }, [sim, setValidation, scheduleChecks, markAttempted]);
 
   const handleReset = useCallback(async () => {
     await sim.reset();
     useLevelStore.getState().resetFiles();
     select(null);
-  }, [sim, select]);
+    autoSelectedRef.current = false;
+    setChecks(null);
+    scheduleChecks([1200, 4000]);
+  }, [sim, select, setChecks, scheduleChecks]);
 
   const handleValidate = useCallback(async () => {
     if (!sim.ready) return;
@@ -138,6 +259,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
     try {
       const report = await sim.validate(level.validators);
       setValidation(report);
+      setChecks(report);
       setValidationOpen(true);
       if (report.passed) {
         setSolved(true);
@@ -146,7 +268,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
     } finally {
       setValidating(false);
     }
-  }, [sim, level.validators, level.slug, level.xp, setValidation, setSolved]);
+  }, [sim, level.validators, level.slug, level.xp, setValidation, setChecks, setSolved]);
 
   const handleRevealHint = useCallback(
     (hint: Hint) => {
@@ -156,7 +278,8 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
     [revealHint, level.slug],
   );
 
-  // Route-specific nav primary action + ⌘R (Cmd+Shift+R still reloads).
+  // Route-specific nav primary action + ⌘R (Cmd+Shift+R still reloads). The nav is
+  // the ONLY Run Validation button — the editor toolbar applies/diffs/resets.
   useRegisterWorkspaceAction({
     label: "Run Validation",
     icon: "validate",
@@ -177,23 +300,81 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   }, [handleValidate]);
 
   const activeFile = level.files.find((f) => f.path === activeFilePath);
-  const logsText = useMemo(() => {
-    const pod = sim.snapshot.pods.find((p) => (p.metadata?.namespace ?? "default") === NAMESPACE);
-    if (!pod?.metadata?.name || !sim.simulator) return "";
-    return sim.simulator
-      .getLogs(NAMESPACE, pod.metadata.name)
-      .map((l) => l.message)
-      .join("\n");
-  }, [sim.snapshot, sim.simulator]);
+
+  // Namespaces that actually hold workload objects (multi-namespace levels).
+  // Control-plane namespaces (kube-*) are simulator machinery and stay hidden.
+  const workspaceNamespaces = useMemo(() => {
+    const set = new Set<string>([NAMESPACE]);
+    for (const object of [
+      ...sim.snapshot.pods,
+      ...sim.snapshot.services,
+      ...sim.snapshot.deployments,
+      ...sim.snapshot.replicaSets,
+    ]) {
+      const ns = object.metadata?.namespace ?? "default";
+      if (isWorkloadNamespace(ns)) set.add(ns);
+    }
+    return [...set].sort((a, b) => (a === NAMESPACE ? -1 : b === NAMESPACE ? 1 : a.localeCompare(b)));
+  }, [sim.snapshot]);
+
+  /** Substitute `<pod>` in a quick command with the most relevant live workload pod. */
+  const resolveQuickCommand = useCallback(
+    (command: string): string | null => {
+      if (!/<pod>/.test(command)) return command;
+      const pods = sim.snapshot.pods.filter(
+        (p) => p.metadata?.name && isWorkloadNamespace(p.metadata.namespace),
+      );
+      const target = pods.find((p) => !isPodReady(p)) ?? pods[0];
+      const name = target?.metadata?.name;
+      return name ? command.replaceAll("<pod>", name) : null;
+    },
+    [sim.snapshot.pods],
+  );
+
+  const runQuickCommand = useCallback(
+    (command: string) => {
+      const resolved = resolveQuickCommand(command);
+      if (!resolved) return;
+      setCenterTab("terminal");
+      // The terminal mounts lazily; give it a tick when switching tabs.
+      setTimeout(() => terminalRunnerRef.current?.(resolved), 50);
+    },
+    [resolveQuickCommand, setCenterTab],
+  );
+
+  const hintPenalty = level.hints
+    .filter((h) => revealedHintIds.includes(h.id))
+    .reduce((sum, h) => sum + h.xpPenalty, 0);
+  const netXp = Math.max(0, level.xp - hintPenalty);
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] gap-3 overflow-x-auto p-3">
-      {/* Left column */}
-      <div className="flex w-[330px] shrink-0 flex-col gap-3 overflow-y-auto">
-        <IncidentBrief />
-        <HintsCard onReveal={handleRevealHint} />
-        <EvidenceBoard />
-        <LevelProgress />
+      {/* Left column — one scroll container; cards keep their natural height. */}
+      <div className="flex w-[330px] shrink-0 flex-col gap-3 overflow-y-auto pb-1">
+        <div className="shrink-0">
+          <IncidentBrief />
+        </div>
+        <div className="shrink-0">
+          <FailingChecks onRefresh={() => void refreshChecks()} refreshing={refreshingChecks} />
+        </div>
+        <div className="shrink-0">
+          <EvidenceBoard />
+        </div>
+        <div className="shrink-0">
+          <HintsCard onReveal={handleRevealHint} />
+        </div>
+        {/* XP is a footnote during debugging, not a panel (UX: prioritize investigation). */}
+        <p className="text-subtle flex shrink-0 items-center gap-1.5 px-1 text-xs">
+          <icons.xp className="text-purple size-3.5" aria-hidden />
+          Worth <span className="tabnums text-foreground font-medium">{netXp} XP</span>
+          {hintPenalty > 0 ? <span className="text-amber">(−{hintPenalty} from hints)</span> : null}
+          {solved ? (
+            <Badge tone="success">
+              <icons.trophy aria-hidden />
+              Solved
+            </Badge>
+          ) : null}
+        </p>
       </div>
 
       {/* Center column */}
@@ -221,29 +402,61 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                 );
               })}
             </div>
-            <StatusPill status={sim.status} />
+            <div className="flex items-center gap-2">
+              <ChallengeStatus
+                failing={checks ? checks.results.filter((r) => !r.passed).length : null}
+                total={level.validators.length}
+              />
+              <SimulatorStatus status={sim.status} />
+            </div>
           </div>
+
+          {/* Quick commands: one-click investigation starters (beginner training wheels). */}
+          {centerTab === "terminal" ? (
+            <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
+              <span className="text-subtle text-[11px] font-medium tracking-wide uppercase">
+                Try:
+              </span>
+              {level.quickCommands.map((command) => {
+                const resolvable = resolveQuickCommand(command) !== null;
+                return (
+                  <button
+                    key={command}
+                    type="button"
+                    disabled={!sim.ready || !resolvable}
+                    onClick={() => runQuickCommand(command)}
+                    className="border-border bg-panel-elevated text-muted hover:border-border-strong hover:text-foreground rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors disabled:opacity-40"
+                  >
+                    {command}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
           <div className="min-h-0 flex-1">
             {centerTab === "terminal" ? (
               <ErrorBoundary label="Terminal">
                 <XtermTerminal
                   onCommand={runCommand}
+                  registerRunner={(run) => {
+                    terminalRunnerRef.current = run;
+                  }}
                   welcome={[
                     "klab simulated shell — type 'help' for commands.",
                     "Cluster: local (webernetes)",
+                    `Try: ${level.quickCommands[0] ?? "kubectl get pods"}`,
                   ]}
                 />
               </ErrorBoundary>
             ) : centerTab === "logs" ? (
-              <pre className="text-muted h-full overflow-auto p-3 font-mono text-xs">
-                {logsText || "No logs yet. Apply a workload and pods will start logging."}
-              </pre>
+              <LogsView snapshot={sim.snapshot} />
             ) : centerTab === "events" ? (
               <div className="h-full overflow-auto">
                 <EventsTimeline events={sim.snapshot.events} namespace={NAMESPACE} />
               </div>
             ) : centerTab === "network" ? (
-              <NetworkProbe onProbe={handleProbe} />
+              <NetworkProbe onProbe={handleProbe} presets={level.probeTargets} />
             ) : (
               <ErrorBoundary label="Diff">
                 <DiffView
@@ -262,21 +475,21 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
             icon={<icons.yaml />}
             actions={
               <div className="flex items-center gap-1.5">
-                <ToolbarButton onClick={() => void handleApply()} disabled={applying || !sim.ready}>
+                <ToolbarButton
+                  onClick={() => void handleApply()}
+                  disabled={applying || !sim.ready}
+                  primary
+                >
                   <icons.run aria-hidden />
                   {applying ? "Applying…" : "Apply Changes"}
+                </ToolbarButton>
+                <ToolbarButton onClick={() => setCenterTab("diff")}>
+                  <icons.diff aria-hidden />
+                  Show Diff
                 </ToolbarButton>
                 <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
                   <icons.reset aria-hidden />
                   Reset
-                </ToolbarButton>
-                <ToolbarButton
-                  onClick={() => void handleValidate()}
-                  disabled={validating || !sim.ready}
-                  primary
-                >
-                  <icons.validate aria-hidden />
-                  {validating ? "Validating…" : "Run Validation"}
                 </ToolbarButton>
               </div>
             }
@@ -301,7 +514,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
             <div className="border-border min-h-0 overflow-auto border-b">
               <ClusterExplorer
                 snapshot={sim.snapshot}
-                namespace={NAMESPACE}
+                namespaces={workspaceNamespaces}
                 selected={selected}
                 onSelect={select}
               />
@@ -315,7 +528,11 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
           <PanelHeader title="Service Topology" icon={<icons.service />} />
           <PanelBody scroll={false} className="p-0">
             <ErrorBoundary label="Topology">
-              <ServiceTopology snapshot={sim.snapshot} namespace={NAMESPACE} onSelect={select} />
+              <ServiceTopology
+                snapshot={sim.snapshot}
+                namespaces={workspaceNamespaces}
+                onSelect={select}
+              />
             </ErrorBoundary>
           </PanelBody>
         </Panel>
@@ -331,24 +548,42 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const map: Record<string, { label: string; className: string }> = {
-    booting: { label: "Booting…", className: "text-amber" },
-    ready: { label: "Ready", className: "text-green" },
-    error: { label: "Error", className: "text-red" },
-    idle: { label: "Idle", className: "text-subtle" },
+/** The simulator's own lifecycle — deliberately labeled so it can't be read as cluster health. */
+function SimulatorStatus({ status }: { status: string }) {
+  const map: Record<string, { label: string; className: string; dot: string }> = {
+    booting: { label: "Simulator booting…", className: "text-amber", dot: "bg-amber" },
+    ready: { label: "Simulator ready", className: "text-subtle", dot: "bg-green" },
+    error: { label: "Simulator error", className: "text-red", dot: "bg-red" },
+    idle: { label: "Simulator idle", className: "text-subtle", dot: "bg-amber" },
   };
   const entry = map[status] ?? map.idle!;
   return (
-    <span className="flex items-center gap-1.5 px-2 text-xs">
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          status === "ready" ? "bg-green" : status === "error" ? "bg-red" : "bg-amber",
-        )}
-        aria-hidden
-      />
+    <span className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span className={cn("size-1.5 rounded-full", entry.dot)} aria-hidden />
       <span className={entry.className}>{entry.label}</span>
+    </span>
+  );
+}
+
+/** The challenge's live health — the thing the learner is actually fixing. */
+function ChallengeStatus({ failing, total }: { failing: number | null; total: number }) {
+  if (failing === null) {
+    return (
+      <span className="border-border text-subtle rounded-full border px-2 py-0.5 text-xs whitespace-nowrap">
+        Challenge: assessing…
+      </span>
+    );
+  }
+  if (failing === 0) {
+    return (
+      <span className="border-green/40 bg-green/10 text-green rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+        Challenge passing — run validation
+      </span>
+    );
+  }
+  return (
+    <span className="border-red/40 bg-red/10 text-red rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+      Challenge failing · {failing}/{total} checks
     </span>
   );
 }

@@ -79,6 +79,7 @@ const evidenceRuleSchema = z.object({
   id: z.string().min(1),
   evidenceId: z.string().min(1),
   label: z.string().min(1),
+  hiddenLabel: z.string().optional(),
   source: evidenceSourceSchema,
   trigger: evidenceTriggerSchema,
 });
@@ -128,6 +129,17 @@ const validatorCheckSchema = z.discriminatedUnion("kind", [
     selector: z.record(z.string(), z.string()),
     minReady: z.number().int().nonnegative(),
   }),
+  z.object({
+    kind: z.literal("pod-restarts-below"),
+    namespace: z.string().min(1),
+    selector: z.record(z.string(), z.string()),
+    maxRestarts: z.number().int().nonnegative(),
+  }),
+  z.object({
+    kind: z.literal("no-pods-matching"),
+    namespace: z.string().min(1),
+    selector: z.record(z.string(), z.string()),
+  }),
 ]);
 
 const validatorSharedSchema = z.object({
@@ -154,7 +166,10 @@ export const problemLevelSchema = z.object({
   difficulty: difficultySchema,
   severity: severitySchema,
   xp: z.number().int().positive(),
+  estimatedMinutes: z.number().int().positive(),
+  successRate: z.number().int().min(0).max(100),
   concepts: z.array(conceptSchema).min(1),
+  blurb: z.string().min(1),
   story: z.string().min(1),
   objective: z.string().min(1),
   constraints: z.array(constraintSchema),
@@ -163,6 +178,8 @@ export const problemLevelSchema = z.object({
   initialManifests: z.array(z.string()),
   registeredImages: z.array(simulatedImageSchema),
   allowedCommands: z.array(z.string()),
+  quickCommands: z.array(z.string()),
+  probeTargets: z.array(z.string()),
   validators: z.array(levelValidatorSchema).min(1),
   hints: z.array(hintSchema),
   evidenceRules: z.array(evidenceRuleSchema),

@@ -9,7 +9,9 @@ test("solve the Broken Readiness Probe incident end-to-end", async ({ page }) =>
   await page.goto("/problems/broken-readiness-probe");
 
   await test.step("cluster boots", async () => {
-    await expect(page.getByText("Ready", { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Simulator ready", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
   });
 
   await test.step("investigate with the terminal and collect evidence", async () => {
@@ -28,7 +30,9 @@ test("solve the Broken Readiness Probe incident end-to-end", async ({ page }) =>
   });
 
   await test.step("validation fails before the fix", async () => {
-    await page.getByRole("button", { name: "Run Validation", exact: true }).click();
+    // The nav hosts the single Run Validation button; its accessible name includes
+    // the ⌘R shortcut, so match by substring.
+    await page.getByRole("button", { name: "Run Validation" }).click();
     await expect(page.getByText("Not passing yet")).toBeVisible();
     await page.getByRole("button", { name: "Keep investigating" }).click();
   });
@@ -68,7 +72,7 @@ test("solve the Broken Readiness Probe incident end-to-end", async ({ page }) =>
     await expect(async () => {
       const close = page.getByRole("button", { name: "Keep investigating" });
       if (await close.isVisible().catch(() => false)) await close.click();
-      await page.getByRole("button", { name: "Run Validation", exact: true }).click();
+      await page.getByRole("button", { name: "Run Validation" }).click();
       await expect(page.getByText("Incident resolved")).toBeVisible({ timeout: 6_000 });
     }).toPass({ timeout: 90_000 });
 

@@ -1,4 +1,4 @@
-import type { CoreV1Event, V1Pod, V1Service } from "@ngrok/webernetes";
+import type { CoreV1Event, V1Container, V1Pod, V1Service } from "@ngrok/webernetes";
 
 import { stringifyManifest } from "./manifest-parser";
 import type { InvestigationSignal } from "./evidence";
@@ -46,6 +46,7 @@ type GetResource =
   | "endpoints"
   | "endpointslices"
   | "events"
+  | "namespaces"
   | "all";
 
 export type Command =
@@ -109,6 +110,9 @@ const GET_RESOURCE_ALIASES: Record<string, GetResource> = {
   event: "events",
   events: "events",
   ev: "events",
+  ns: "namespaces",
+  namespace: "namespaces",
+  namespaces: "namespaces",
   all: "all",
 };
 
@@ -195,7 +199,7 @@ function parseKubectl(args: string[]): Command {
       const resource = GET_RESOURCE_ALIASES[resourceToken.toLowerCase()];
       if (!resource) {
         return unsupported(
-          `kubectl get: unknown resource "${resourceToken}". Try pods, svc, deployments, replicasets, endpoints, endpointslices, or events.`,
+          `kubectl get: unknown resource "${resourceToken}". Try pods, svc, deployments, replicasets, endpoints, endpointslices, namespaces, or events.`,
         );
       }
       return {
@@ -376,6 +380,8 @@ function renderGet(
       return renderEndpointSlices(inNamespace(snapshot.endpointSlices, namespace, name));
     case "events":
       return renderEvents(snapshot.events, namespace, command.sortByLastTimestamp);
+    case "namespaces":
+      return renderNamespaces(snapshot, name);
     case "all":
       return [
         renderPods(inNamespace(snapshot.pods, namespace)),
@@ -453,6 +459,19 @@ function renderEndpoints(services: V1Service[], snapshot: ClusterSnapshot): stri
     ];
   });
   return formatTable(["NAME", "ENDPOINTS", "AGE"], rows);
+}
+
+function renderNamespaces(snapshot: ClusterSnapshot, name?: string): string {
+  const namespaces = snapshot.namespaces.filter(
+    (n) => name === undefined || n.metadata?.name === name,
+  );
+  if (namespaces.length === 0) return "No resources found.";
+  const rows = namespaces.map((n) => [
+    n.metadata?.name ?? "<unknown>",
+    n.status?.phase ?? "Active",
+    humanizeAge(n.metadata?.creationTimestamp),
+  ]);
+  return formatTable(["NAME", "STATUS", "AGE"], rows);
 }
 
 function renderEndpointSlices(slices: ClusterSnapshot["endpointSlices"]): string {
@@ -547,9 +566,17 @@ function describePod(pod: V1Pod, snapshot: ClusterSnapshot): string {
     "Containers:",
     `  ${container?.name ?? "app"}:`,
     `    Image:          ${container?.image ?? "<none>"}`,
+    `    Port:           ${containerPortsSummary(container)}`,
     `    Ready:          ${status?.ready ? "True" : "False"}`,
     `    Restart Count:  ${status?.restartCount ?? 0}`,
   ];
+  const env = container?.env ?? [];
+  if (env.length > 0) {
+    lines.push("    Environment:");
+    for (const entry of env) {
+      lines.push(`      ${entry.name}:  ${entry.value ?? "<set from source>"}`);
+    }
+  }
   if (container?.readinessProbe?.httpGet) {
     const p = container.readinessProbe.httpGet;
     lines.push(`    Readiness:      http-get ${p.path ?? "/"} port ${String(p.port ?? "")}`);
@@ -571,6 +598,12 @@ function describePod(pod: V1Pod, snapshot: ClusterSnapshot): string {
 
 function describeService(svc: V1Service, snapshot: ClusterSnapshot): string {
   const addresses = readyAddresses(svc, snapshot);
+  const targetPorts =
+    (svc.spec?.ports ?? [])
+      .map((p) => String(p.targetPort ?? p.port ?? ""))
+      .filter(Boolean)
+      .map((p) => `${p}/TCP`)
+      .join(",") || "<none>";
   return [
     `Name:              ${svc.metadata?.name}`,
     `Namespace:         ${svc.metadata?.namespace ?? "default"}`,
@@ -578,6 +611,7 @@ function describeService(svc: V1Service, snapshot: ClusterSnapshot): string {
     `Type:              ${svc.spec?.type ?? "ClusterIP"}`,
     `IP:                ${svc.spec?.clusterIP ?? "<none>"}`,
     `Port:              ${servicePortsSummary(svc)}`,
+    `TargetPort:        ${targetPorts}`,
     `Endpoints:         ${addresses.length > 0 ? addresses.join(",") : "<none>"}`,
   ].join("\n");
 }
@@ -709,6 +743,12 @@ function timeOf(event: CoreV1Event): number {
   return Number.isNaN(ms) ? 0 : ms;
 }
 
+function containerPortsSummary(container: V1Container | undefined): string {
+  const ports = container?.ports ?? [];
+  if (ports.length === 0) return "<none>";
+  return ports.map((p) => `${p.containerPort ?? "?"}/TCP`).join(",");
+}
+
 function formatSelector(labels: Record<string, string> | undefined): string {
   if (!labels || Object.keys(labels).length === 0) return "<none>";
   return Object.entries(labels)
@@ -732,7 +772,7 @@ function safePath(url: string): string {
 const HELP_TEXT = [
   "klab simulated shell — supported commands:",
   "",
-  "  kubectl get pods|svc|deployments|replicasets|endpoints|endpointslices|events",
+  "  kubectl get pods|svc|deployments|replicasets|endpoints|endpointslices|namespaces|events",
   "  kubectl get <resource> <name> -o yaml",
   "  kubectl get events --sort-by=.lastTimestamp",
   "  kubectl describe pod|svc|deployment <name>",

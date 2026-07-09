@@ -51,47 +51,34 @@ export function ProgressDashboard() {
       <ul className="mt-3 space-y-2">
         {LEVEL_CATALOG.map((level) => {
           const isSolved = solved.has(level.slug);
-          const available = level.status === "available";
-          const body = (
-            <>
-              <span className="flex items-center gap-2.5">
-                {isSolved ? (
-                  <Check className="text-green size-4" aria-hidden />
-                ) : (
-                  <span className="border-border-strong size-4 rounded-full border" aria-hidden />
-                )}
-                <span className={cn("text-sm", isSolved ? "text-foreground" : "text-muted")}>
-                  {level.title}
-                </span>
-              </span>
-              <span className="flex items-center gap-2">
-                {isSolved ? (
-                  <Badge tone="success">Solved</Badge>
-                ) : available ? (
-                  <span className="text-purple flex items-center gap-1 text-xs">
-                    <Xp className="size-3.5" aria-hidden />
-                    {level.xp} XP
-                  </span>
-                ) : (
-                  <Badge tone="neutral">Coming soon</Badge>
-                )}
-              </span>
-            </>
-          );
           return (
             <li key={level.slug}>
-              {available ? (
-                <Link
-                  href={`/problems/${level.slug}`}
-                  className="border-border bg-panel hover:border-border-strong hover:bg-panel-hover flex items-center justify-between gap-3 rounded-lg border px-4 py-3 transition-colors"
-                >
-                  {body}
-                </Link>
-              ) : (
-                <div className="border-border bg-panel/40 flex items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3 opacity-70">
-                  {body}
-                </div>
-              )}
+              <Link
+                href={`/problems/${level.slug}`}
+                className="border-border bg-panel hover:border-border-strong hover:bg-panel-hover flex items-center justify-between gap-3 rounded-lg border px-4 py-3 transition-colors"
+              >
+                <span className="flex items-center gap-2.5">
+                  {isSolved ? (
+                    <Check className="text-green size-4" aria-hidden />
+                  ) : (
+                    <span className="border-border-strong size-4 rounded-full border" aria-hidden />
+                  )}
+                  <span className={cn("text-sm", isSolved ? "text-foreground" : "text-muted")}>
+                    {level.title}
+                  </span>
+                  <span className="text-subtle text-xs capitalize">{level.difficulty}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  {isSolved ? (
+                    <Badge tone="success">Solved</Badge>
+                  ) : (
+                    <span className="text-purple flex items-center gap-1 text-xs">
+                      <Xp className="size-3.5" aria-hidden />
+                      {level.xp} XP
+                    </span>
+                  )}
+                </span>
+              </Link>
             </li>
           );
         })}

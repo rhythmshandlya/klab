@@ -15,6 +15,12 @@ export interface TerminalRunResult {
 export interface XtermTerminalProps {
   /** Executes a submitted command line and resolves with text to print. */
   onCommand: (line: string) => Promise<TerminalRunResult>;
+  /**
+   * Receives a runner that types + submits a command programmatically (quick-command
+   * chips). Called with the runner once the terminal is live, and with null on
+   * teardown.
+   */
+  registerRunner?: (run: ((line: string) => void) | null) => void;
   welcome?: string[];
   prompt?: string;
 }
@@ -36,14 +42,21 @@ const KEY_DOWN = "\x1b[B";
  * output is printed and the prompt redrawn. The xterm library loads lazily (browser
  * only). Kept out of React render — the effect owns the imperative terminal.
  */
-export function XtermTerminal({ onCommand, welcome, prompt = "$ " }: XtermTerminalProps) {
+export function XtermTerminal({
+  onCommand,
+  registerRunner,
+  welcome,
+  prompt = "$ ",
+}: XtermTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onCommandRef = useRef(onCommand);
+  const registerRunnerRef = useRef(registerRunner);
   const welcomeRef = useRef(welcome);
 
   // Keep the latest callbacks in refs without mutating during render.
   useEffect(() => {
     onCommandRef.current = onCommand;
+    registerRunnerRef.current = registerRunner;
     welcomeRef.current = welcome;
   });
 
@@ -188,7 +201,16 @@ export function XtermTerminal({ onCommand, welcome, prompt = "$ " }: XtermTermin
       });
       resize.observe(containerRef.current);
 
+      // Programmatic runner for quick-command chips: type the line, then submit it
+      // through the exact same path as keyboard input (history, evidence, output).
+      registerRunnerRef.current?.((commandLine: string) => {
+        if (running) return;
+        replaceLine(commandLine);
+        void submit();
+      });
+
       dispose = () => {
+        registerRunnerRef.current?.(null);
         resize.disconnect();
         term.dispose();
       };

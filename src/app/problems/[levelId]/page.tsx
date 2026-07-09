@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getLevelBySlug, LEVELS } from "@/content/levels";
-import { LevelWorkspace } from "@/features/problems/components/level-workspace";
+import { LevelGate } from "@/features/problems/components/level-gate";
 
 export function generateStaticParams() {
   return LEVELS.map((level) => ({ levelId: level.slug }));
@@ -22,5 +22,5 @@ export default async function LevelPage({ params }: { params: Promise<{ levelId:
   const { levelId } = await params;
   const level = getLevelBySlug(levelId);
   if (!level) notFound();
-  return <LevelWorkspace level={level} />;
+  return <LevelGate level={level} />;
 }

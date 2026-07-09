@@ -10,6 +10,7 @@ import type { SelectedObject } from "@/features/problems/level-store";
 interface Row {
   kind: string;
   name: string;
+  namespace: string;
   icon: IconName;
   ok?: boolean;
 }
@@ -17,54 +18,74 @@ interface Row {
 export function ClusterExplorer({
   snapshot,
   namespace = "default",
+  namespaces,
   selected,
   onSelect,
 }: {
   snapshot: ClusterSnapshot;
+  /** Single-namespace shorthand (existing callers). */
   namespace?: string;
+  /** All namespaces to show; rows get a namespace suffix when more than one. */
+  namespaces?: string[];
   selected: SelectedObject | null;
   onSelect: (object: SelectedObject) => void;
 }) {
+  const nsList = namespaces && namespaces.length > 0 ? namespaces : [namespace];
+  const nsSet = new Set(nsList);
+  const showNs = nsSet.size > 1;
+  const inScope = <T extends { metadata?: { name?: string; namespace?: string } }>(
+    items: T[],
+  ): T[] => items.filter((item) => nsSet.has(item.metadata?.namespace ?? "default"));
+
   const groups: { label: string; rows: Row[] }[] = [
     {
       label: "Deployments",
-      rows: snapshot.deployments
-        .filter((d) => (d.metadata?.namespace ?? "default") === namespace)
-        .map((d) => ({
-          kind: "Deployment",
-          name: d.metadata?.name ?? "",
-          icon: "deployment",
-          ok:
-            (d.status?.readyReplicas ?? 0) >= (d.spec?.replicas ?? 0) &&
-            (d.spec?.replicas ?? 0) > 0,
-        })),
+      rows: inScope(snapshot.deployments).map((d) => ({
+        kind: "Deployment",
+        name: d.metadata?.name ?? "",
+        namespace: d.metadata?.namespace ?? "default",
+        icon: "deployment",
+        ok:
+          (d.status?.readyReplicas ?? 0) >= (d.spec?.replicas ?? 0) && (d.spec?.replicas ?? 0) > 0,
+      })),
+    },
+    {
+      label: "ReplicaSets",
+      rows: inScope(snapshot.replicaSets).map((rs) => ({
+        kind: "ReplicaSet",
+        name: rs.metadata?.name ?? "",
+        namespace: rs.metadata?.namespace ?? "default",
+        icon: "deployment",
+        ok: (rs.status?.readyReplicas ?? 0) >= (rs.spec?.replicas ?? 0),
+      })),
     },
     {
       label: "Pods",
-      rows: snapshot.pods
-        .filter((p) => (p.metadata?.namespace ?? "default") === namespace)
-        .map((p) => ({
-          kind: "Pod",
-          name: p.metadata?.name ?? "",
-          icon: "pod",
-          ok: isPodReady(p) && podPhase(p) === "Running",
-        })),
+      rows: inScope(snapshot.pods).map((p) => ({
+        kind: "Pod",
+        name: p.metadata?.name ?? "",
+        namespace: p.metadata?.namespace ?? "default",
+        icon: "pod",
+        ok: isPodReady(p) && podPhase(p) === "Running",
+      })),
     },
     {
       label: "Services",
-      rows: snapshot.services
-        .filter((s) => (s.metadata?.namespace ?? "default") === namespace)
-        .map((s) => ({ kind: "Service", name: s.metadata?.name ?? "", icon: "service" })),
+      rows: inScope(snapshot.services).map((s) => ({
+        kind: "Service",
+        name: s.metadata?.name ?? "",
+        namespace: s.metadata?.namespace ?? "default",
+        icon: "service",
+      })),
     },
     {
       label: "EndpointSlices",
-      rows: snapshot.endpointSlices
-        .filter((s) => (s.metadata?.namespace ?? "default") === namespace)
-        .map((s) => ({
-          kind: "EndpointSlice",
-          name: s.metadata?.name ?? "",
-          icon: "endpointSlice",
-        })),
+      rows: inScope(snapshot.endpointSlices).map((s) => ({
+        kind: "EndpointSlice",
+        name: s.metadata?.name ?? "",
+        namespace: s.metadata?.namespace ?? "default",
+        icon: "endpointSlice",
+      })),
     },
   ];
 
@@ -80,12 +101,17 @@ export function ClusterExplorer({
           ) : (
             <ul>
               {group.rows.map((row) => {
-                const isSelected = selected?.kind === row.kind && selected?.name === row.name;
+                const isSelected =
+                  selected?.kind === row.kind &&
+                  selected?.name === row.name &&
+                  selected?.namespace === row.namespace;
                 return (
-                  <li key={`${row.kind}/${row.name}`}>
+                  <li key={`${row.namespace}/${row.kind}/${row.name}`}>
                     <button
                       type="button"
-                      onClick={() => onSelect({ kind: row.kind, name: row.name, namespace })}
+                      onClick={() =>
+                        onSelect({ kind: row.kind, name: row.name, namespace: row.namespace })
+                      }
                       className={cn(
                         "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors",
                         isSelected
@@ -94,7 +120,12 @@ export function ClusterExplorer({
                       )}
                     >
                       <RowIcon icon={row.icon} />
-                      <span className="truncate font-mono text-xs">{row.name}</span>
+                      <span className="truncate font-mono text-xs">
+                        {row.name}
+                        {showNs ? (
+                          <span className="text-subtle/80"> · {row.namespace}</span>
+                        ) : null}
+                      </span>
                       {row.ok !== undefined ? (
                         <span
                           className={cn(

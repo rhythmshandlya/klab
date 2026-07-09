@@ -9,12 +9,17 @@
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   BookOpen,
+  Bookmark,
   Blocks,
   Box,
   Boxes,
   Braces,
   CheckCircle2,
+  ChevronDown,
+  Circle,
+  Clock,
   Command,
   Database,
   FileCode2,
@@ -23,6 +28,7 @@ import {
   GitBranch,
   GitCompare,
   GraduationCap,
+  Lock,
   Network,
   Play,
   RotateCcw,
@@ -31,9 +37,11 @@ import {
   Search,
   Server,
   ShieldCheck,
+  SlidersHorizontal,
   Terminal,
   Trophy,
   XCircle,
+  Zap,
 } from "lucide-react";
 
 export const icons = {
@@ -65,6 +73,14 @@ export const icons = {
   database: Database,
   config: Braces,
   docsInteractive: GraduationCap,
+  lock: Lock,
+  bookmark: Bookmark,
+  clock: Clock,
+  chevronDown: ChevronDown,
+  circle: Circle,
+  arrowRight: ArrowRight,
+  filter: SlidersHorizontal,
+  challenge: Zap,
 } as const;
 
 export type IconName = keyof typeof icons;

@@ -77,6 +77,12 @@ export interface EvidenceRule {
   id: EvidenceRuleId;
   evidenceId: string;
   label: string;
+  /**
+   * Neutral description of the investigative act (e.g. "Service endpoints inspected"),
+   * shown on the evidence board BEFORE the item is collected. Describes what to look
+   * at without revealing what will be found. Falls back to a generic placeholder.
+   */
+  hiddenLabel?: string;
   source: EvidenceSource;
   trigger: EvidenceTrigger;
 }
@@ -140,6 +146,19 @@ export type ValidatorCheck =
       namespace: string;
       selector: Record<string, string>;
       minReady: number;
+    }
+  | {
+      /** At least one pod matches AND no matching pod has restarted more than maxRestarts times. */
+      kind: "pod-restarts-below";
+      namespace: string;
+      selector: Record<string, string>;
+      maxRestarts: number;
+    }
+  | {
+      /** Passes when ZERO pods match the selector (e.g. a zombie workload was retired). */
+      kind: "no-pods-matching";
+      namespace: string;
+      selector: Record<string, string>;
     };
 
 export type ValidatorKind = ValidatorCheck["kind"];
@@ -151,7 +170,13 @@ export interface ProblemLevel {
   difficulty: Difficulty;
   severity: Severity;
   xp: number;
+  /** Author-estimated time to solve, shown in the catalog. */
+  estimatedMinutes: number;
+  /** Author-estimated solve rate (0–100), shown in the catalog. */
+  successRate: number;
   concepts: KubernetesConcept[];
+  /** One-line teaser for lists/tables (story is the full in-level briefing). */
+  blurb: string;
   story: string;
   objective: string;
   constraints: LevelConstraint[];
@@ -161,6 +186,13 @@ export interface ProblemLevel {
   initialManifests: string[];
   registeredImages: SimulatedImageDefinition[];
   allowedCommands: string[];
+  /**
+   * Concrete starter commands rendered as one-click chips above the terminal.
+   * `<pod>` is substituted with a live pod name at click time.
+   */
+  quickCommands: string[];
+  /** Preset URLs for the network-probe panel (level-specific service names). */
+  probeTargets: string[];
   validators: LevelValidatorDefinition[];
   hints: Hint[];
   evidenceRules: EvidenceRule[];

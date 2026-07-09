@@ -15,6 +15,13 @@ const progressSchema = z.object({
   solvedLevelSlugs: z.array(z.string()),
   /** XP penalty already spent per level (from revealed hints), keyed by slug. */
   hintPenalties: z.record(z.string(), z.number()),
+  // Later additions use .default() so progress blobs written before them still parse.
+  /** Levels the user has started investigating (first command/apply), solved or not. */
+  attemptedLevelSlugs: z.array(z.string()).default([]),
+  /** Bookmarked problems (the catalog's "Saved" tab). */
+  savedProblemSlugs: z.array(z.string()).default([]),
+  /** Local calendar day (YYYY-MM-DD) of the most recent solve, for the day streak. */
+  lastSolvedDay: z.string().optional(),
 });
 
 export type Progress = z.infer<typeof progressSchema>;
@@ -25,6 +32,8 @@ export const EMPTY_PROGRESS: Progress = {
   streakDays: 0,
   solvedLevelSlugs: [],
   hintPenalties: {},
+  attemptedLevelSlugs: [],
+  savedProblemSlugs: [],
 };
 
 export function loadProgress(): Progress {
@@ -63,16 +72,52 @@ export function saveProgress(progress: Progress, delayMs = 400): void {
   }, delayMs);
 }
 
-/** Record a solved level and award XP (net of hint penalties already spent). */
+/** Local calendar day as YYYY-MM-DD (streaks are per local day, not UTC). */
+function localDay(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function previousDay(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return localDay(new Date(y ?? 1970, (m ?? 1) - 1, (d ?? 1) - 1));
+}
+
+/** Record a solved level, award XP (net of hint penalties), and advance the day streak. */
 export function recordSolved(progress: Progress, slug: string, levelXp: number): Progress {
   if (progress.solvedLevelSlugs.includes(slug)) return progress;
   const penalty = progress.hintPenalties[slug] ?? 0;
   const awarded = Math.max(0, levelXp - penalty);
+  const today = localDay();
+  const streakDays =
+    progress.lastSolvedDay === today
+      ? progress.streakDays
+      : progress.lastSolvedDay === previousDay(today)
+        ? progress.streakDays + 1
+        : 1;
   return {
     ...progress,
     xp: progress.xp + awarded,
     solvedLevelSlugs: [...progress.solvedLevelSlugs, slug],
+    streakDays,
+    lastSolvedDay: today,
   };
+}
+
+/** Mark a level as attempted (first investigation action). Idempotent. */
+export function recordAttempted(progress: Progress, slug: string): Progress {
+  if (progress.attemptedLevelSlugs.includes(slug)) return progress;
+  return { ...progress, attemptedLevelSlugs: [...progress.attemptedLevelSlugs, slug] };
+}
+
+/** Toggle a problem bookmark (the catalog's "Saved" tab). */
+export function toggleSaved(progress: Progress, slug: string): Progress {
+  const saved = progress.savedProblemSlugs.includes(slug)
+    ? progress.savedProblemSlugs.filter((s) => s !== slug)
+    : [...progress.savedProblemSlugs, slug];
+  return { ...progress, savedProblemSlugs: saved };
 }
 
 export function recordHintPenalty(progress: Progress, slug: string, penalty: number): Progress {

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { ProbeResult } from "@/lib/kube/simulator";
 import { cn } from "@/lib/utils/cn";
 
-const PRESETS = ["http://web-svc/", "http://web-svc/healthz", "http://web-svc/readyz"];
+const DEFAULT_PRESETS = ["http://web-svc/", "http://web-svc/healthz"];
 
 function statusTone(status: number): string {
   if (status === 0) return "text-red";
@@ -17,8 +17,15 @@ function statusTone(status: number): string {
   return "text-muted";
 }
 
-export function NetworkProbe({ onProbe }: { onProbe: (url: string) => Promise<ProbeResult> }) {
-  const [url, setUrl] = useState(PRESETS[0] ?? "");
+export function NetworkProbe({
+  onProbe,
+  presets = DEFAULT_PRESETS,
+}: {
+  onProbe: (url: string) => Promise<ProbeResult>;
+  /** Level-specific starting URLs (service names differ per level). */
+  presets?: string[];
+}) {
+  const [url, setUrl] = useState(presets[0] ?? "");
   const [result, setResult] = useState<ProbeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const Run = icons.run;
@@ -46,6 +53,7 @@ export function NetworkProbe({ onProbe }: { onProbe: (url: string) => Promise<Pr
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           aria-label="Probe URL"
+          name="probe-url"
           spellCheck={false}
           className="border-border bg-code text-foreground focus-visible:ring-ring h-9 flex-1 rounded-md border px-2.5 font-mono text-xs outline-none focus-visible:ring-2"
         />
@@ -56,14 +64,14 @@ export function NetworkProbe({ onProbe }: { onProbe: (url: string) => Promise<Pr
       </form>
 
       <div className="flex flex-wrap gap-1.5">
-        {PRESETS.map((preset) => (
+        {presets.map((preset) => (
           <button
             key={preset}
             type="button"
             onClick={() => void probe(preset)}
             className="border-border bg-panel-elevated text-subtle hover:border-border-strong hover:text-muted rounded border px-2 py-1 font-mono text-[11px] transition-colors"
           >
-            {preset.replace("http://web-svc", "")}
+            {preset.replace(/^http:\/\//, "")}
           </button>
         ))}
       </div>

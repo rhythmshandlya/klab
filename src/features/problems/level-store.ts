@@ -20,10 +20,18 @@ interface LevelState {
   collectedEvidence: string[];
   revealedHintIds: string[];
   validation: ValidationReport | null;
+  /**
+   * Quietly refreshed check results (on boot, after Apply/Reset) that power the
+   * "Failing checks" card and the challenge-status chip — separate from `validation`,
+   * which is the formal Run Validation submission that can win the level.
+   */
+  checks: ValidationReport | null;
   validating: boolean;
   solved: boolean;
   centerTab: CenterTab;
   selected: SelectedObject | null;
+  /** Hints are collapsed by default so investigation surfaces come first. */
+  hintsOpen: boolean;
 
   initLevel: (level: ProblemLevel) => void;
   resetFiles: () => void;
@@ -33,10 +41,12 @@ interface LevelState {
   addEvidence: (ids: readonly string[]) => string[];
   revealHint: (id: string) => void;
   setValidation: (report: ValidationReport | null) => void;
+  setChecks: (report: ValidationReport | null) => void;
   setValidating: (value: boolean) => void;
   setSolved: (value: boolean) => void;
   setCenterTab: (tab: CenterTab) => void;
   select: (object: SelectedObject | null) => void;
+  setHintsOpen: (open: boolean) => void;
 }
 
 function filesFromLevel(level: ProblemLevel): Record<string, string> {
@@ -50,10 +60,12 @@ export const useLevelStore = create<LevelState>((set, get) => ({
   collectedEvidence: [],
   revealedHintIds: [],
   validation: null,
+  checks: null,
   validating: false,
   solved: false,
   centerTab: "terminal",
   selected: null,
+  hintsOpen: false,
 
   initLevel: (level) =>
     set({
@@ -63,10 +75,12 @@ export const useLevelStore = create<LevelState>((set, get) => ({
       collectedEvidence: [],
       revealedHintIds: [],
       validation: null,
+      checks: null,
       validating: false,
       solved: false,
       centerTab: "terminal",
       selected: null,
+      hintsOpen: false,
     }),
 
   resetFiles: () => {
@@ -93,8 +107,10 @@ export const useLevelStore = create<LevelState>((set, get) => ({
     ),
 
   setValidation: (report) => set({ validation: report }),
+  setChecks: (report) => set({ checks: report }),
   setValidating: (value) => set({ validating: value }),
   setSolved: (value) => set({ solved: value }),
   setCenterTab: (tab) => set({ centerTab: tab }),
   select: (object) => set({ selected: object }),
+  setHintsOpen: (open) => set({ hintsOpen: open }),
 }));
