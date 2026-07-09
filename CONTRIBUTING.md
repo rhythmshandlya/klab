@@ -20,7 +20,8 @@ Run the full local gate — CI runs the same commands and must be green:
 ```bash
 pnpm lint
 pnpm typecheck
-pnpm test           # unit + integration (Vitest)
+pnpm test           # unit + integration (Vitest, jsdom) — includes the level solvability harness
+pnpm test:api       # DB-backed repo/merge/stats tests (in-process Postgres via pglite)
 pnpm build
 pnpm test:e2e       # Playwright (installs a browser on first run: pnpm exec playwright install chromium)
 ```
@@ -43,12 +44,33 @@ level, template, or lab that should sit in a *broken / not-Ready* state, use a *
 Pod**, not a Deployment. Healthy Deployments (pods reach Ready) are fine. See the note
 in `PROGRESS.md`.
 
-## How-to guides
+## Adding a problem (the most common contribution)
+
+Problems live **in code** — there's no CMS. Contribute one via a normal reviewed PR:
+
+```bash
+pnpm new:problem wrong-container-port "Wrong Container Port"   # scaffolds a working level
+```
+
+This writes `src/content/levels/<slug>.ts` (a working selector-mismatch level that already
+passes the harness) and prints the two lines to register it in `index.ts` + `solutions.ts`.
+Edit the story/hints/evidence/validators, then **prove it**:
+
+```bash
+pnpm test:api   # the levels harness asserts: broken state FAILS validation, canonical fix PASSES
+```
+
+Every problem must red→green through that harness — CI runs it on your PR, so an
+unsolvable or trivially-passing level can't merge. Optional: `pnpm gen:problem "<idea>"`
+drafts a candidate with Claude into `scripts/candidates/` for you to review and run through
+the same gate (needs `ANTHROPIC_API_KEY`).
+
+## Other how-to guides
 
 See the README's [Extending klab](./README.md#extending-klab) section for step-by-step
-recipes: add a problem level, add a simulated image, write a validator, add a docs
-lesson, and add a playground template. All static content is validated by Zod schemas
-at load time, so an invalid entry fails the build.
+recipes: add a simulated image, write a validator, add a docs lesson, and add a playground
+template. All static content is validated by Zod schemas at load time, so an invalid entry
+fails the build.
 
 ## Commit & PR style
 

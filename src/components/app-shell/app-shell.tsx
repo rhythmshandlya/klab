@@ -5,10 +5,17 @@ import { type ReactNode } from "react";
 import { CommandPaletteProvider } from "@/components/command-palette/command-palette-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+import { ProgressSync } from "./progress-sync";
 import { TopNav } from "./top-nav";
 import { WorkspaceActionProvider } from "./workspace-action";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  authEnabled = false,
+}: {
+  children: ReactNode;
+  authEnabled?: boolean;
+}) {
   return (
     <WorkspaceActionProvider>
       <CommandPaletteProvider>
@@ -19,8 +26,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             Skip to content
           </a>
+          {/* Syncs session → progress store; only when auth is on, so guests never
+              mount the session hook. */}
+          {authEnabled ? <ProgressSync /> : null}
           <div className="flex min-h-dvh flex-col">
-            <TopNav />
+            <TopNav authEnabled={authEnabled} />
             <main id="main" className="flex min-h-0 flex-1 flex-col">
               {children}
             </main>

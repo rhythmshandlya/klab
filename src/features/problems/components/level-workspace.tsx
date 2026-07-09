@@ -27,13 +27,7 @@ import { runCommandLine } from "@/lib/kube/command-runner";
 import { matchEvidence, type InvestigationSignal } from "@/lib/kube/evidence";
 import { isPodReady, readyEndpointCount } from "@/lib/kube/kubectl/format";
 import type { ClusterSnapshot } from "@/lib/kube/simulator";
-import {
-  loadProgress,
-  recordAttempted,
-  recordHintPenalty,
-  recordSolved,
-  saveProgress,
-} from "@/lib/storage/local-progress";
+import { mutateProgress } from "@/lib/storage/progress-store";
 import { cn } from "@/lib/utils/cn";
 
 import { useSimulator } from "../hooks/use-simulator";
@@ -66,6 +60,13 @@ function safePath(url: string): string {
   } catch {
     return url;
   }
+}
+
+/** Local calendar day (YYYY-MM-DD) for the solved intent — streaks are per local day. */
+function todayLocal(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /** Control-plane namespaces are simulator machinery, not part of any level's puzzle. */
@@ -155,11 +156,17 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const autoSelectedRef = useRef(false);
   const attemptedRef = useRef(false);
   const checksTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // When the level opened, for measuring time-to-solve on each submission. Set in an
+  // effect (not during render) so the render stays pure; the effect runs before any solve.
+  const startedAtRef = useRef(0);
+  useEffect(() => {
+    startedAtRef.current = Date.now();
+  }, [level.slug]);
 
   const markAttempted = useCallback(() => {
     if (attemptedRef.current) return;
     attemptedRef.current = true;
-    saveProgress(recordAttempted(loadProgress(), level.slug));
+    mutateProgress({ kind: "attempted", slug: level.slug });
   }, [level.slug]);
 
   const collectSignals = useCallback(
@@ -273,19 +280,43 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
       setValidation(report);
       setChecks(report);
       setValidationOpen(true);
+      // Record the attempt as a full submission (history → real success rates).
+      mutateProgress({
+        kind: "submission",
+        slug: level.slug,
+        passed: report.passed,
+        checksTotal: report.results.length,
+        checksPassed: report.results.filter((r) => r.passed).length,
+        durationMs: Date.now() - startedAtRef.current,
+        hintsRevealed: revealedHintIds.length,
+      });
       if (report.passed) {
         setSolved(true);
-        saveProgress(recordSolved(loadProgress(), level.slug, level.xp));
+        mutateProgress({ kind: "solved", slug: level.slug, xp: level.xp, day: todayLocal() });
       }
     } finally {
       setValidating(false);
     }
-  }, [sim, level.validators, level.slug, level.xp, setValidation, setChecks, setSolved]);
+  }, [
+    sim,
+    level.validators,
+    level.slug,
+    level.xp,
+    revealedHintIds.length,
+    setValidation,
+    setChecks,
+    setSolved,
+  ]);
 
   const handleRevealHint = useCallback(
     (hint: Hint) => {
       revealHint(hint.id);
-      saveProgress(recordHintPenalty(loadProgress(), level.slug, hint.xpPenalty));
+      mutateProgress({
+        kind: "revealHint",
+        slug: level.slug,
+        hintId: hint.id,
+        penalty: hint.xpPenalty,
+      });
     },
     [revealHint, level.slug],
   );

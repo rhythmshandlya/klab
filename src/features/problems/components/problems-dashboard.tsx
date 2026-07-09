@@ -7,7 +7,7 @@ import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ADVANCED_UNLOCK_SOLVES, isLevelLocked, type LevelSummary } from "@/content/levels";
 import type { Difficulty, KubernetesConcept } from "@/lib/domain/types";
-import { loadProgress, saveProgress, toggleSaved } from "@/lib/storage/local-progress";
+import { mutateProgress } from "@/lib/storage/progress-store";
 import { useProgress } from "@/features/progress/use-progress";
 import { cn } from "@/lib/utils/cn";
 
@@ -198,7 +198,9 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
   };
 
   const toggleBookmark = (slug: string) => {
-    saveProgress(toggleSaved(loadProgress(), slug), 0);
+    // Identity-aware: writes localStorage optimistically and (when signed in) syncs
+    // the bookmark to the server as a named idempotent intent.
+    mutateProgress({ kind: "setSaved", slug, saved: !saved.has(slug) });
   };
 
   const unlockedUnsolved = catalog.filter(

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { AuthMenu } from "@/components/auth/auth-menu";
 import { useCommandPalette } from "@/components/command-palette/command-palette-provider";
 import { ClusterMark, icons } from "@/components/icons";
 import { Kbd } from "@/components/ui/kbd";
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils/cn";
 import { isSectionActive, NAV_ITEMS } from "./nav-items";
 import { useWorkspaceAction } from "./workspace-action";
 
-export function TopNav() {
+export function TopNav({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname() ?? "/";
   const progress = useProgress();
 
@@ -51,7 +52,7 @@ export function TopNav() {
             <StatChip icon="streak" value={progress.streakDays} label="day streak" />
             <StatChip icon="xp" value={progress.xp} label="XP" />
           </div>
-          <UserChip />
+          {authEnabled ? <AuthMenu /> : <UserChip />}
         </div>
       </div>
     </header>
