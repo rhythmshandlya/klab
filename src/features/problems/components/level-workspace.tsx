@@ -14,6 +14,12 @@ import { ObjectDetails } from "@/components/object-explorer/object-details";
 import { XtermTerminal, type TerminalRunResult } from "@/components/terminal/xterm-terminal";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import {
+  ResizableGroup,
+  ResizableHandle,
+  ResizablePane,
+  usePersistedLayout,
+} from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { YamlEditor } from "@/components/editor/yaml-editor";
 import type { Hint, ProblemLevel } from "@/lib/domain/types";
@@ -138,6 +144,12 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const [applying, setApplying] = useState(false);
   const [validating, setValidating] = useState(false);
   const [refreshingChecks, setRefreshingChecks] = useState(false);
+
+  // Persisted, user-resizable pane layouts (drag the separators; arrow keys work too).
+  const columnsLayout = usePersistedLayout("klab:layout:level-workspace:columns");
+  const centerLayout = usePersistedLayout("klab:layout:level-workspace:center");
+  const rightLayout = usePersistedLayout("klab:layout:level-workspace:right");
+  const explorerLayout = usePersistedLayout("klab:layout:level-workspace:explorer");
 
   const terminalRunnerRef = useRef<((line: string) => void) | null>(null);
   const autoSelectedRef = useRef(false);
@@ -314,7 +326,9 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
       const ns = object.metadata?.namespace ?? "default";
       if (isWorkloadNamespace(ns)) set.add(ns);
     }
-    return [...set].sort((a, b) => (a === NAMESPACE ? -1 : b === NAMESPACE ? 1 : a.localeCompare(b)));
+    return [...set].sort((a, b) =>
+      a === NAMESPACE ? -1 : b === NAMESPACE ? 1 : a.localeCompare(b),
+    );
   }, [sim.snapshot]);
 
   /** Substitute `<pod>` in a quick command with the most relevant live workload pod. */
@@ -348,195 +362,268 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const netXp = Math.max(0, level.xp - hintPenalty);
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] gap-3 overflow-x-auto p-3">
-      {/* Left column — one scroll container; cards keep their natural height. */}
-      <div className="flex w-[330px] shrink-0 flex-col gap-3 overflow-y-auto pb-1">
-        <div className="shrink-0">
-          <IncidentBrief />
-        </div>
-        <div className="shrink-0">
-          <FailingChecks onRefresh={() => void refreshChecks()} refreshing={refreshingChecks} />
-        </div>
-        <div className="shrink-0">
-          <EvidenceBoard />
-        </div>
-        <div className="shrink-0">
-          <HintsCard onReveal={handleRevealHint} />
-        </div>
-        {/* XP is a footnote during debugging, not a panel (UX: prioritize investigation). */}
-        <p className="text-subtle flex shrink-0 items-center gap-1.5 px-1 text-xs">
-          <icons.xp className="text-purple size-3.5" aria-hidden />
-          Worth <span className="tabnums text-foreground font-medium">{netXp} XP</span>
-          {hintPenalty > 0 ? <span className="text-amber">(−{hintPenalty} from hints)</span> : null}
-          {solved ? (
-            <Badge tone="success">
-              <icons.trophy aria-hidden />
-              Solved
-            </Badge>
-          ) : null}
-        </p>
-      </div>
-
-      {/* Center column */}
-      <div className="flex min-w-[420px] flex-1 flex-col gap-3">
-        <Panel className="min-h-0 flex-1">
-          <div className="border-border flex h-10 shrink-0 items-center justify-between gap-2 border-b pr-2">
-            <div className="flex items-center">
-              {CENTER_TABS.map((tab) => {
-                const Icon = icons[tab.icon];
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setCenterTab(tab.id)}
-                    className={cn(
-                      "flex h-10 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors",
-                      centerTab === tab.id
-                        ? "border-blue text-foreground"
-                        : "text-muted hover:text-foreground border-transparent",
-                    )}
-                  >
-                    <Icon className="size-4" aria-hidden />
-                    {tab.label}
-                  </button>
-                );
-              })}
+    <div className="h-[calc(100dvh-3.5rem)] overflow-x-auto p-3">
+      <ResizableGroup
+        orientation="horizontal"
+        id="level-columns"
+        defaultLayout={columnsLayout.defaultLayout}
+        onLayoutChanged={columnsLayout.onLayoutChanged}
+        className="h-full min-w-[1080px]"
+      >
+        {/* Left rail — resizable; one scroll container, cards keep their natural height. */}
+        <ResizablePane
+          id="rail-left"
+          defaultSize="23%"
+          minSize="240px"
+          maxSize="42%"
+          className="h-full"
+        >
+          <div className="flex h-full flex-col gap-3 overflow-y-auto pr-1 pb-1">
+            <div className="shrink-0">
+              <IncidentBrief />
             </div>
-            <div className="flex items-center gap-2">
-              <ChallengeStatus
-                failing={checks ? checks.results.filter((r) => !r.passed).length : null}
-                total={level.validators.length}
-              />
-              <SimulatorStatus status={sim.status} />
+            <div className="shrink-0">
+              <FailingChecks onRefresh={() => void refreshChecks()} refreshing={refreshingChecks} />
             </div>
+            <div className="shrink-0">
+              <EvidenceBoard />
+            </div>
+            <div className="shrink-0">
+              <HintsCard onReveal={handleRevealHint} />
+            </div>
+            {/* XP is a footnote during debugging, not a panel (UX: prioritize investigation). */}
+            <p className="text-subtle flex shrink-0 items-center gap-1.5 px-1 text-xs">
+              <icons.xp className="text-purple size-3.5" aria-hidden />
+              Worth <span className="tabnums text-foreground font-medium">{netXp} XP</span>
+              {hintPenalty > 0 ? (
+                <span className="text-amber">(−{hintPenalty} from hints)</span>
+              ) : null}
+              {solved ? (
+                <Badge tone="success">
+                  <icons.trophy aria-hidden />
+                  Solved
+                </Badge>
+              ) : null}
+            </p>
           </div>
+        </ResizablePane>
 
-          {/* Quick commands: one-click investigation starters (beginner training wheels). */}
-          {centerTab === "terminal" ? (
-            <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
-              <span className="text-subtle text-[11px] font-medium tracking-wide uppercase">
-                Try:
-              </span>
-              {level.quickCommands.map((command) => {
-                const resolvable = resolveQuickCommand(command) !== null;
-                return (
-                  <button
-                    key={command}
-                    type="button"
-                    disabled={!sim.ready || !resolvable}
-                    onClick={() => runQuickCommand(command)}
-                    className="border-border bg-panel-elevated text-muted hover:border-border-strong hover:text-foreground rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors disabled:opacity-40"
-                  >
-                    {command}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
+        <ResizableHandle orientation="vertical" aria-label="Resize incident rail" />
 
-          <div className="min-h-0 flex-1">
-            {centerTab === "terminal" ? (
-              <ErrorBoundary label="Terminal">
-                <XtermTerminal
-                  onCommand={runCommand}
-                  registerRunner={(run) => {
-                    terminalRunnerRef.current = run;
-                  }}
-                  welcome={[
-                    "klab simulated shell — type 'help' for commands.",
-                    "Cluster: local (webernetes)",
-                    `Try: ${level.quickCommands[0] ?? "kubectl get pods"}`,
-                  ]}
+        {/* Center column — vertical split so the editor height is adjustable. */}
+        <ResizablePane id="center" minSize="28%" className="h-full">
+          <ResizableGroup
+            orientation="vertical"
+            id="level-center"
+            defaultLayout={centerLayout.defaultLayout}
+            onLayoutChanged={centerLayout.onLayoutChanged}
+            className="h-full"
+          >
+            <ResizablePane id="center-top" defaultSize="52%" minSize="18%" className="h-full">
+              <Panel className="h-full">
+                <div className="border-border flex h-10 shrink-0 items-center justify-between gap-2 border-b pr-2">
+                  <div className="flex items-center">
+                    {CENTER_TABS.map((tab) => {
+                      const Icon = icons[tab.icon];
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setCenterTab(tab.id)}
+                          className={cn(
+                            "flex h-10 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors",
+                            centerTab === tab.id
+                              ? "border-blue text-foreground"
+                              : "text-muted hover:text-foreground border-transparent",
+                          )}
+                        >
+                          <Icon className="size-4" aria-hidden />
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ChallengeStatus
+                      failing={checks ? checks.results.filter((r) => !r.passed).length : null}
+                      total={level.validators.length}
+                    />
+                    <SimulatorStatus status={sim.status} />
+                  </div>
+                </div>
+
+                {/* Quick commands: one-click investigation starters (beginner training wheels). */}
+                {centerTab === "terminal" ? (
+                  <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
+                    <span className="text-subtle text-[11px] font-medium tracking-wide uppercase">
+                      Try:
+                    </span>
+                    {level.quickCommands.map((command) => {
+                      const resolvable = resolveQuickCommand(command) !== null;
+                      return (
+                        <button
+                          key={command}
+                          type="button"
+                          disabled={!sim.ready || !resolvable}
+                          onClick={() => runQuickCommand(command)}
+                          className="border-border bg-panel-elevated text-muted hover:border-border-strong hover:text-foreground rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors disabled:opacity-40"
+                        >
+                          {command}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                <div className="min-h-0 flex-1">
+                  {centerTab === "terminal" ? (
+                    <ErrorBoundary label="Terminal">
+                      <XtermTerminal
+                        onCommand={runCommand}
+                        registerRunner={(run) => {
+                          terminalRunnerRef.current = run;
+                        }}
+                        welcome={[
+                          "klab simulated shell — type 'help' for commands.",
+                          "Cluster: local (webernetes)",
+                          `Try: ${level.quickCommands[0] ?? "kubectl get pods"}`,
+                        ]}
+                      />
+                    </ErrorBoundary>
+                  ) : centerTab === "logs" ? (
+                    <LogsView snapshot={sim.snapshot} />
+                  ) : centerTab === "events" ? (
+                    <div className="h-full overflow-auto">
+                      <EventsTimeline events={sim.snapshot.events} namespace={NAMESPACE} />
+                    </div>
+                  ) : centerTab === "network" ? (
+                    <NetworkProbe onProbe={handleProbe} presets={level.probeTargets} />
+                  ) : (
+                    <ErrorBoundary label="Diff">
+                      <DiffView
+                        original={activeFile?.initialValue ?? ""}
+                        modified={files[activeFilePath] ?? ""}
+                      />
+                    </ErrorBoundary>
+                  )}
+                </div>
+              </Panel>
+            </ResizablePane>
+
+            <ResizableHandle orientation="horizontal" aria-label="Resize editor height" />
+
+            {/* Editor */}
+            <ResizablePane id="center-editor" minSize="18%" className="h-full">
+              <Panel className="h-full">
+                <PanelHeader
+                  title={activeFilePath || "editor"}
+                  icon={<icons.yaml />}
+                  actions={
+                    <div className="flex items-center gap-1.5">
+                      <ToolbarButton
+                        onClick={() => void handleApply()}
+                        disabled={applying || !sim.ready}
+                        primary
+                      >
+                        <icons.run aria-hidden />
+                        {applying ? "Applying…" : "Apply Changes"}
+                      </ToolbarButton>
+                      <ToolbarButton onClick={() => setCenterTab("diff")}>
+                        <icons.diff aria-hidden />
+                        Show Diff
+                      </ToolbarButton>
+                      <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
+                        <icons.reset aria-hidden />
+                        Reset
+                      </ToolbarButton>
+                    </div>
+                  }
                 />
-              </ErrorBoundary>
-            ) : centerTab === "logs" ? (
-              <LogsView snapshot={sim.snapshot} />
-            ) : centerTab === "events" ? (
-              <div className="h-full overflow-auto">
-                <EventsTimeline events={sim.snapshot.events} namespace={NAMESPACE} />
-              </div>
-            ) : centerTab === "network" ? (
-              <NetworkProbe onProbe={handleProbe} presets={level.probeTargets} />
-            ) : (
-              <ErrorBoundary label="Diff">
-                <DiffView
-                  original={activeFile?.initialValue ?? ""}
-                  modified={files[activeFilePath] ?? ""}
-                />
-              </ErrorBoundary>
-            )}
-          </div>
-        </Panel>
+                <div className="min-h-0 flex-1">
+                  <ErrorBoundary label="Editor">
+                    <YamlEditor
+                      path={activeFilePath || "manifest.yaml"}
+                      value={files[activeFilePath] ?? ""}
+                      onChange={(value) => setFile(activeFilePath, value)}
+                    />
+                  </ErrorBoundary>
+                </div>
+              </Panel>
+            </ResizablePane>
+          </ResizableGroup>
+        </ResizablePane>
 
-        {/* Editor */}
-        <Panel className="min-h-0 flex-1">
-          <PanelHeader
-            title={activeFilePath || "editor"}
-            icon={<icons.yaml />}
-            actions={
-              <div className="flex items-center gap-1.5">
-                <ToolbarButton
-                  onClick={() => void handleApply()}
-                  disabled={applying || !sim.ready}
-                  primary
+        <ResizableHandle orientation="vertical" aria-label="Resize cluster rail" />
+
+        {/* Right rail — explorer/details and topology, each resizable. */}
+        <ResizablePane
+          id="rail-right"
+          defaultSize="26%"
+          minSize="260px"
+          maxSize="45%"
+          className="h-full"
+        >
+          <ResizableGroup
+            orientation="vertical"
+            id="level-right"
+            defaultLayout={rightLayout.defaultLayout}
+            onLayoutChanged={rightLayout.onLayoutChanged}
+            className="h-full"
+          >
+            <ResizablePane id="cluster" minSize="30%" className="h-full">
+              <Panel className="h-full">
+                <PanelHeader title="Cluster Explorer" icon={<icons.cluster />} />
+                <ResizableGroup
+                  orientation="vertical"
+                  id="level-explorer"
+                  defaultLayout={explorerLayout.defaultLayout}
+                  onLayoutChanged={explorerLayout.onLayoutChanged}
+                  className="min-h-0 flex-1"
                 >
-                  <icons.run aria-hidden />
-                  {applying ? "Applying…" : "Apply Changes"}
-                </ToolbarButton>
-                <ToolbarButton onClick={() => setCenterTab("diff")}>
-                  <icons.diff aria-hidden />
-                  Show Diff
-                </ToolbarButton>
-                <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
-                  <icons.reset aria-hidden />
-                  Reset
-                </ToolbarButton>
-              </div>
-            }
-          />
-          <div className="min-h-0 flex-1">
-            <ErrorBoundary label="Editor">
-              <YamlEditor
-                path={activeFilePath || "manifest.yaml"}
-                value={files[activeFilePath] ?? ""}
-                onChange={(value) => setFile(activeFilePath, value)}
-              />
-            </ErrorBoundary>
-          </div>
-        </Panel>
-      </div>
+                  <ResizablePane
+                    id="explorer-tree"
+                    defaultSize="55%"
+                    minSize="20%"
+                    className="h-full"
+                  >
+                    <div className="h-full overflow-auto">
+                      <ClusterExplorer
+                        snapshot={sim.snapshot}
+                        namespaces={workspaceNamespaces}
+                        selected={selected}
+                        onSelect={select}
+                      />
+                    </div>
+                  </ResizablePane>
+                  <ResizableHandle orientation="horizontal" aria-label="Resize object details" />
+                  <ResizablePane id="explorer-details" minSize="20%" className="h-full">
+                    <div className="h-full min-h-0 overflow-hidden">
+                      <ObjectDetails snapshot={sim.snapshot} selected={selected} />
+                    </div>
+                  </ResizablePane>
+                </ResizableGroup>
+              </Panel>
+            </ResizablePane>
 
-      {/* Right column */}
-      <div className="flex w-[380px] shrink-0 flex-col gap-3 overflow-hidden">
-        <Panel className="min-h-0 flex-1">
-          <PanelHeader title="Cluster Explorer" icon={<icons.cluster />} />
-          <div className="grid min-h-0 flex-1 grid-rows-2">
-            <div className="border-border min-h-0 overflow-auto border-b">
-              <ClusterExplorer
-                snapshot={sim.snapshot}
-                namespaces={workspaceNamespaces}
-                selected={selected}
-                onSelect={select}
-              />
-            </div>
-            <div className="min-h-0 overflow-hidden">
-              <ObjectDetails snapshot={sim.snapshot} selected={selected} />
-            </div>
-          </div>
-        </Panel>
-        <Panel className="h-[280px] shrink-0">
-          <PanelHeader title="Service Topology" icon={<icons.service />} />
-          <PanelBody scroll={false} className="p-0">
-            <ErrorBoundary label="Topology">
-              <ServiceTopology
-                snapshot={sim.snapshot}
-                namespaces={workspaceNamespaces}
-                onSelect={select}
-              />
-            </ErrorBoundary>
-          </PanelBody>
-        </Panel>
-      </div>
+            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
+
+            <ResizablePane id="topology" defaultSize="30%" minSize="15%" className="h-full">
+              <Panel className="h-full">
+                <PanelHeader title="Service Topology" icon={<icons.service />} />
+                <PanelBody scroll={false} className="p-0">
+                  <ErrorBoundary label="Topology">
+                    <ServiceTopology
+                      snapshot={sim.snapshot}
+                      namespaces={workspaceNamespaces}
+                      onSelect={select}
+                    />
+                  </ErrorBoundary>
+                </PanelBody>
+              </Panel>
+            </ResizablePane>
+          </ResizableGroup>
+        </ResizablePane>
+      </ResizableGroup>
 
       <ValidationDialog
         open={validationOpen}
