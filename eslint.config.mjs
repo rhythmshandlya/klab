@@ -13,6 +13,9 @@ const eslintConfig = [
       "coverage/**",
       "playwright-report/**",
       "test-results/**",
+      // Standalone Node dev scripts (generators/scaffolders); not app code.
+      "scripts/**",
+      "drizzle/**",
     ],
   },
   // Next's flat config already bundles core-web-vitals + typescript rules.
