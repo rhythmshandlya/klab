@@ -15,16 +15,33 @@ export type KubernetesConcept =
   | "pods"
   | "deployments"
   | "replicasets"
+  | "statefulsets"
+  | "daemonsets"
+  | "jobs"
+  | "cronjobs"
   | "services"
+  | "ingress"
   | "endpoints"
   | "endpointslices"
   | "labels-selectors"
   | "readiness-probes"
   | "liveness-probes"
+  | "startup-probes"
   | "dns"
   | "namespaces"
   | "rollouts"
   | "events"
+  | "logs"
+  | "resources"
+  | "configmaps"
+  | "secrets"
+  | "storage"
+  | "service-accounts"
+  | "rbac"
+  | "security-contexts"
+  | "network-policies"
+  | "scheduling"
+  | "autoscaling"
   | "reconciliation"
   | "networking"
   | "debugging";
@@ -226,6 +243,9 @@ export interface InteractiveLab {
   initialManifests: string[];
   registeredImages: SimulatedImageDefinition[];
   tryChanging?: string;
+  tasks?: string[];
+  commands?: string[];
+  debrief?: string;
 }
 
 /**
@@ -240,6 +260,36 @@ export type DocsBlock =
   | { type: "callout"; tone: "info" | "warning" | "key"; title?: string; text: string }
   | { type: "concept"; term: string; definition: string }
   | { type: "code"; language: EditableFileLanguage; code: string }
+  | {
+      type: "diagram";
+      variant:
+        | "control-loop"
+        | "cluster-architecture"
+        | "api-object"
+        | "pod"
+        | "workload-hierarchy"
+        | "service-routing"
+        | "probe-gates"
+        | "rollout"
+        | "namespace-boundary"
+        | "debug-loop";
+      title?: string;
+      caption?: string;
+    }
+  | {
+      type: "demo";
+      title: string;
+      description: string;
+      steps: { label: string; detail: string; command?: string; output?: string }[];
+    }
+  | {
+      type: "quiz";
+      id: string;
+      question: string;
+      options: { id: string; text: string; correct: boolean; explanation: string }[];
+    }
+  | { type: "steps"; title?: string; items: { title: string; text: string }[] }
+  | { type: "takeaways"; items: string[] }
   | {
       type: "compare";
       caption?: string;
@@ -256,6 +306,7 @@ export interface DocsLesson {
   order: number;
   concepts: KubernetesConcept[];
   relatedLevelSlug?: string;
+  sources?: { title: string; href: string }[];
   content: DocsBlock[];
   labs: InteractiveLab[];
 }

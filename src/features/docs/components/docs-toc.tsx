@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { icons } from "@/components/icons";
 import type { DocsLesson } from "@/lib/domain/types";
@@ -10,6 +10,10 @@ import { cn } from "@/lib/utils/cn";
 export function DocsToc({ lesson }: { lesson: DocsLesson }) {
   const headings = lesson.content.flatMap((b) =>
     b.type === "heading" ? [{ id: b.id, text: b.text }] : [],
+  );
+  const takeaways = useMemo(
+    () => lesson.content.find((b) => b.type === "takeaways")?.items ?? [],
+    [lesson.content],
   );
   const [activeId, setActiveId] = useState(headings[0]?.id ?? "");
 
@@ -31,21 +35,18 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
   }, [lesson]);
 
   return (
-    <div className="space-y-6 p-4 text-sm">
+    <div className="space-y-6 px-4 text-sm">
       {headings.length > 0 ? (
-        <div>
-          <p className="text-subtle mb-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
-            On this page
-          </p>
+        <RailSection title="On this page">
           <ul className="space-y-1">
             {headings.map((h) => (
               <li key={h.id}>
                 <a
                   href={`#${h.id}`}
                   className={cn(
-                    "block border-l-2 pl-3 transition-colors",
+                    "block border-l-2 py-0.5 pl-3 transition-colors",
                     activeId === h.id
-                      ? "border-blue text-foreground"
+                      ? "border-blue text-blue"
                       : "text-subtle hover:text-muted border-transparent",
                   )}
                 >
@@ -54,30 +55,61 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
               </li>
             ))}
           </ul>
-        </div>
+        </RailSection>
       ) : null}
 
       {lesson.labs.length > 0 ? (
-        <div>
-          <p className="text-subtle mb-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
-            Related labs
-          </p>
-          <ul className="space-y-1">
-            {lesson.labs.map((lab) => (
-              <li key={lab.id} className="text-muted flex items-center gap-2">
-                <icons.docsInteractive className="text-purple size-3.5" aria-hidden />
-                {lab.title}
-              </li>
+        <RailSection title="Try it">
+          <div className="border-border bg-panel rounded-md border p-4">
+            <div className="text-green flex items-center gap-2">
+              <icons.docsInteractive className="size-4" aria-hidden />
+              <span className="text-[11px] font-semibold tracking-[0.12em] uppercase">
+                Interactive lab
+              </span>
+            </div>
+            <p className="text-foreground mt-2 text-base font-semibold">{lesson.labs[0]?.title}</p>
+            <p className="text-muted mt-1 text-sm leading-relaxed">{lesson.labs[0]?.prompt}</p>
+            <a
+              href={`#lab-${lesson.labs[0]?.id}`}
+              className="border-blue/50 bg-blue/10 text-foreground hover:bg-blue/15 mt-4 flex h-8 items-center justify-between rounded-md border px-3 text-sm transition-colors"
+            >
+              Start lab
+              <icons.arrowRight className="text-blue size-4" aria-hidden />
+            </a>
+          </div>
+        </RailSection>
+      ) : null}
+
+      {lesson.concepts.length > 0 ? (
+        <RailSection title="Related topics">
+          <div className="grid gap-2">
+            {lesson.concepts.slice(0, 5).map((concept) => (
+              <div
+                key={concept}
+                className="border-border bg-panel hover:bg-panel-hover text-foreground flex items-center justify-between rounded-md border px-3 py-2 transition-colors"
+              >
+                <span>{concept}</span>
+                <icons.arrowRight className="text-subtle size-3.5" aria-hidden />
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
+        </RailSection>
+      ) : null}
+
+      {takeaways.length > 0 ? (
+        <RailSection title="Quick note">
+          <div className="border-border bg-panel rounded-md border p-4">
+            <p className="text-amber flex items-center gap-2 text-sm font-semibold">
+              <icons.challenge className="size-4" aria-hidden />
+              Remember this
+            </p>
+            <p className="text-muted mt-2 text-sm leading-relaxed">{takeaways[0]}</p>
+          </div>
+        </RailSection>
       ) : null}
 
       {lesson.relatedLevelSlug ? (
-        <div>
-          <p className="text-subtle mb-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
-            Related problem
-          </p>
+        <RailSection title="Related problem">
           <Link
             href={`/problems/${lesson.relatedLevelSlug}`}
             className="border-border bg-panel text-foreground hover:border-border-strong hover:bg-panel-hover flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
@@ -85,8 +117,58 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
             <icons.problems className="text-blue size-4" aria-hidden />
             Try the incident lab
           </Link>
-        </div>
+        </RailSection>
       ) : null}
+
+      {lesson.sources?.length ? (
+        <RailSection title="Official references">
+          <ul className="space-y-1.5">
+            {lesson.sources.map((source) => (
+              <li key={source.href}>
+                <a
+                  href={source.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-muted hover:text-foreground block rounded-md py-1 text-sm transition-colors"
+                >
+                  {source.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </RailSection>
+      ) : null}
+
+      <div className="border-border flex items-center justify-between border-t pt-5">
+        <span className="text-subtle text-xs">Was this helpful?</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Mark helpful"
+            className="border-border bg-panel hover:bg-panel-hover text-muted hover:text-foreground rounded-md border p-2 transition-colors"
+          >
+            <icons.success className="size-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="Needs improvement"
+            className="border-border bg-panel hover:bg-panel-hover text-muted hover:text-foreground rounded-md border p-2 transition-colors"
+          >
+            <icons.warning className="size-4" aria-hidden />
+          </button>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function RailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <p className="text-subtle mb-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
+        {title}
+      </p>
+      {children}
+    </section>
   );
 }

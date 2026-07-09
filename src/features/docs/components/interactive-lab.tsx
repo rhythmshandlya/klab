@@ -11,7 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { InteractiveLab as Lab } from "@/lib/domain/types";
-import { isPodReady, podPhase, readyEndpointCount } from "@/lib/kube/kubectl/format";
+import {
+  deploymentReadyReplicas,
+  isPodReady,
+  podPhase,
+  readyEndpointCount,
+} from "@/lib/kube/kubectl/format";
 import { setPlaygroundHandoff } from "@/lib/storage/playground-handoff";
 import { cn } from "@/lib/utils/cn";
 
@@ -31,7 +36,7 @@ export function InteractiveLab({ lab }: { lab: Lab }) {
 
   if (!started) {
     return (
-      <div className="border-border bg-panel rounded-xl border p-5">
+      <div id={`lab-${lab.id}`} className="border-border bg-panel rounded-md border p-5">
         <div className="text-purple flex items-center gap-2">
           <Flask className="size-4" aria-hidden />
           <span className="text-[11px] font-semibold tracking-[0.12em] uppercase">
@@ -39,7 +44,17 @@ export function InteractiveLab({ lab }: { lab: Lab }) {
           </span>
         </div>
         <h4 className="text-foreground mt-2 text-base font-semibold">{lab.title}</h4>
-        <p className="text-muted mt-1 text-sm">{lab.prompt}</p>
+        <p className="text-muted mt-1 text-sm leading-relaxed">{lab.prompt}</p>
+        {lab.tasks?.length ? (
+          <ul className="mt-4 grid gap-2">
+            {lab.tasks.map((task) => (
+              <li key={task} className="text-muted flex gap-2 text-sm">
+                <icons.success className="text-green mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>{task}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <Button variant="primary" size="sm" className="mt-4" onClick={() => setStarted(true)}>
           <Flask aria-hidden />
           Start lab
@@ -85,15 +100,40 @@ function LiveLab({ lab }: { lab: Lab }) {
   const service = sim.snapshot.services.find(
     (s) => (s.metadata?.namespace ?? "default") === NAMESPACE,
   );
+  const deployment = sim.snapshot.deployments.find(
+    (d) => (d.metadata?.namespace ?? "default") === NAMESPACE,
+  );
   const endpoints = service ? readyEndpointCount(service, sim.snapshot.endpointSlices) : null;
   const paths = Object.keys(files);
+  const readyPods = pods.filter(isPodReady).length;
+  const desiredReplicas = deployment?.spec?.replicas ?? pods.length;
+  const availableReplicas = deployment ? deploymentReadyReplicas(deployment) : readyPods;
+  const updatedReplicas = deployment?.status?.updatedReplicas ?? readyPods;
 
   return (
-    <div className="border-border bg-panel overflow-hidden rounded-xl border">
+    <div id={`lab-${lab.id}`} className="border-border bg-panel overflow-hidden rounded-md border">
+      <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <div>
+          <div className="text-purple flex items-center gap-2">
+            <icons.docsInteractive className="size-4" aria-hidden />
+            <span className="text-[11px] font-semibold tracking-[0.12em] uppercase">
+              Interactive demo
+            </span>
+          </div>
+          <p className="text-foreground mt-1 text-sm font-semibold">{lab.title}</p>
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => void reset()} disabled={!sim.ready}>
+          <icons.reset aria-hidden />
+          Reset demo
+        </Button>
+      </div>
+
       <div className="bg-border grid gap-px md:grid-cols-2">
-        {/* Editor */}
         <div className="bg-panel flex min-h-0 flex-col">
           <div className="border-border flex h-9 items-center gap-1 border-b px-2">
+            <span className="text-subtle mr-1 hidden text-[11px] font-semibold tracking-[0.08em] uppercase sm:inline">
+              Desired state
+            </span>
             {paths.map((path) => (
               <button
                 key={path}
@@ -110,7 +150,7 @@ function LiveLab({ lab }: { lab: Lab }) {
               </button>
             ))}
           </div>
-          <div className="h-64">
+          <div className="h-72">
             {activePath ? (
               <YamlEditor
                 path={`lab/${lab.id}/${activePath}`}
@@ -121,13 +161,22 @@ function LiveLab({ lab }: { lab: Lab }) {
           </div>
         </div>
 
-        {/* Live cluster */}
         <div className="bg-panel flex min-h-0 flex-col">
           <div className="border-border flex h-9 items-center justify-between border-b px-3">
             <span className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
-              Live cluster
+              Live cluster actual state
             </span>
             <StatusPill status={sim.status} />
+          </div>
+          <div className="border-border grid grid-cols-2 gap-2 border-b p-3 lg:grid-cols-4">
+            <Metric label="Desired" value={desiredReplicas} />
+            <Metric
+              label="Available"
+              value={availableReplicas}
+              tone={availableReplicas > 0 ? "green" : "amber"}
+            />
+            <Metric label="Updated" value={updatedReplicas} tone="purple" />
+            <Metric label="Ready Pods" value={readyPods} tone={readyPods > 0 ? "green" : "amber"} />
           </div>
           <div className="border-border h-40 border-b">
             <ErrorBoundary label="Topology">
@@ -141,7 +190,7 @@ function LiveLab({ lab }: { lab: Lab }) {
               </p>
             ) : null}
             {pods.length === 0 ? (
-              <p className="text-subtle">No pods yet — click Apply.</p>
+              <p className="text-subtle">No pods yet. Edit the YAML, then apply changes.</p>
             ) : (
               pods.map((p) => (
                 <div key={p.metadata?.name} className="flex items-center justify-between gap-2">
@@ -156,7 +205,6 @@ function LiveLab({ lab }: { lab: Lab }) {
         </div>
       </div>
 
-      {/* Actions */}
       <div className="border-border flex flex-wrap items-center gap-2 border-t p-3">
         <Button
           variant="primary"
@@ -165,11 +213,7 @@ function LiveLab({ lab }: { lab: Lab }) {
           disabled={applying || !sim.ready}
         >
           <icons.run aria-hidden />
-          {applying ? "Applying…" : "Apply"}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={() => void reset()} disabled={!sim.ready}>
-          <icons.reset aria-hidden />
-          Reset
+          {applying ? "Applying..." : "Apply changes"}
         </Button>
         <Button variant="ghost" size="sm" onClick={openInPlayground}>
           <icons.playground aria-hidden />
@@ -182,18 +226,63 @@ function LiveLab({ lab }: { lab: Lab }) {
           </p>
         ) : null}
       </div>
+
+      <div className="border-border bg-code/50 border-t px-4 py-3">
+        <p className="text-foreground flex items-center gap-2 text-sm font-semibold">
+          <icons.chevronDown className="text-subtle size-4" aria-hidden />
+          What just happened?
+        </p>
+        <p className="text-muted mt-2 text-sm leading-relaxed">
+          {lab.debrief ??
+            "The simulator applied your manifests, controllers reconciled them, and the live topology reflects the resulting objects."}
+        </p>
+        {lab.commands?.length ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {lab.commands.map((command) => (
+              <code
+                key={command}
+                className="border-border bg-terminal text-muted rounded border px-2 py-1 font-mono text-xs"
+              >
+                {command}
+              </code>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  tone = "blue",
+}: {
+  label: string;
+  value: number;
+  tone?: "blue" | "green" | "amber" | "purple";
+}) {
+  const toneClass = {
+    blue: "text-blue border-blue/25 bg-blue/5",
+    green: "text-green border-green/25 bg-green/5",
+    amber: "text-amber border-amber/25 bg-amber/5",
+    purple: "text-purple border-purple/25 bg-purple/5",
+  }[tone];
+  return (
+    <div className={cn("rounded-md border px-3 py-2", toneClass)}>
+      <p className="tabnums text-lg leading-none font-semibold">{value}</p>
+      <p className="text-muted mt-1 truncate text-[11px]">{label}</p>
     </div>
   );
 }
 
 function StatusPill({ status }: { status: string }) {
-  // "Simulator ready" (not bare "Ready") so it can't be misread as workload health.
   const label =
     status === "ready"
       ? "Simulator ready"
       : status === "error"
         ? "Simulator error"
-        : "Simulator booting…";
+        : "Simulator booting...";
   return (
     <span className="flex items-center gap-1.5 text-xs">
       <span

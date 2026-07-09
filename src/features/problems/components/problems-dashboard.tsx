@@ -23,7 +23,10 @@ type StatusFilter = "all" | LevelStatus;
 type Tab = "all" | "saved" | "completed";
 type Sort = "featured" | "xp" | "time" | "success" | "title";
 
-const DIFFICULTY_META: Record<Difficulty, { label: string; dot: string; tone: "success" | "warning" | "danger" }> = {
+const DIFFICULTY_META: Record<
+  Difficulty,
+  { label: string; dot: string; tone: "success" | "warning" | "danger" }
+> = {
   beginner: { label: "Beginner", dot: "bg-green", tone: "success" },
   intermediate: { label: "Intermediate", dot: "bg-amber", tone: "warning" },
   advanced: { label: "Advanced", dot: "bg-red", tone: "danger" },
@@ -35,16 +38,33 @@ const CONCEPT_LABELS: Record<KubernetesConcept, string> = {
   pods: "Pods",
   deployments: "Deployments",
   replicasets: "ReplicaSets",
+  statefulsets: "StatefulSets",
+  daemonsets: "DaemonSets",
+  jobs: "Jobs",
+  cronjobs: "CronJobs",
   services: "Services",
+  ingress: "Ingress",
   endpoints: "Endpoints",
   endpointslices: "EndpointSlices",
   "labels-selectors": "Selectors",
   "readiness-probes": "Readiness Probes",
   "liveness-probes": "Liveness Probes",
+  "startup-probes": "Startup Probes",
   dns: "DNS",
   namespaces: "Namespaces",
   rollouts: "Rollouts",
   events: "Events",
+  logs: "Logs",
+  resources: "Resources",
+  configmaps: "ConfigMaps",
+  secrets: "Secrets",
+  storage: "Storage",
+  "service-accounts": "Service Accounts",
+  rbac: "RBAC",
+  "security-contexts": "Security Contexts",
+  "network-policies": "Network Policies",
+  scheduling: "Scheduling",
+  autoscaling: "Autoscaling",
   reconciliation: "Reconciliation",
   networking: "Networking",
   debugging: "Debugging",
@@ -167,7 +187,9 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     saveProgress(toggleSaved(loadProgress(), slug), 0);
   };
 
-  const unlockedUnsolved = catalog.filter((l) => statusOf(l) === "unsolved" || statusOf(l) === "in-progress");
+  const unlockedUnsolved = catalog.filter(
+    (l) => statusOf(l) === "unsolved" || statusOf(l) === "in-progress",
+  );
   const dailyChallenge =
     unlockedUnsolved.length > 0
       ? unlockedUnsolved[hashString(localDay()) % unlockedUnsolved.length]
@@ -347,7 +369,11 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
           </div>
 
           {/* Tabs + search + sort */}
-          <div className="border-border mt-6 flex items-center gap-1 border-b" role="tablist" aria-label="Problem views">
+          <div
+            className="border-border mt-6 flex items-center gap-1 border-b"
+            role="tablist"
+            aria-label="Problem views"
+          >
             {(
               [
                 { id: "all", label: "All Problems", count: catalog.length },
@@ -511,7 +537,9 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                         aria-hidden
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="text-foreground block truncate text-sm">{level.title}</span>
+                        <span className="text-foreground block truncate text-sm">
+                          {level.title}
+                        </span>
                         <span className="text-subtle text-xs">
                           {DIFFICULTY_META[level.difficulty].label} · in progress
                         </span>
@@ -542,7 +570,9 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                       className="hover:bg-panel-hover group flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="text-foreground block truncate text-sm">{level.title}</span>
+                        <span className="text-foreground block truncate text-sm">
+                          {level.title}
+                        </span>
                         <span className="text-subtle text-xs">
                           {DIFFICULTY_META[level.difficulty].label} · ~{level.estimatedMinutes}m
                         </span>
@@ -569,15 +599,27 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
           >
             <div className="flex items-center gap-4">
               <div className="relative">
-                <ProgressRing fraction={solvedCount / Math.max(1, catalog.length)} size={72} stroke={7} />
+                <ProgressRing
+                  fraction={solvedCount / Math.max(1, catalog.length)}
+                  size={72}
+                  stroke={7}
+                />
                 <span className="text-foreground absolute inset-0 flex items-center justify-center text-sm font-semibold">
                   {Math.round((solvedCount / Math.max(1, catalog.length)) * 100)}%
                 </span>
               </div>
               <ul className="flex-1 space-y-1 text-xs">
                 <ProgressLegend color="bg-green" label="Solved" value={statusCounts.solved} />
-                <ProgressLegend color="bg-blue" label="In progress" value={statusCounts["in-progress"]} />
-                <ProgressLegend color="bg-border-strong" label="Unsolved" value={statusCounts.unsolved} />
+                <ProgressLegend
+                  color="bg-blue"
+                  label="In progress"
+                  value={statusCounts["in-progress"]}
+                />
+                <ProgressLegend
+                  color="bg-border-strong"
+                  label="Unsolved"
+                  value={statusCounts.unsolved}
+                />
                 <ProgressLegend color="bg-amber" label="Locked" value={statusCounts.locked} />
               </ul>
             </div>
@@ -706,7 +748,9 @@ function ProblemRow({
         {level.title}
       </span>
       <span className="text-subtle mt-0.5 block truncate text-xs">
-        {locked ? `Locked — solve ${remaining} more problem${remaining === 1 ? "" : "s"}` : level.blurb}
+        {locked
+          ? `Locked — solve ${remaining} more problem${remaining === 1 ? "" : "s"}`
+          : level.blurb}
       </span>
     </>
   );
@@ -758,7 +802,11 @@ function ProblemRow({
             <span
               className={cn(
                 "block h-full rounded-full",
-                level.successRate >= 60 ? "bg-green" : level.successRate >= 45 ? "bg-amber" : "bg-red",
+                level.successRate >= 60
+                  ? "bg-green"
+                  : level.successRate >= 45
+                    ? "bg-amber"
+                    : "bg-red",
               )}
               style={{ width: `${level.successRate}%` }}
             />
@@ -827,7 +875,13 @@ function ProgressRing({
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(1, fraction));
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden className="-rotate-90">
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      aria-hidden
+      className="-rotate-90"
+    >
       <circle
         cx={size / 2}
         cy={size / 2}
