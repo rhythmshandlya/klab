@@ -4,7 +4,7 @@
 > Brand string in nav: **`klab`**. Reference mockups say "KubeQuest" — reference-only; shipped brand stays `klab`.
 
 **Last updated:** 2026-07-09
-**Overall status:** 🟢 Phases 1–5 complete & verified (Problems solves end-to-end; Playground apply→observe; Docs lessons with runnable inline labs — all in a real browser). ⬜ Phase 6 pending.
+**Overall status:** ✅ ALL PHASES COMPLETE (1–6). MVP is feature-complete and release-polished. `pnpm lint`, `pnpm typecheck`, `pnpm test` (50), and `pnpm build` all pass; 3 Playwright E2E specs pass. 8 commits on `main`.
 
 ---
 
@@ -112,10 +112,22 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 - [x] Three fully interactive lessons: `foundations/desired-vs-actual-state`, `networking/services`, `debugging/readiness-probes` (each with a bare-Pod lab → churn-free)
 - **Verified:** docs content unit tests + a Playwright E2E (open the readiness lesson → content renders → Start lab → the lab's cluster boots, applies its Pod+Service, and reaches a ready endpoint). Labs prefer bare Pods so readiness reports promptly in-browser.
 
-### Phase 6 — Tests, polish, a11y, README/CI ⬜ NEXT
-_(Open-source polish: README with quick-start/architecture/how-to-add-content, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, LICENSE, .github/workflows/ci.yml, issue + PR templates; a11y sweep (axe, keyboard, reduced-motion); progress page wiring; bundle check.)_
+### Phase 6 — Tests, polish, a11y, README/CI ✅ DONE
+- [x] Open-source docs: expanded `README.md` (quick start, scripts, architecture, how-to-add level/image/validator/docs/template, roadmap+placeholders), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant), `SECURITY.md`, `LICENSE` (MIT)
+- [x] GitHub Actions CI (`.github/workflows/ci.yml`): `checks` job (lint → typecheck → test → build) + separate `e2e` job (Playwright) on push/PR, pnpm + Node 22 + corepack
+- [x] Issue templates (bug report, level proposal, docs improvement) + `config.yml` + pull request template
+- [x] Accessibility: jest-axe component tests (Button incl. icon-only, Badge, Panel, ClusterMark decorative, SectionPlaceholder) — 0 violations; keyboard flows (⌘K palette, tabs, skip-to-content), reduced-motion, and color-never-sole-indicator already in place from Phase 1
+- [x] Wired `/progress` dashboard + TopNav streak/XP chips to the local progress store (`useProgress` + `PROGRESS_EVENT`), replacing placeholder stats
+- [x] Future backend/auth documented as placeholders (README roadmap + `lib/config/placeholders.ts`)
+- **Verified:** `pnpm lint` / `pnpm typecheck` / `pnpm test` (14 files, 50 tests) / `pnpm build` all exit 0; `pnpm test:e2e` → 3/3 pass.
 
 ## 5. Verification log
+
+- **2026-07-09 — Phase 6 (polish) verified; PROJECT COMPLETE.** Final gate all green:
+  `pnpm lint` → exit 0, `pnpm typecheck` → exit 0, `pnpm test` → **14 files / 50 tests**,
+  `pnpm build` → exit 0 (all routes prerender), `pnpm test:e2e` → **3/3** (Problems solve,
+  Playground apply→observe, Docs inline lab). Added README/CONTRIBUTING/CoC/SECURITY/LICENSE,
+  GitHub Actions CI, issue+PR templates, jest-axe a11y tests, and live `/progress` + nav wiring.
 
 - **2026-07-09 — Phase 5 (Interactive Docs) verified.** `pnpm typecheck`/`lint`/`build` → exit 0 (3 lesson routes prerender). `pnpm test` (vitest) → **13 files / 45 tests** (adds docs content parsing). `pnpm test:e2e` → **3 passed**: Problems full solve, Playground apply→observe, and Docs (open lesson → Start lab → lab cluster reconciles to a ready endpoint).
 
@@ -144,13 +156,12 @@ _(Open-source polish: README with quick-start/architecture/how-to-add-content, C
 
 ## 6. Next command to run
 
-Begin **Phase 6 (polish + open-source)** — the app is feature-complete; this phase hardens
-it for release: README (quick start, architecture, how to add a level/image/validator/docs
-lesson/template), CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, LICENSE (MIT), GitHub Actions CI
-(`lint`/`typecheck`/`test`/`build`, optionally e2e), issue + PR templates, an accessibility
-sweep (axe + keyboard flows + reduced-motion), and wiring the `/progress` page + nav
-streak/XP to the local progress store.
+All six phases are complete — the MVP is done. To run it:
 
 ```bash
-pnpm dlx @axe-core/cli --version   # or add jest-axe/@axe-core/playwright checks; then write docs + CI
+corepack enable && pnpm install && pnpm dev   # http://localhost:3000
 ```
+
+Future work (not blocking the MVP): more levels (the 4 "coming soon" catalog entries),
+achievement badges + per-concept mastery on `/progress`, and an optional backend for
+accounts / cloud-synced progress behind `src/lib/storage/*`.

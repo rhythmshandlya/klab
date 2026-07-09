@@ -39,6 +39,9 @@ export function loadProgress(): Progress {
   }
 }
 
+/** Dispatched on the window after progress is persisted, so live UI (nav, /progress) can refresh. */
+export const PROGRESS_EVENT = "klab:progress-changed";
+
 let pendingWrite: ReturnType<typeof setTimeout> | null = null;
 let pendingValue: Progress | null = null;
 
@@ -52,6 +55,7 @@ export function saveProgress(progress: Progress, delayMs = 400): void {
     if (pendingValue) {
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingValue));
+        window.dispatchEvent(new Event(PROGRESS_EVENT));
       } catch {
         // Storage full or unavailable — progress is best-effort, so ignore.
       }

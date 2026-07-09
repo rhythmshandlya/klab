@@ -1,0 +1,46 @@
+name: Level proposal
+description: Propose a new Problems incident level
+labels: [level, content]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Level title
+      placeholder: Service Selector Mismatch
+    validations:
+      required: true
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty
+      options: [beginner, intermediate, advanced]
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: The incident
+      description: What's broken, and what symptom does the user first see?
+      placeholder: web-svc returns 503s because the Service selector matches no pods…
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence trail (no spoilers to the learner)
+      description: What signals should the user discover (get/describe/events/probes) that lead to the fix?
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: The fix & validators
+      description: What edit resolves it, and what behavior-based checks prove it (endpoints, HTTP 200, ready pods)?
+    validations:
+      required: true
+  - type: checkboxes
+    id: churn
+    attributes:
+      label: Simulator note
+      options:
+        - label: If the broken state should have not-Ready pods, I'll model it as a bare Pod (not a Deployment) to avoid pod churn.

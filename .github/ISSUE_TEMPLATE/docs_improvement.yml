@@ -1,0 +1,25 @@
+name: Docs improvement
+description: Suggest a new or improved docs lesson
+labels: [docs, content]
+body:
+  - type: input
+    id: lesson
+    attributes:
+      label: Lesson / topic
+      placeholder: networking/dns
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: What should change or be added?
+      description: New lesson, clearer explanation, a better inline lab, a fixed example…
+    validations:
+      required: true
+  - type: checkboxes
+    id: lab
+    attributes:
+      label: Interactive lab
+      options:
+        - label: This lesson should include a runnable inline lab.
+        - label: The lab uses a bare Pod (churn-free) rather than a Deployment for any not-Ready scenario.

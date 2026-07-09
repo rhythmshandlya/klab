@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in klab doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! klab runs entirely in the browser — please include your browser.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: On /problems/broken-readiness-probe I clicked Run Validation and…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1. Go to…
+        2. Click…
+        3. See…
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & OS
+      placeholder: Chrome 130 on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors (optional)
+      description: Anything relevant from the browser devtools console.
+      render: shell

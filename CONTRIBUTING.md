@@ -1,0 +1,61 @@
+# Contributing to klab
+
+Thanks for your interest in improving klab! This guide covers the workflow and the
+common "how do I add …" tasks. The [README](./README.md) has the architecture overview.
+
+## Development setup
+
+Requires **Node ≥ 20.9** and **pnpm** (via corepack, bundled with Node).
+
+```bash
+corepack enable
+pnpm install
+pnpm dev            # http://localhost:3000
+```
+
+## Before you open a PR
+
+Run the full local gate — CI runs the same commands and must be green:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test           # unit + integration (Vitest)
+pnpm build
+pnpm test:e2e       # Playwright (installs a browser on first run: pnpm exec playwright install chromium)
+```
+
+Please also:
+
+- Keep route files thin — product logic lives in `features/` and `lib/`.
+- No hardcoded hex colors outside `src/lib/design/tokens.ts` + `globals.css`; use the
+  semantic Tailwind utilities (`bg-panel`, `text-muted`, …).
+- No `any` unless justified with a comment.
+- Status must never be conveyed by color alone — pair it with an icon and text.
+- Add or update tests for behavior you change.
+
+## Simulator gotcha (please read before adding cluster content)
+
+klab simulates Kubernetes in the browser via `@ngrok/webernetes`. Its ReplicaSet
+controller drives toward `readyReplicas`, so a **Deployment whose pods never become
+Ready keeps creating pods** (churn) and can overload the browser. When you author a
+level, template, or lab that should sit in a *broken / not-Ready* state, use a **bare
+Pod**, not a Deployment. Healthy Deployments (pods reach Ready) are fine. See the note
+in `PROGRESS.md`.
+
+## How-to guides
+
+See the README's [Extending klab](./README.md#extending-klab) section for step-by-step
+recipes: add a problem level, add a simulated image, write a validator, add a docs
+lesson, and add a playground template. All static content is validated by Zod schemas
+at load time, so an invalid entry fails the build.
+
+## Commit & PR style
+
+- Small, focused commits with a clear message.
+- Reference the issue you're addressing.
+- Fill in the pull request template. CI must pass.
+
+## Code of Conduct
+
+By participating you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md).

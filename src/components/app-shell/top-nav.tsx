@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { useCommandPalette } from "@/components/command-palette/command-palette-provider";
 import { ClusterMark, icons } from "@/components/icons";
 import { Kbd } from "@/components/ui/kbd";
-import { PLACEHOLDER_STATS, PLACEHOLDER_USER } from "@/lib/config/placeholders";
+import { PLACEHOLDER_USER } from "@/lib/config/placeholders";
+import { useProgress } from "@/features/progress/use-progress";
 import { cn } from "@/lib/utils/cn";
 
 import { isSectionActive, NAV_ITEMS } from "./nav-items";
@@ -14,6 +15,7 @@ import { useWorkspaceAction } from "./workspace-action";
 
 export function TopNav() {
   const pathname = usePathname() ?? "/";
+  const progress = useProgress();
 
   return (
     <header className="border-border bg-app/80 sticky top-0 z-40 h-14 border-b backdrop-blur-xl">
@@ -46,8 +48,8 @@ export function TopNav() {
           <PrimaryAction />
           <CommandButton />
           <div className="hidden items-center gap-2 sm:flex">
-            <StatChip icon="streak" value={PLACEHOLDER_STATS.streakDays} label="day streak" />
-            <StatChip icon="xp" value={PLACEHOLDER_STATS.xp} label="XP" />
+            <StatChip icon="streak" value={progress.streakDays} label="day streak" />
+            <StatChip icon="xp" value={progress.xp} label="XP" />
           </div>
           <UserChip />
         </div>
