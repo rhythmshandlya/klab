@@ -3,6 +3,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 
 import { AppShell } from "@/components/app-shell/app-shell";
+import { isAuthConfigured } from "@/lib/env";
 
 import "./globals.css";
 
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body className="font-sans antialiased">
-        <AppShell>{children}</AppShell>
+        {/* Whether accounts are available is a server-side fact (env); pass it down so
+            the client nav shows sign-in only when the backend is actually configured. */}
+        <AppShell authEnabled={isAuthConfigured()}>{children}</AppShell>
       </body>
     </html>
   );

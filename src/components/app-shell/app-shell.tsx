@@ -8,7 +8,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { TopNav } from "./top-nav";
 import { WorkspaceActionProvider } from "./workspace-action";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  authEnabled = false,
+}: {
+  children: ReactNode;
+  authEnabled?: boolean;
+}) {
   return (
     <WorkspaceActionProvider>
       <CommandPaletteProvider>
@@ -20,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Skip to content
           </a>
           <div className="flex min-h-dvh flex-col">
-            <TopNav />
+            <TopNav authEnabled={authEnabled} />
             <main id="main" className="flex min-h-0 flex-1 flex-col">
               {children}
             </main>
