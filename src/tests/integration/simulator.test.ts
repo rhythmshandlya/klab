@@ -132,4 +132,25 @@ describe("KubeSimulator (real Webernetes boot)", () => {
     expect(unknown.isError).toBe(true);
     expect(unknown.output).toContain("command not found");
   });
+
+  it("serializes an overlapping boot → close → boot (React StrictMode) into a ready cluster", async () => {
+    sim = new KubeSimulator();
+    // StrictMode double-invokes effects in dev: mount → cleanup → mount fires
+    // boot → close → boot on the SAME instance, overlapping (no await between).
+    // None must error ("Simulator is already booting"), and the final state must
+    // be a usable cluster, not "error".
+    const boot1 = sim.boot();
+    const closed = sim.close();
+    const boot2 = sim.boot();
+    const [r1, , r2] = await Promise.all([boot1, closed, boot2]);
+    expect(r1.ok, r1.ok ? "" : (r1 as { error: string }).error).toBe(true);
+    expect(r2.ok, r2.ok ? "" : (r2 as { error: string }).error).toBe(true);
+    expect(sim.status).toBe("ready");
+
+    // The surviving cluster is real and functional.
+    const applied = await sim.applyYaml(HEALTHY);
+    expect(applied.ok).toBe(true);
+    const hasPod = await waitFor(() => sim!.getSnapshot().pods.length > 0, 25000);
+    expect(hasPod).toBe(true);
+  });
 });

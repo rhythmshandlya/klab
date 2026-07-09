@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { type IconName } from "@/components/icons";
 
@@ -39,15 +47,48 @@ export function useWorkspaceAction(): WorkspaceAction | null {
   return ctx?.action ?? null;
 }
 
-/** Register (and clean up) the nav primary action for the current page. */
+/**
+ * Register (and clean up) the nav primary action for the current page.
+ *
+ * Callers hand us a brand-new `onRun` closure on every render (e.g.
+ * `onRun: () => void handleValidate()`). If that closure were an effect
+ * dependency, the effect would re-run every render → call setAction → mutate the
+ * context this hook itself consumes → re-render → new closure → run again, forever
+ * ("Maximum update depth exceeded"), freezing every workspace page. So we keep the
+ * latest onRun in a ref and register a *stable* wrapper, re-registering only when a
+ * rendered field (label/icon/shortcut/disabled/pending) actually changes value.
+ */
 export function useRegisterWorkspaceAction(action: WorkspaceAction | null): void {
   const ctx = useContext(WorkspaceActionContext);
-  const { label, icon, shortcut, onRun, disabled, pending } = action ?? {};
+  const setAction = ctx?.setAction;
+
+  // Latest-onRun ref, synced after each render so the stable wrapper below always
+  // calls the current handler (kept out of the render body for react-hooks/refs).
+  const onRunRef = useRef<(() => void) | undefined>(undefined);
   useEffect(() => {
-    if (!ctx) return;
-    ctx.setAction(action);
-    return () => ctx.setAction(null);
-    // Re-register when any field changes; ctx.setAction is stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [label, icon, shortcut, onRun, disabled, pending]);
+    onRunRef.current = action?.onRun;
+  });
+
+  const label = action?.label ?? null;
+  const icon = action?.icon ?? null;
+  const shortcut = action?.shortcut;
+  const disabled = action?.disabled;
+  const pending = action?.pending;
+
+  useEffect(() => {
+    if (!setAction) return;
+    if (label == null || icon == null) {
+      setAction(null);
+      return;
+    }
+    setAction({
+      label,
+      icon,
+      shortcut,
+      disabled,
+      pending,
+      onRun: () => onRunRef.current?.(),
+    });
+    return () => setAction(null);
+  }, [setAction, label, icon, shortcut, disabled, pending]);
 }

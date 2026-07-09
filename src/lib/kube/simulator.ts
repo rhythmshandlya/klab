@@ -98,6 +98,12 @@ export class KubeSimulator {
   private notifyScheduled = false;
   private statusValue: SimulatorStatus = "idle";
   private readonly options: KubeSimulatorOptions;
+  // All lifecycle transitions (boot/close/reset) run through this chain so they
+  // execute strictly one-after-another. React StrictMode double-invokes effects in
+  // dev (mount → unmount → mount), firing boot → close → boot on the SAME instance;
+  // serializing makes that sequence resolve deterministically to a booted cluster
+  // instead of racing (which previously surfaced "Simulator is already booting").
+  private lifecycleChain: Promise<unknown> = Promise.resolve();
 
   constructor(options: KubeSimulatorOptions = {}) {
     this.options = options;
@@ -110,9 +116,29 @@ export class KubeSimulator {
     return this.statusValue;
   }
 
-  /** Boot the control plane, register images, and start informers. Idempotent-ish: call reset() to restart. */
+  /**
+   * Run a lifecycle op serialized after any in-flight one. Failures don't poison the
+   * chain — the next op still runs (it inspects live state, e.g. doBoot() is a no-op
+   * when already ready).
+   */
+  private serializeLifecycle<T>(op: () => Promise<T>): Promise<T> {
+    const run = this.lifecycleChain.then(op, op);
+    this.lifecycleChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  /** Boot the control plane, register images, and start informers. Idempotent: a call
+   *  while already booted resolves ok without rebooting. Safe to interleave with close(). */
   async boot(): Promise<Result<void, string>> {
-    if (this.statusValue === "booting") return err("Simulator is already booting.");
+    return this.serializeLifecycle(() => this.doBoot());
+  }
+
+  private async doBoot(): Promise<Result<void, string>> {
+    // Already up (e.g. a duplicate boot with no intervening close) — nothing to do.
+    if (this.statusValue === "ready" && this.cluster) return ok(undefined);
     this.statusValue = "booting";
     try {
       const [{ Cluster }, { KLAB_IMAGES }] = await Promise.all([
@@ -326,16 +352,20 @@ export class KubeSimulator {
 
   /** Tear down and recreate a fresh cluster. */
   async reset(): Promise<Result<void, string>> {
-    await this.teardown();
-    return this.boot();
+    return this.serializeLifecycle(async () => {
+      await this.doTeardown();
+      return this.doBoot();
+    });
   }
 
   async close(): Promise<void> {
-    await this.teardown();
-    this.statusValue = "idle";
+    await this.serializeLifecycle(async () => {
+      await this.doTeardown();
+      this.statusValue = "idle";
+    });
   }
 
-  private async teardown(): Promise<void> {
+  private async doTeardown(): Promise<void> {
     await Promise.allSettled(this.informers.map((informer) => informer.stop()));
     this.informers = [];
     if (this.cluster) {
