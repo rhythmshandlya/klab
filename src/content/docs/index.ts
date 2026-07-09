@@ -225,7 +225,39 @@ const OFFICIAL_SOURCES = {
     title: "Kubernetes objects",
     href: "https://kubernetes.io/docs/concepts/overview/working-with-objects/",
   },
+  labels: {
+    title: "Labels and selectors",
+    href: "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/",
+  },
+  annotations: {
+    title: "Annotations",
+    href: "https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/",
+  },
+  owners: {
+    title: "Owners and dependents",
+    href: "https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/",
+  },
+  objectManagement: {
+    title: "Object management",
+    href: "https://kubernetes.io/docs/concepts/overview/working-with-objects/object-management/",
+  },
+  kustomize: {
+    title: "Manage objects with Kustomize",
+    href: "https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/",
+  },
   pods: { title: "Pods", href: "https://kubernetes.io/docs/concepts/workloads/pods/" },
+  initContainers: {
+    title: "Init containers",
+    href: "https://kubernetes.io/docs/concepts/workloads/pods/init-containers/",
+  },
+  sidecarContainers: {
+    title: "Sidecar containers",
+    href: "https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/",
+  },
+  lifecycleHooks: {
+    title: "Container lifecycle hooks",
+    href: "https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/",
+  },
   deployments: {
     title: "Deployments",
     href: "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
@@ -263,6 +295,10 @@ const OFFICIAL_SOURCES = {
     title: "Ingress",
     href: "https://kubernetes.io/docs/concepts/services-networking/ingress/",
   },
+  gatewayApi: {
+    title: "Gateway API",
+    href: "https://kubernetes.io/docs/concepts/services-networking/gateway/",
+  },
   probes: {
     title: "Liveness, readiness, and startup probes",
     href: "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
@@ -274,6 +310,14 @@ const OFFICIAL_SOURCES = {
   resources: {
     title: "Resource management for Pods and containers",
     href: "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+  },
+  resourceQuotas: {
+    title: "Resource quotas",
+    href: "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
+  },
+  limitRanges: {
+    title: "Limit ranges",
+    href: "https://kubernetes.io/docs/concepts/policy/limit-range/",
   },
   configmaps: {
     title: "ConfigMaps",
@@ -316,6 +360,26 @@ const OFFICIAL_SOURCES = {
     title: "Horizontal Pod Autoscaling",
     href: "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
   },
+  disruptions: {
+    title: "Disruptions",
+    href: "https://kubernetes.io/docs/concepts/workloads/pods/disruptions/",
+  },
+  podDisruptionBudgets: {
+    title: "Pod Disruption Budgets",
+    href: "https://kubernetes.io/docs/tasks/run-application/configure-pdb/",
+  },
+  customResources: {
+    title: "Custom resources",
+    href: "https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/",
+  },
+  operators: {
+    title: "Operator pattern",
+    href: "https://kubernetes.io/docs/concepts/extend-kubernetes/operator/",
+  },
+  admissionControllers: {
+    title: "Admission controllers",
+    href: "https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/",
+  },
   debugPods: {
     title: "Debug running Pods",
     href: "https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/",
@@ -342,17 +406,26 @@ const SOURCE_BY_CONCEPT: Partial<
   cronjobs: [OFFICIAL_SOURCES.cronjobs],
   services: [OFFICIAL_SOURCES.services],
   ingress: [OFFICIAL_SOURCES.ingress],
+  "gateway-api": [OFFICIAL_SOURCES.gatewayApi],
   endpointslices: [OFFICIAL_SOURCES.endpointSlices],
-  "labels-selectors": [OFFICIAL_SOURCES.objects],
+  "labels-selectors": [OFFICIAL_SOURCES.labels],
+  annotations: [OFFICIAL_SOURCES.annotations],
+  "owners-gc": [OFFICIAL_SOURCES.owners],
   "readiness-probes": [OFFICIAL_SOURCES.probes],
   "liveness-probes": [OFFICIAL_SOURCES.probes],
   "startup-probes": [OFFICIAL_SOURCES.probes],
+  "init-containers": [OFFICIAL_SOURCES.initContainers],
+  "sidecar-containers": [OFFICIAL_SOURCES.sidecarContainers],
+  "lifecycle-hooks": [OFFICIAL_SOURCES.lifecycleHooks],
   dns: [OFFICIAL_SOURCES.dns],
   namespaces: [OFFICIAL_SOURCES.namespaces],
   rollouts: [OFFICIAL_SOURCES.deployments],
+  disruptions: [OFFICIAL_SOURCES.disruptions, OFFICIAL_SOURCES.podDisruptionBudgets],
   events: [OFFICIAL_SOURCES.debugPods],
   logs: [OFFICIAL_SOURCES.logging, OFFICIAL_SOURCES.debugPods],
   resources: [OFFICIAL_SOURCES.resources],
+  "resource-quotas": [OFFICIAL_SOURCES.resourceQuotas],
+  "limit-ranges": [OFFICIAL_SOURCES.limitRanges],
   configmaps: [OFFICIAL_SOURCES.configmaps],
   secrets: [OFFICIAL_SOURCES.secrets],
   storage: [OFFICIAL_SOURCES.volumes, OFFICIAL_SOURCES.persistentVolumes],
@@ -362,6 +435,11 @@ const SOURCE_BY_CONCEPT: Partial<
   "network-policies": [OFFICIAL_SOURCES.networkPolicies],
   scheduling: [OFFICIAL_SOURCES.scheduling, OFFICIAL_SOURCES.taints],
   autoscaling: [OFFICIAL_SOURCES.autoscaling],
+  "object-management": [OFFICIAL_SOURCES.objectManagement],
+  kustomize: [OFFICIAL_SOURCES.kustomize],
+  crds: [OFFICIAL_SOURCES.customResources],
+  operators: [OFFICIAL_SOURCES.operators],
+  "admission-controllers": [OFFICIAL_SOURCES.admissionControllers],
   reconciliation: [OFFICIAL_SOURCES.overview, OFFICIAL_SOURCES.components],
   networking: [OFFICIAL_SOURCES.services, OFFICIAL_SOURCES.dns],
   debugging: [OFFICIAL_SOURCES.debugPods, OFFICIAL_SOURCES.debugServices],
@@ -638,6 +716,163 @@ const apiObjects: DocsLesson = {
         "Labels are metadata used by selectors. Changing them changes which Services or controllers can match the object.",
     },
   ],
+};
+
+const labelsAnnotationsOwnership: DocsLesson = {
+  slug: ["foundations", "labels-annotations-ownership"],
+  title: "Labels, Annotations & Ownership",
+  description:
+    "Learn the metadata model behind selectors, routing, controller ownership, garbage collection, and safe automation.",
+  section: "Foundations",
+  order: 4,
+  concepts: ["labels-selectors", "annotations", "owners-gc", "reconciliation"],
+  content: [
+    { type: "heading", id: "metadata-drives-control", text: "Metadata drives control" },
+    {
+      type: "paragraph",
+      text: "Labels are queryable identity used by selectors. Annotations store non-identifying metadata for tools and humans. Owner references connect generated objects to the controller that owns them, which is how cascading cleanup and controller relationships work.",
+    },
+    {
+      type: "diagram",
+      variant: "api-object",
+      title: "Metadata that changes behavior",
+      caption:
+        "Labels participate in selection. Annotations describe. Owner references model parent-child control.",
+    },
+    {
+      type: "compare",
+      caption:
+        "Use labels when Kubernetes needs to select; use annotations when tools need extra context.",
+      left: {
+        title: "labels",
+        code: "metadata:\n  labels:\n    app: web\n    tier: frontend",
+      },
+      right: {
+        title: "annotations",
+        code: "metadata:\n  annotations:\n    runbook: https://...\n    owner: platform-team",
+      },
+    },
+    {
+      type: "steps",
+      items: [
+        {
+          title: "Labels",
+          text: "Use for grouping, selecting, routing, ownership hints, and dashboards.",
+        },
+        {
+          title: "Selectors",
+          text: "Services, ReplicaSets, Jobs, and NetworkPolicies depend on selectors matching labels correctly.",
+        },
+        {
+          title: "Annotations",
+          text: "Use for tool metadata, rollout notes, sidecar configuration, or audit context that should not be selected on.",
+        },
+        {
+          title: "Owner references",
+          text: "Use the object tree to understand which controller created a Pod and what will clean it up.",
+        },
+      ],
+    },
+    quiz(
+      "metadata-q1",
+      "A Service is not routing to a Pod. Which metadata should you compare first?",
+      [
+        qOption(
+          "a",
+          "Service selector and Pod labels.",
+          true,
+          "Services select Pods by labels. A name match is not enough.",
+        ),
+        qOption(
+          "b",
+          "Only the Pod annotation text.",
+          false,
+          "Annotations can be useful context, but Services do not route by annotations.",
+        ),
+        qOption(
+          "c",
+          "Only ownerReferences.",
+          false,
+          "Ownership explains control hierarchy, not Service membership.",
+        ),
+      ],
+    ),
+  ],
+  labs: [],
+};
+
+const declarativeWorkflow: DocsLesson = {
+  slug: ["foundations", "declarative-workflow"],
+  title: "Declarative Workflow",
+  description:
+    "Use apply, diff, field ownership, and Kustomize-style overlays to manage Kubernetes safely over time.",
+  section: "Foundations",
+  order: 5,
+  concepts: ["object-management", "kustomize", "debugging"],
+  content: [
+    { type: "heading", id: "apply-not-clicks", text: "Apply desired state repeatedly" },
+    {
+      type: "paragraph",
+      text: "Kubernetes works best when the desired state lives in files and changes are applied intentionally. A declarative workflow lets you review diffs, repeat deployments, and recover drift without relying on manual click paths.",
+    },
+    terminalDemo("Safe manifest workflow", "Use this loop when changing production objects.", [
+      {
+        label: "Render",
+        detail: "Generate the final manifest from base files and overlays.",
+        command: "kubectl kustomize overlays/prod",
+      },
+      {
+        label: "Diff",
+        detail: "Review what will change before mutating the cluster.",
+        command: "kubectl diff -k overlays/prod",
+        output: "- replicas: 3\n+ replicas: 5",
+      },
+      {
+        label: "Apply",
+        detail: "Submit the desired state and let controllers reconcile it.",
+        command: "kubectl apply -k overlays/prod",
+        output: "deployment.apps/web configured",
+      },
+    ]),
+    {
+      type: "steps",
+      title: "What separates a good workflow from YAML chaos",
+      items: [
+        {
+          title: "One source of truth",
+          text: "Keep intended state in versioned manifests instead of editing live objects by hand.",
+        },
+        {
+          title: "Small overlays",
+          text: "Use environment overlays for replica counts, images, and config differences.",
+        },
+        {
+          title: "Review behavior",
+          text: "A green diff is not enough. Verify Pods, endpoints, probes, and user-facing requests.",
+        },
+        {
+          title: "Know ownership",
+          text: "Server-side apply tracks which manager owns which fields, reducing accidental overwrites.",
+        },
+      ],
+    },
+    quiz("declarative-workflow-q1", "Why run kubectl diff before apply?", [
+      qOption(
+        "a",
+        "To preview the object changes before mutating the cluster.",
+        true,
+        "Diff catches unintended changes before controllers act on them.",
+      ),
+      qOption(
+        "b",
+        "To restart every node.",
+        false,
+        "Diff is a read operation and does not restart nodes.",
+      ),
+      qOption("c", "To bypass the API server.", false, "kubectl still talks to the API server."),
+    ]),
+  ],
+  labs: [],
 };
 
 const pods: DocsLesson = {
@@ -952,6 +1187,66 @@ const jobs: DocsLesson = {
   labs: [],
 };
 
+const podComposition: DocsLesson = {
+  slug: ["workloads", "init-sidecars-lifecycle"],
+  title: "Init Containers, Sidecars & Lifecycle Hooks",
+  description:
+    "Compose Pods with startup steps, helper containers, and lifecycle hooks without hiding app behavior.",
+  section: "Workloads",
+  order: 6,
+  concepts: ["pods", "init-containers", "sidecar-containers", "lifecycle-hooks"],
+  content: [
+    { type: "heading", id: "pod-composition", text: "Pod composition patterns" },
+    {
+      type: "paragraph",
+      text: "A Pod can contain init containers that run before app containers, sidecar containers that support the app while it runs, and lifecycle hooks that run at container start or before termination.",
+    },
+    { type: "diagram", variant: "pod", title: "One Pod, multiple lifecycle roles" },
+    {
+      type: "steps",
+      items: [
+        {
+          title: "Init container",
+          text: "Runs to completion before app containers start. Good for migrations, wait checks, and setup that must finish first.",
+        },
+        {
+          title: "Sidecar",
+          text: "Runs alongside the app for helpers such as log shipping, proxies, or file synchronization.",
+        },
+        {
+          title: "PostStart hook",
+          text: "Runs after a container is created, but should not replace real readiness checks.",
+        },
+        {
+          title: "PreStop hook",
+          text: "Runs before termination, often to drain connections or notify a dependency.",
+        },
+      ],
+    },
+    {
+      type: "code",
+      language: "yaml",
+      code: "initContainers:\n  - name: wait-for-db\n    image: busybox\ncontainers:\n  - name: app\n    image: app:v1\n  - name: log-shipper\n    image: shipper:v1",
+    },
+    quiz("pod-composition-q1", "Which container type must complete before app containers start?", [
+      qOption(
+        "a",
+        "Init container",
+        true,
+        "Init containers run sequentially to completion before regular containers.",
+      ),
+      qOption("b", "Sidecar container", false, "Sidecars run alongside the main app container."),
+      qOption(
+        "c",
+        "Service container",
+        false,
+        "Service is a Kubernetes networking object, not a container type.",
+      ),
+    ]),
+  ],
+  labs: [],
+};
+
 const services: DocsLesson = {
   slug: ["networking", "services"],
   title: "Services & Endpoints",
@@ -1137,6 +1432,73 @@ const ingress: DocsLesson = {
         ),
       ],
     ),
+  ],
+  labs: [],
+};
+
+const serviceTypesGateway: DocsLesson = {
+  slug: ["networking", "service-types-gateway-api"],
+  title: "Service Types & Gateway API",
+  description:
+    "Choose the right Service exposure model and understand how Gateway API improves edge routing.",
+  section: "Networking",
+  order: 3,
+  concepts: ["services", "ingress", "gateway-api", "networking"],
+  content: [
+    { type: "heading", id: "exposure-levels", text: "Exposure levels" },
+    {
+      type: "paragraph",
+      text: "A Service can expose Pods only inside the cluster, on each node, or through an external load balancer when the environment supports it. HTTP edge routing is usually handled above Services by Ingress or Gateway API.",
+    },
+    {
+      type: "steps",
+      items: [
+        {
+          title: "ClusterIP",
+          text: "Default internal virtual IP for in-cluster clients.",
+        },
+        {
+          title: "NodePort",
+          text: "Exposes the Service on every node at a static port. Useful for simple setups, but not usually the final production edge.",
+        },
+        {
+          title: "LoadBalancer",
+          text: "Asks the platform for an external load balancer and forwards traffic to the Service.",
+        },
+        {
+          title: "ExternalName",
+          text: "Maps a Service name to an external DNS name instead of selecting Pods.",
+        },
+      ],
+    },
+    {
+      type: "compare",
+      caption:
+        "Ingress is widely used; Gateway API gives more expressive, role-oriented routing resources.",
+      left: {
+        title: "Ingress",
+        code: "host + path rules\ncontroller-specific features\nsimple HTTP routing",
+      },
+      right: {
+        title: "Gateway API",
+        code: "GatewayClass\nGateway\nHTTPRoute / TCPRoute\nseparate infra and app roles",
+      },
+    },
+    quiz("service-types-q1", "Which Service type is the default internal-only exposure?", [
+      qOption(
+        "a",
+        "ClusterIP",
+        true,
+        "ClusterIP gives an internal cluster address for the Service.",
+      ),
+      qOption("b", "ExternalName", false, "ExternalName maps to an external DNS name."),
+      qOption(
+        "c",
+        "GatewayClass",
+        false,
+        "GatewayClass is part of Gateway API, not a Service type.",
+      ),
+    ]),
   ],
   labs: [],
 };
@@ -1884,6 +2246,203 @@ const autoscaling: DocsLesson = {
   labs: [],
 };
 
+const disruptionsAvailability: DocsLesson = {
+  slug: ["operations", "disruptions-pdbs"],
+  title: "Disruptions & Pod Disruption Budgets",
+  description: "Keep voluntary maintenance from taking down too many replicas at once.",
+  section: "Operations",
+  order: 10,
+  concepts: ["disruptions", "rollouts", "deployments", "pods"],
+  content: [
+    {
+      type: "heading",
+      id: "voluntary-vs-involuntary",
+      text: "Voluntary vs involuntary disruption",
+    },
+    {
+      type: "paragraph",
+      text: "Involuntary disruptions include node failures and kernel panics. Voluntary disruptions include drain, upgrades, and intentional evictions. A PodDisruptionBudget tells Kubernetes how much voluntary disruption an app can tolerate.",
+    },
+    {
+      type: "compare",
+      caption:
+        "PDBs protect availability during voluntary evictions; they do not prevent all failures.",
+      left: {
+        title: "maxUnavailable",
+        code: "maxUnavailable: 1\nAt most one selected Pod may be unavailable.",
+      },
+      right: {
+        title: "minAvailable",
+        code: "minAvailable: 2\nAt least two selected Pods must remain available.",
+      },
+    },
+    {
+      type: "steps",
+      items: [
+        {
+          title: "Match the right Pods",
+          text: "The PDB selector must match the workload Pods you intend to protect.",
+        },
+        {
+          title: "Avoid impossible budgets",
+          text: "A single-replica app with minAvailable: 1 cannot be voluntarily evicted.",
+        },
+        {
+          title: "Pair with readiness",
+          text: "A Pod that is not Ready may reduce available count and block maintenance.",
+        },
+        {
+          title: "Plan capacity",
+          text: "PDBs do not create spare nodes or replicas; they only constrain voluntary eviction.",
+        },
+      ],
+    },
+    quiz("pdb-q1", "What does a PodDisruptionBudget primarily control?", [
+      qOption(
+        "a",
+        "Voluntary Pod evictions during operations like node drain.",
+        true,
+        "PDBs limit voluntary disruption against selected Pods.",
+      ),
+      qOption(
+        "b",
+        "All possible node hardware failures.",
+        false,
+        "PDBs cannot prevent involuntary failures.",
+      ),
+      qOption("c", "Service DNS records.", false, "DNS is separate from eviction policy."),
+    ]),
+  ],
+  labs: [],
+};
+
+const quotasLimitRanges: DocsLesson = {
+  slug: ["operations", "quotas-limitranges"],
+  title: "ResourceQuotas & LimitRanges",
+  description:
+    "Control namespace resource consumption and set defaults so teams cannot accidentally starve the cluster.",
+  section: "Operations",
+  order: 11,
+  concepts: ["resource-quotas", "limit-ranges", "resources", "namespaces"],
+  content: [
+    { type: "heading", id: "namespace-guardrails", text: "Namespace guardrails" },
+    {
+      type: "paragraph",
+      text: "ResourceQuotas cap aggregate usage in a namespace. LimitRanges set per-object constraints and defaults, such as default CPU requests or maximum memory limits.",
+    },
+    {
+      type: "compare",
+      caption:
+        "Use quotas for total namespace consumption; use LimitRanges for object-level defaults and bounds.",
+      left: {
+        title: "ResourceQuota",
+        code: 'hard:\n  requests.cpu: "4"\n  requests.memory: 8Gi\n  pods: "20"',
+      },
+      right: {
+        title: "LimitRange",
+        code: "defaultRequest:\n  cpu: 100m\n  memory: 128Mi\nmax:\n  memory: 1Gi",
+      },
+    },
+    {
+      type: "steps",
+      items: [
+        {
+          title: "Quota blocks creation",
+          text: "When a namespace exceeds hard quota, new matching objects are rejected until usage drops.",
+        },
+        {
+          title: "LimitRange defaults requests",
+          text: "Defaults make scheduling more predictable when teams forget requests.",
+        },
+        {
+          title: "Use with RBAC",
+          text: "Quotas and permissions together form a practical multi-team cluster boundary.",
+        },
+        {
+          title: "Debug admission failures",
+          text: "If an object will not create, inspect the error message for quota or limit-range rejection.",
+        },
+      ],
+    },
+    quiz("quota-q1", "Which object caps total resource usage in a namespace?", [
+      qOption("a", "ResourceQuota", true, "ResourceQuota enforces aggregate namespace limits."),
+      qOption("b", "EndpointSlice", false, "EndpointSlices describe Service backends."),
+      qOption(
+        "c",
+        "HorizontalPodAutoscaler",
+        false,
+        "HPA changes replica counts based on metrics.",
+      ),
+    ]),
+  ],
+  labs: [],
+};
+
+const extendingKubernetes: DocsLesson = {
+  slug: ["operations", "crds-operators-admission"],
+  title: "CRDs, Operators & Admission Control",
+  description:
+    "Understand how Kubernetes becomes a platform: new APIs, custom controllers, and policy before objects persist.",
+  section: "Operations",
+  order: 12,
+  concepts: ["crds", "operators", "admission-controllers", "reconciliation"],
+  content: [
+    { type: "heading", id: "platform-extension", text: "Extending the API" },
+    {
+      type: "paragraph",
+      text: "CustomResourceDefinitions add new object types to the Kubernetes API. Operators pair custom resources with controllers that reconcile domain-specific systems. Admission controllers intercept requests after authentication/authorization and before persistence.",
+    },
+    {
+      type: "steps",
+      items: [
+        {
+          title: "CRD",
+          text: "Defines a new resource type, schema, versions, and API path.",
+        },
+        {
+          title: "Custom resource",
+          text: "An instance of that type, such as BackupPolicy or DatabaseCluster.",
+        },
+        {
+          title: "Operator",
+          text: "A controller that watches custom resources and reconciles external or complex state.",
+        },
+        {
+          title: "Admission",
+          text: "Policy logic that can validate, mutate, or reject API requests before storage.",
+        },
+      ],
+    },
+    {
+      type: "diagram",
+      variant: "control-loop",
+      title: "Operator as another controller",
+      caption: "Operators use the same reconciliation model, but for custom domains.",
+    },
+    quiz("extension-q1", "What makes an Operator different from a plain CRD?", [
+      qOption(
+        "a",
+        "A controller reconciles the custom resources into real action.",
+        true,
+        "The CRD adds the API type; the Operator adds behavior.",
+      ),
+      qOption(
+        "b",
+        "It bypasses the API server.",
+        false,
+        "Operators normally watch and update the Kubernetes API.",
+      ),
+      qOption(
+        "c",
+        "It is only a Service type.",
+        false,
+        "Operators are controller patterns, not Service exposure modes.",
+      ),
+    ]),
+  ],
+  labs: [],
+};
+
 const serviceHadNoEndpoints: DocsLesson = {
   slug: ["incidents", "service-had-no-endpoints"],
   title: "Service Had No Endpoints",
@@ -2052,15 +2611,19 @@ export const DOCS_LESSONS: readonly DocsLesson[] = [
   clusterArchitecture,
   desiredVsActual,
   apiObjects,
+  labelsAnnotationsOwnership,
+  declarativeWorkflow,
   pods,
   deployments,
   replicaSets,
   statefulSets,
   daemonSets,
   jobs,
+  podComposition,
   services,
   dns,
   ingress,
+  serviceTypesGateway,
   logs,
   events,
   probes,
@@ -2075,6 +2638,9 @@ export const DOCS_LESSONS: readonly DocsLesson[] = [
   networkPolicies,
   scheduling,
   autoscaling,
+  disruptionsAvailability,
+  quotasLimitRanges,
+  extendingKubernetes,
   serviceHadNoEndpoints,
   cpuThrottling,
   dnsOutage,
