@@ -14,6 +14,7 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlaygroundTemplate } from "@/lib/domain/types";
 import { runCommandLine } from "@/lib/kube/command-runner";
+import { takePlaygroundHandoff } from "@/lib/storage/playground-handoff";
 import { cn } from "@/lib/utils/cn";
 
 import type { SelectedObject } from "@/features/problems/level-store";
@@ -34,9 +35,13 @@ type RightTab = "explorer" | "events" | "resources";
 
 export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate }) {
   const initTemplate = usePlaygroundStore((s) => s.initTemplate);
+  const loadFiles = usePlaygroundStore((s) => s.loadFiles);
   useEffect(() => {
     initTemplate(template);
-  }, [template, initTemplate]);
+    // If a docs lab handed off manifests, load them into the editor (user applies).
+    const handoff = takePlaygroundHandoff();
+    if (handoff && Object.keys(handoff).length > 0) loadFiles(handoff);
+  }, [template, initTemplate, loadFiles]);
 
   const sim = useSimulator(template);
   const [rightTab, setRightTab] = useState<RightTab>("explorer");

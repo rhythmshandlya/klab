@@ -196,6 +196,26 @@ export interface InteractiveLab {
   tryChanging?: string;
 }
 
+/**
+ * A block of docs lesson content. A small typed vocabulary (instead of MDX) that the
+ * renderer maps to components — keeps content Zod-validated and free of a build-time
+ * MDX pipeline. `heading` blocks provide the anchors for the table of contents;
+ * `lab` blocks embed an interactive lab by id.
+ */
+export type DocsBlock =
+  | { type: "heading"; id: string; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "callout"; tone: "info" | "warning" | "key"; title?: string; text: string }
+  | { type: "concept"; term: string; definition: string }
+  | { type: "code"; language: EditableFileLanguage; code: string }
+  | {
+      type: "compare";
+      caption?: string;
+      left: { title: string; code: string };
+      right: { title: string; code: string };
+    }
+  | { type: "lab"; labId: string };
+
 export interface DocsLesson {
   slug: string[];
   title: string;
@@ -204,5 +224,6 @@ export interface DocsLesson {
   order: number;
   concepts: KubernetesConcept[];
   relatedLevelSlug?: string;
+  content: DocsBlock[];
   labs: InteractiveLab[];
 }

@@ -1,27 +1,26 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { SectionPlaceholder } from "@/components/ui/section-placeholder";
+import { DOCS_LESSONS, getLessonBySlug } from "@/content/docs";
+import { DocsPage } from "@/features/docs/components/docs-page";
 
-export const metadata: Metadata = { title: "Docs" };
+export function generateStaticParams() {
+  return DOCS_LESSONS.map((lesson) => ({ slug: lesson.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string[] }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const lesson = getLessonBySlug(slug);
+  return { title: lesson ? lesson.title : "Docs" };
+}
 
 export default async function DocsSlugPage({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
-  const path = slug.join(" / ");
-  return (
-    <SectionPlaceholder
-      icon="docsInteractive"
-      eyebrow="Lesson"
-      title={path}
-      description="This interactive lesson is under construction. Phase 5 delivers the docs experience with MDX content and inline labs that run against the same in-browser cluster simulation used by Problems and Playground."
-      phase="Phase 5"
-      planned={[
-        "MDX explanation with diagrams",
-        "Runnable inline lab",
-        "Live reconciliation visualization",
-        "Open in Playground",
-        "Related problem level",
-      ]}
-      cta={{ href: "/docs", label: "Back to docs" }}
-    />
-  );
+  const lesson = getLessonBySlug(slug);
+  if (!lesson) notFound();
+  return <DocsPage lesson={lesson} />;
 }

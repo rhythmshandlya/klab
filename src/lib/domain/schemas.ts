@@ -189,6 +189,26 @@ export const playgroundTemplateSchema = z.object({
   registeredImages: z.array(simulatedImageSchema),
 });
 
+const docsBlockSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("heading"), id: z.string().min(1), text: z.string().min(1) }),
+  z.object({ type: z.literal("paragraph"), text: z.string().min(1) }),
+  z.object({
+    type: z.literal("callout"),
+    tone: z.enum(["info", "warning", "key"]),
+    title: z.string().optional(),
+    text: z.string().min(1),
+  }),
+  z.object({ type: z.literal("concept"), term: z.string().min(1), definition: z.string().min(1) }),
+  z.object({ type: z.literal("code"), language: fileLanguageSchema, code: z.string().min(1) }),
+  z.object({
+    type: z.literal("compare"),
+    caption: z.string().optional(),
+    left: z.object({ title: z.string(), code: z.string() }),
+    right: z.object({ title: z.string(), code: z.string() }),
+  }),
+  z.object({ type: z.literal("lab"), labId: z.string().min(1) }),
+]);
+
 export const docsLessonSchema = z.object({
   slug: z.array(z.string().min(1)).min(1),
   title: z.string().min(1),
@@ -197,6 +217,7 @@ export const docsLessonSchema = z.object({
   order: z.number().int().nonnegative(),
   concepts: z.array(conceptSchema),
   relatedLevelSlug: z.string().optional(),
+  content: z.array(docsBlockSchema).min(1),
   labs: z.array(interactiveLabSchema),
 });
 

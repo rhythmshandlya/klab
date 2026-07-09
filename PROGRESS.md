@@ -4,7 +4,7 @@
 > Brand string in nav: **`klab`**. Reference mockups say "KubeQuest" — reference-only; shipped brand stays `klab`.
 
 **Last updated:** 2026-07-09
-**Overall status:** 🟢 Phases 1–4 complete & verified (Problems solves end-to-end; Playground apply→observe works in a real browser). ⬜ Phases 5–6 pending.
+**Overall status:** 🟢 Phases 1–5 complete & verified (Problems solves end-to-end; Playground apply→observe; Docs lessons with runnable inline labs — all in a real browser). ⬜ Phase 6 pending.
 
 ---
 
@@ -104,11 +104,20 @@ Route files stay thin; product logic lives in `features/` and `lib/`.
 - [x] Playground store (Zustand) + local sandbox persistence; save/load/copy-YAML
 - **Verified:** unit (template loading), integration (`playground-template.test.ts`: boot → apply → reconcile ready → **stays stable, no churn** → scale 2→3 reconciles → observable via kubectl), and a **Playwright E2E** (open Deployment+Service → pods appear → add a Pod via shortcut → Apply → observe it). Note: healthy Deployment pods report their ready-count with some lag in-browser (webernetes deployment status), so UI/tests key on pod presence + topology, not the raw ready-count.
 
-### Phase 5 — Interactive Docs ⬜ NEXT
-### Phase 6 — Tests, polish, a11y, README/CI ⬜
-_(Full criteria unchanged from prior plan; see git history if trimmed.)_
+### Phase 5 — Interactive Docs ✅ DONE
+- [x] `/docs` (default lesson) + `/docs/[...slug]` (SSG for all lessons)
+- [x] Left section nav (Foundations / Workloads / Networking / Observability & Debugging / Operations / Real Incidents), reading area, right TOC (scroll-spy) + related labs + related problem-level link — matches `docs.png`
+- [x] Typed content blocks (no MDX build step): heading, paragraph, callout, concept card, code, compare (desired-vs-actual), and inline `lab` — extended `DocsLesson`/schema with a validated `content: DocsBlock[]`
+- [x] Inline interactive labs: lazy "Start lab" → editable YAML + live cluster (compact topology + pod status + endpoint readout) + Apply/Reset + **Open in Playground** handoff (sessionStorage) + "try changing this"
+- [x] Three fully interactive lessons: `foundations/desired-vs-actual-state`, `networking/services`, `debugging/readiness-probes` (each with a bare-Pod lab → churn-free)
+- **Verified:** docs content unit tests + a Playwright E2E (open the readiness lesson → content renders → Start lab → the lab's cluster boots, applies its Pod+Service, and reaches a ready endpoint). Labs prefer bare Pods so readiness reports promptly in-browser.
+
+### Phase 6 — Tests, polish, a11y, README/CI ⬜ NEXT
+_(Open-source polish: README with quick-start/architecture/how-to-add-content, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, LICENSE, .github/workflows/ci.yml, issue + PR templates; a11y sweep (axe, keyboard, reduced-motion); progress page wiring; bundle check.)_
 
 ## 5. Verification log
+
+- **2026-07-09 — Phase 5 (Interactive Docs) verified.** `pnpm typecheck`/`lint`/`build` → exit 0 (3 lesson routes prerender). `pnpm test` (vitest) → **13 files / 45 tests** (adds docs content parsing). `pnpm test:e2e` → **3 passed**: Problems full solve, Playground apply→observe, and Docs (open lesson → Start lab → lab cluster reconciles to a ready endpoint).
 
 - **2026-07-09 — Phase 4 (Playground) verified.** `pnpm typecheck`/`lint`/`build` → exit 0 (all 6 template routes prerender). `pnpm test` (vitest) → **12 files / 40 tests** (adds playground template loading + a boot→apply→reconcile→scale integration test proving no churn). `pnpm test:e2e` → **2 passed**: the Problems full solve AND the Playground apply→observe (`/playground/deployment-service` → pods appear → add Pod → Apply → observe).
 
@@ -135,11 +144,13 @@ _(Full criteria unchanged from prior plan; see git history if trimmed.)_
 
 ## 6. Next command to run
 
-Begin **Phase 5 (Interactive Docs)** — MDX lessons under `src/content/docs/` with inline
-runnable labs that reuse the simulator + editor + a compact topology. Build `/docs` +
-`/docs/[...slug]` with left section nav, reading area, right TOC/related-labs, and
-"Open in Playground" / "Related problem level" links. Prefer bare-Pod labs (churn-free).
+Begin **Phase 6 (polish + open-source)** — the app is feature-complete; this phase hardens
+it for release: README (quick start, architecture, how to add a level/image/validator/docs
+lesson/template), CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, LICENSE (MIT), GitHub Actions CI
+(`lint`/`typecheck`/`test`/`build`, optionally e2e), issue + PR templates, an accessibility
+sweep (axe + keyboard flows + reduced-motion), and wiring the `/progress` page + nav
+streak/XP to the local progress store.
 
 ```bash
-pnpm dev   # build /docs on top of the Phase 1–4 components
+pnpm dlx @axe-core/cli --version   # or add jest-axe/@axe-core/playwright checks; then write docs + CI
 ```
