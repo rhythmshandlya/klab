@@ -62,16 +62,15 @@ export function CommandReference() {
 
   return (
     <>
+      {/* Trigger follows the sidebar's list-row idiom (same as template links). */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="border-border bg-panel-elevated text-muted hover:border-border-strong hover:text-foreground flex w-full items-center justify-between gap-2 rounded border px-2.5 py-2 text-xs transition-colors"
+        className="text-muted hover:bg-panel-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
       >
-        <span className="flex items-center gap-1.5">
-          <icons.terminal className="size-3.5" aria-hidden />
-          All k8s commands
-        </span>
-        <span className="flex items-center gap-0.5">
+        <icons.terminal className="text-subtle size-3.5" aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-left">All k8s commands</span>
+        <span className="flex shrink-0 items-center gap-0.5">
           <Kbd>Ctrl</Kbd>
           <Kbd>K</Kbd>
         </span>

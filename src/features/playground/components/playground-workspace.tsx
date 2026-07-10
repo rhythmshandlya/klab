@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ErrorBoundary } from "@/components/app-shell/error-boundary";
@@ -19,16 +20,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlaygroundTemplate } from "@/lib/domain/types";
 import { runCommandLine } from "@/lib/kube/command-runner";
+import type { SavedLab } from "@/lib/storage/local-labs";
 import { takePlaygroundHandoff } from "@/lib/storage/playground-handoff";
 import { cn } from "@/lib/utils/cn";
 
 import type { SelectedObject } from "@/features/problems/level-store";
 import { useSimulator } from "@/features/problems/hooks/use-simulator";
 
+import { useLabsStore } from "../labs-store";
 import { usePlaygroundStore } from "../playground-store";
 import { MultiFileEditor } from "./multi-file-editor";
 import { NetworkActivity } from "./network-activity";
 import { ResourceSummary } from "./resource-summary";
+import { SaveLabDialog } from "./save-lab-dialog";
 import { TemplateSidebar } from "./template-sidebar";
 
 const ServiceTopology = dynamic(
@@ -40,15 +44,26 @@ const NAMESPACE = "default";
 type RightTab = "explorer" | "network" | "events" | "resources";
 const RIGHT_TABS = ["explorer", "network", "events", "resources"] as const;
 
-export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate }) {
+export function PlaygroundWorkspace({
+  template,
+  lab,
+}: {
+  template: PlaygroundTemplate;
+  /** When set, the workspace edits this saved lab (files come from it, Save updates it). */
+  lab?: SavedLab;
+}) {
   const initTemplate = usePlaygroundStore((s) => s.initTemplate);
   const loadFiles = usePlaygroundStore((s) => s.loadFiles);
   useEffect(() => {
     initTemplate(template);
+    if (lab) {
+      loadFiles(lab.files);
+      return;
+    }
     // If a docs lab handed off manifests, load them into the editor (user applies).
     const handoff = takePlaygroundHandoff();
     if (handoff && Object.keys(handoff).length > 0) loadFiles(handoff);
-  }, [template, initTemplate, loadFiles]);
+  }, [template, lab, initTemplate, loadFiles]);
 
   const sim = useSimulator(template);
   // Pane sizes survive reloads, same mechanism as the problems workspace.
@@ -60,6 +75,32 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
   const [applying, setApplying] = useState(false);
   const [copied, setCopied] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [labSaved, setLabSaved] = useState(false);
+  const router = useRouter();
+  const createLab = useLabsStore((s) => s.create);
+  const updateLab = useLabsStore((s) => s.update);
+
+  // "Save" on an open lab persists the current files back into it.
+  const handleSaveLab = useCallback(() => {
+    if (!lab) return;
+    updateLab(lab.id, { files: usePlaygroundStore.getState().files });
+    setLabSaved(true);
+    setTimeout(() => setLabSaved(false), 1500);
+  }, [lab, updateLab]);
+
+  // "Save as lab" (from a template) / "Save as…" (fork of a lab) creates and opens it.
+  const handleCreateLab = useCallback(
+    (name: string) => {
+      const created = createLab({
+        name,
+        templateId: template.id,
+        files: usePlaygroundStore.getState().files,
+      });
+      router.push(`/playground/lab/${created.id}`);
+    },
+    [createLab, template.id, router],
+  );
 
   // Topology spans every user namespace so e.g. the Namespaces template's team-a
   // pod is visible; control-plane namespaces stay hidden.
@@ -106,10 +147,16 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
 
   const handleReset = useCallback(async () => {
     await sim.reset();
-    usePlaygroundStore.getState().resetToTemplate();
+    if (lab) {
+      // In a lab, Reset returns to the lab's last-saved files, not the template.
+      const latest = useLabsStore.getState().labs.find((l) => l.id === lab.id);
+      usePlaygroundStore.getState().loadFiles(latest?.files ?? lab.files);
+    } else {
+      usePlaygroundStore.getState().resetToTemplate();
+    }
     setSelected(null);
     setPaused(false);
-  }, [sim]);
+  }, [sim, lab]);
 
   const handleCopy = useCallback(async () => {
     const yaml = Object.values(usePlaygroundStore.getState().files).join("\n---\n");
@@ -142,7 +189,7 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
           <Panel className="h-full">
             <PanelHeader title="Sandbox" icon={<icons.playground />} />
             <div className="min-h-0 flex-1 overflow-hidden">
-              <TemplateSidebar currentTemplateId={template.id} />
+              <TemplateSidebar currentTemplateId={template.id} currentLabId={lab?.id} />
             </div>
           </Panel>
         </ResizablePane>
@@ -161,10 +208,37 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
             <ResizablePane id="center-editor" defaultSize="60%" minSize="20%" className="h-full">
               <Panel className="h-full">
                 <div className="border-border flex h-10 shrink-0 items-center justify-between border-b pr-2 pl-3">
-                  <span className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
-                    Workspace
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="text-subtle shrink-0 text-[11px] font-semibold tracking-[0.08em] uppercase">
+                      {lab ? "Lab" : "Workspace"}
+                    </span>
+                    {lab ? (
+                      <span className="text-foreground truncate text-xs font-medium">
+                        {lab.name}
+                      </span>
+                    ) : null}
                   </span>
                   <div className="flex items-center gap-1.5">
+                    {lab ? (
+                      <>
+                        <ToolbarButton onClick={handleSaveLab} disabled={!sim.ready}>
+                          <icons.bookmark aria-hidden />
+                          {labSaved ? "Saved" : "Save"}
+                        </ToolbarButton>
+                        <ToolbarButton
+                          onClick={() => setSaveDialogOpen(true)}
+                          disabled={!sim.ready}
+                        >
+                          <icons.yaml aria-hidden />
+                          Save as…
+                        </ToolbarButton>
+                      </>
+                    ) : (
+                      <ToolbarButton onClick={() => setSaveDialogOpen(true)} disabled={!sim.ready}>
+                        <icons.bookmark aria-hidden />
+                        Save as lab
+                      </ToolbarButton>
+                    )}
                     <ToolbarButton onClick={() => void handleCopy()} disabled={!sim.ready}>
                       <icons.yaml aria-hidden />
                       {copied ? "Copied" : "Copy YAML"}
@@ -299,6 +373,14 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
           </ResizableGroup>
         </ResizablePane>
       </ResizableGroup>
+
+      <SaveLabDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        title={lab ? "Save a copy" : "Save as lab"}
+        suggestedName={lab ? `${lab.name} copy` : `my ${template.title.toLowerCase()} lab`}
+        onSave={handleCreateLab}
+      />
     </div>
   );
 }

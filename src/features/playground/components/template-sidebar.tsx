@@ -6,15 +6,10 @@ import { useEffect, useState } from "react";
 
 import { icons } from "@/components/icons";
 import { PLAYGROUND_TEMPLATES, getTemplateById } from "@/content/playground-templates";
-import {
-  deleteSandbox,
-  loadSandboxes,
-  saveSandbox,
-  type SavedSandbox,
-} from "@/lib/storage/local-sandboxes";
-import { setPlaygroundHandoff } from "@/lib/storage/playground-handoff";
+import type { SavedLab } from "@/lib/storage/local-labs";
 import { cn } from "@/lib/utils/cn";
 
+import { useLabsStore } from "../labs-store";
 import { usePlaygroundStore } from "../playground-store";
 import { CommandReference } from "./command-reference";
 
@@ -51,7 +46,13 @@ spec:
 `,
 };
 
-export function TemplateSidebar({ currentTemplateId }: { currentTemplateId: string }) {
+export function TemplateSidebar({
+  currentTemplateId,
+  currentLabId,
+}: {
+  currentTemplateId: string;
+  currentLabId?: string;
+}) {
   const files = usePlaygroundStore((s) => s.files);
   const addFile = usePlaygroundStore((s) => s.addFile);
   const setFile = usePlaygroundStore((s) => s.setFile);
@@ -64,11 +65,15 @@ export function TemplateSidebar({ currentTemplateId }: { currentTemplateId: stri
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-3 text-sm">
+      <Section title="My labs">
+        <MyLabs currentLabId={currentLabId} />
+      </Section>
+
       <Section title="Templates">
         <ul className="space-y-0.5">
           {PLAYGROUND_TEMPLATES.map((t) => {
             const Icon = icons.deployment;
-            const active = t.id === currentTemplateId;
+            const active = currentLabId === undefined && t.id === currentTemplateId;
             return (
               <li key={t.id}>
                 <Link
@@ -89,10 +94,6 @@ export function TemplateSidebar({ currentTemplateId }: { currentTemplateId: stri
         </ul>
       </Section>
 
-      <Section title="Saved sandboxes">
-        <SavedSandboxes currentTemplateId={currentTemplateId} />
-      </Section>
-
       <Section title="Object shortcuts">
         <div className="flex flex-wrap gap-1.5">
           {Object.keys(SNIPPETS).map((kind) => (
@@ -108,7 +109,7 @@ export function TemplateSidebar({ currentTemplateId }: { currentTemplateId: stri
         </div>
       </Section>
 
-      <Section title="Commands">
+      <Section title="Reference">
         <CommandReference />
       </Section>
     </div>
@@ -116,181 +117,139 @@ export function TemplateSidebar({ currentTemplateId }: { currentTemplateId: stri
 }
 
 /**
- * Named snapshots of the editor's files. Saving prompts before overwriting an
- * existing name; loading restores the files — and when the sandbox was saved on a
- * different template, hands the files off and navigates so the underlying cluster
- * template matches. Deleting asks for a second confirming click.
+ * The user's saved labs — first-class workspaces with their own routes. Saving
+ * happens in the workspace toolbar ("Save as lab"); this list opens, renames,
+ * and deletes them.
  */
-function SavedSandboxes({ currentTemplateId }: { currentTemplateId: string }) {
+function MyLabs({ currentLabId }: { currentLabId?: string }) {
   const router = useRouter();
-  const files = usePlaygroundStore((s) => s.files);
-  const loadFiles = usePlaygroundStore((s) => s.loadFiles);
+  const labs = useLabsStore((s) => s.labs);
+  const hydrated = useLabsStore((s) => s.hydrated);
+  const hydrate = useLabsStore((s) => s.hydrate);
+  const update = useLabsStore((s) => s.update);
+  const remove = useLabsStore((s) => s.remove);
 
-  const [sandboxes, setSandboxes] = useState<SavedSandbox[]>([]);
-  const [name, setName] = useState("");
-  const [pendingOverwrite, setPendingOverwrite] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const [loadedName, setLoadedName] = useState<string | null>(null);
-  // Load client-only localStorage after mount; a lazy useState initializer would
-  // read localStorage during SSR-hydration and cause a mismatch.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setSandboxes(loadSandboxes()), []);
 
-  const effectiveName = () => name.trim() || nextDefaultName(sandboxes);
+  useEffect(() => {
+    if (!useLabsStore.getState().hydrated) hydrate();
+  }, [hydrate]);
 
-  const save = () => {
-    const trimmed = effectiveName();
-    const exists = sandboxes.some((s) => s.name === trimmed);
-    if (exists && pendingOverwrite !== trimmed) {
-      // First click on a colliding name arms the overwrite confirmation.
-      setPendingOverwrite(trimmed);
-      return;
-    }
-    setPendingOverwrite(null);
-    setSandboxes(
-      saveSandbox({ name: trimmed, templateId: currentTemplateId, files, savedAt: Date.now() }),
-    );
-    setLoadedName(trimmed);
-    setName("");
+  const commitRename = (lab: SavedLab) => {
+    if (renameValue.trim()) update(lab.id, { name: renameValue });
+    setRenamingId(null);
   };
 
-  const load = (sandbox: SavedSandbox) => {
-    if (sandbox.templateId !== currentTemplateId && getTemplateById(sandbox.templateId)) {
-      // Boot the matching template; the workspace consumes the handoff on mount.
-      setPlaygroundHandoff(sandbox.files);
-      router.push(`/playground/${sandbox.templateId}`);
-      return;
-    }
-    loadFiles(sandbox.files);
-    setLoadedName(sandbox.name);
-  };
-
-  const remove = (sandboxName: string) => {
-    if (pendingDelete !== sandboxName) {
-      setPendingDelete(sandboxName);
+  const handleDelete = (lab: SavedLab) => {
+    if (pendingDelete !== lab.id) {
+      setPendingDelete(lab.id);
       return;
     }
     setPendingDelete(null);
-    setSandboxes(deleteSandbox(sandboxName));
-    if (loadedName === sandboxName) setLoadedName(null);
+    remove(lab.id);
+    // Deleting the lab you're standing in sends you back to its template.
+    if (currentLabId === lab.id) {
+      const fallback = getTemplateById(lab.templateId) ? lab.templateId : "";
+      router.push(`/playground/${fallback}`);
+    }
   };
 
-  const saveLabel = pendingOverwrite ? "Overwrite?" : "Save";
+  if (!hydrated || labs.length === 0) {
+    return (
+      <p className="text-subtle px-2 text-xs leading-relaxed">
+        Start from a template, then use <span className="text-muted font-medium">Save as lab</span>{" "}
+        in the toolbar to keep your work here.
+      </p>
+    );
+  }
 
   return (
-    <div>
-      <div className="flex gap-1.5">
-        <input
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            setPendingOverwrite(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") save();
-          }}
-          placeholder={nextDefaultName(sandboxes)}
-          aria-label="Sandbox name"
-          className="border-border bg-code text-foreground focus-visible:ring-ring h-7 min-w-0 flex-1 rounded border px-2 text-xs outline-none focus-visible:ring-2"
-        />
-        <button
-          type="button"
-          onClick={save}
-          className={cn(
-            "h-7 rounded border px-2 text-xs transition-colors",
-            pendingOverwrite
-              ? "border-amber/50 bg-amber/10 text-amber"
-              : "border-border bg-panel-elevated text-muted hover:text-foreground",
-          )}
-        >
-          {saveLabel}
-        </button>
-      </div>
-      {pendingOverwrite ? (
-        <p className="text-amber mt-1.5 text-[11px]">
-          &quot;{pendingOverwrite}&quot; exists — click again to replace it.
-        </p>
-      ) : null}
-
-      {sandboxes.length === 0 ? (
-        <p className="text-subtle mt-2 text-xs">
-          Nothing saved yet. Name the current files and press Save to keep a snapshot you can reload
-          any time.
-        </p>
-      ) : (
-        <ul className="mt-2 space-y-1">
-          {sandboxes.map((s) => {
-            const template = getTemplateById(s.templateId);
-            const isLoaded = loadedName === s.name;
-            const isArmed = pendingDelete === s.name;
-            return (
-              <li
-                key={s.name}
-                className={cn(
-                  "group border-border rounded-md border px-2 py-1.5 transition-colors",
-                  isLoaded ? "border-blue/40 bg-blue/5" : "hover:bg-panel-hover",
-                )}
-              >
-                <div className="flex items-center gap-1.5">
+    <ul className="space-y-0.5">
+      {labs.map((lab) => {
+        const active = lab.id === currentLabId;
+        const template = getTemplateById(lab.templateId);
+        const armed = pendingDelete === lab.id;
+        return (
+          <li key={lab.id} className="group relative">
+            {renamingId === lab.id ? (
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onBlur={() => commitRename(lab)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename(lab);
+                  if (e.key === "Escape") setRenamingId(null);
+                }}
+                aria-label={`Rename ${lab.name}`}
+                className="border-border bg-code text-foreground focus-visible:ring-ring mx-2 my-1 h-7 w-[calc(100%-1rem)] rounded border px-2 text-xs outline-none focus-visible:ring-2"
+              />
+            ) : (
+              <>
+                <Link
+                  href={`/playground/lab/${lab.id}`}
+                  className={cn(
+                    "flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors",
+                    active
+                      ? "bg-panel-hover text-foreground"
+                      : "text-muted hover:bg-panel-hover hover:text-foreground",
+                  )}
+                >
+                  <icons.bookmark
+                    className={cn("mt-0.5 size-3.5 shrink-0", active ? "text-blue" : "text-subtle")}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{lab.name}</span>
+                    <span className="text-subtle block truncate text-[10px]">
+                      {template?.title ?? lab.templateId} · {timeAgo(lab.updatedAt)}
+                    </span>
+                  </span>
+                </Link>
+                <span className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
                   <button
                     type="button"
-                    onClick={() => load(s)}
-                    title={
-                      s.templateId !== currentTemplateId
-                        ? `Opens the ${template?.title ?? s.templateId} template`
-                        : "Load into the editor"
-                    }
-                    className="text-foreground min-w-0 flex-1 truncate text-left text-xs font-medium"
+                    aria-label={`Rename ${lab.name}`}
+                    onClick={() => {
+                      setRenamingId(lab.id);
+                      setRenameValue(lab.name);
+                    }}
+                    className="text-subtle hover:text-foreground rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   >
-                    {s.name}
-                    {isLoaded ? <span className="text-blue ml-1.5 text-[10px]">loaded</span> : null}
+                    <icons.edit className="size-3" aria-hidden />
                   </button>
                   <button
                     type="button"
-                    aria-label={isArmed ? `Confirm delete ${s.name}` : `Delete ${s.name}`}
-                    onClick={() => remove(s.name)}
+                    aria-label={armed ? `Confirm delete ${lab.name}` : `Delete ${lab.name}`}
+                    onClick={() => handleDelete(lab)}
                     onBlur={() => setPendingDelete(null)}
                     className={cn(
-                      "shrink-0 rounded p-0.5 transition-colors",
-                      isArmed
-                        ? "text-red bg-red/10"
+                      "rounded p-1 transition-all",
+                      armed
+                        ? "text-red bg-red/10 opacity-100"
                         : "text-subtle hover:text-red opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
                     )}
                   >
-                    {isArmed ? (
-                      <span className="px-1 text-[10px] font-semibold">Sure?</span>
+                    {armed ? (
+                      <span className="px-0.5 text-[10px] font-semibold">Sure?</span>
                     ) : (
-                      <icons.trash className="size-3.5" aria-hidden />
+                      <icons.trash className="size-3" aria-hidden />
                     )}
                   </button>
-                </div>
-                <p className="text-subtle mt-0.5 flex items-center gap-1 text-[10px]">
-                  <span className="truncate">{template?.title ?? s.templateId}</span>
-                  <span aria-hidden>·</span>
-                  <span className="shrink-0">{timeAgo(s.savedAt)}</span>
-                  <span className="shrink-0">
-                    · {Object.keys(s.files).length} file
-                    {Object.keys(s.files).length === 1 ? "" : "s"}
-                  </span>
-                </p>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+                </span>
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
-function nextDefaultName(sandboxes: SavedSandbox[]): string {
-  const taken = new Set(sandboxes.map((s) => s.name));
-  let n = sandboxes.length + 1;
-  while (taken.has(`sandbox-${n}`)) n += 1;
-  return `sandbox-${n}`;
-}
-
-function timeAgo(savedAt: number): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - savedAt) / 1000));
+function timeAgo(at: number): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - at) / 1000));
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;

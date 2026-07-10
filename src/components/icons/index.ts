@@ -33,6 +33,7 @@ import {
   Lock,
   Menu,
   Network,
+  Pencil,
   Pause,
   Play,
   RotateCcw,
@@ -93,6 +94,7 @@ export const icons = {
   challenge: Zap,
   community: Users,
   close: X,
+  edit: Pencil,
   trash: Trash2,
   menu: Menu,
 } as const;
