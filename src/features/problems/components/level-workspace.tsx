@@ -601,7 +601,11 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                       />
                     </ErrorBoundary>
                   ) : centerTab === "logs" ? (
-                    <LogsView snapshot={sim.snapshot} onInspect={inspectLogs} />
+                    <LogsView
+                      snapshot={sim.snapshot}
+                      getLogs={(namespace, pod) => sim.engine.getLogs(namespace, pod)}
+                      onInspect={inspectLogs}
+                    />
                   ) : centerTab === "events" ? (
                     <div className="h-full overflow-auto">
                       <EventsTimeline

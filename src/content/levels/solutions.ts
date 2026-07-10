@@ -14,6 +14,49 @@ export interface LevelSolution {
 }
 
 export const LEVEL_SOLUTIONS: Record<string, LevelSolution> = {
+  "graceful-shutdown-502s": {
+    fix: "Delay shutdown for endpoint propagation and extend the total grace period",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-api
+  namespace: default
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: edge-api
+  template:
+    metadata:
+      labels:
+        app: edge-api
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: api
+          image: registry.example/edge-api:2.4.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+`,
+    },
+  },
+
   "command-override-crash": {
     fix: "Remove command and args so the image entrypoint runs",
     files: {

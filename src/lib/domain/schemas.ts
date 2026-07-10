@@ -314,6 +314,16 @@ const validatorCheckSchema = z.discriminatedUnion("kind", [
     expectStatus: z.number().int(),
   }),
   z.object({
+    kind: z.literal("http-sample-through-service"),
+    namespace: z.string().min(1),
+    service: z.string().min(1),
+    port: z.number().int().positive(),
+    path: z.string().min(1),
+    expectStatus: z.number().int(),
+    samples: z.number().int().min(2).max(20),
+    maxFailures: z.number().int().nonnegative(),
+  }),
+  z.object({
     kind: z.literal("no-recent-readiness-failures"),
     namespace: z.string().min(1),
     withinSeconds: z.number().int().positive(),

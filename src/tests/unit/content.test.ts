@@ -46,6 +46,14 @@ describe("level content", () => {
       expect(unsupportedProblemCapabilities(level), `${level.slug} engine capabilities`).toEqual(
         [],
       );
+      if (level.incidentSource) {
+        expect(level.incidentSource.href, level.slug).toMatch(/^https:\/\//);
+        expect(level.incidentSource.attribution, level.slug).toBe("inspired-by");
+        expect(level.incidentSource.adaptationNote.length, level.slug).toBeGreaterThanOrEqual(80);
+        expect(level.incidentSource.adaptationNote, level.slug).toMatch(
+          /not an exact reproduction/i,
+        );
+      }
       visit(level.slug, []);
     }
   });

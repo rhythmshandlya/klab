@@ -16,6 +16,7 @@ import { brokenServiceChain } from "./broken-service-chain";
 import { commandOverrideCrash } from "./command-override-crash";
 import { configDrift } from "./config-drift";
 import { dnsResolutionFailure } from "./dns-resolution-failure";
+import { gracefulShutdown502s } from "./graceful-shutdown-502s";
 import { healthyAppBrokenSidecar } from "./healthy-app-broken-sidecar";
 import { livenessProbeDeathSpiral } from "./liveness-probe-death-spiral";
 import { namespaceConfusion } from "./namespace-confusion";
@@ -51,6 +52,7 @@ export const LEVELS: readonly ProblemLevel[] = [
   configDrift,
   brokenServiceChain,
   healthyAppBrokenSidecar,
+  gracefulShutdown502s,
   zombieReplicaset,
 ].map(parseLevel);
 

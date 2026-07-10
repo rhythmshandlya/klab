@@ -87,6 +87,8 @@ const BROKEN_STATE_READY: Record<string, (s: ClusterSnapshot) => boolean> = {
     readyPods(s, { app: "orders-api" }) >= 1 &&
     readyPods(s, { app: "frontend" }) >= 1,
   "healthy-app-broken-sidecar": (s) => anyRestarts(s, { app: "checkout" }),
+  "graceful-shutdown-502s": (s) =>
+    s.pods.some((pod) => pod.metadata?.name === "edge-api-old" && pod.metadata.deletionTimestamp),
   "zombie-replicaset": (s) =>
     readyPods(s, { app: "web", track: "stable" }) >= 2 &&
     readyPods(s, { app: "web", track: "legacy" }) >= 1,

@@ -592,6 +592,7 @@ function describePod(pod: V1Pod, snapshot: ClusterSnapshot): string {
     `Status:           ${podPhase(pod)}`,
     `IP:               ${pod.status?.podIP ?? "<none>"}`,
     `Labels:           ${formatSelector(pod.metadata?.labels)}`,
+    `Termination Grace Period: ${pod.spec?.terminationGracePeriodSeconds ?? 30}s`,
     "Containers:",
   ];
 
@@ -611,6 +612,9 @@ function describePod(pod: V1Pod, snapshot: ClusterSnapshot): string {
     }
     if ((container.args ?? []).length > 0) {
       lines.push(`    Args:           ${container.args!.join(" ")}`);
+    }
+    if (container.lifecycle?.preStop?.exec?.command?.length) {
+      lines.push(`    PreStop:        exec ${container.lifecycle.preStop.exec.command.join(" ")}`);
     }
     const env = container.env ?? [];
     if (env.length > 0) {

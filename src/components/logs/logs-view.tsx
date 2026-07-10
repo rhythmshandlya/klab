@@ -31,9 +31,11 @@ function formatTime(timestampMs: number): string {
 
 export function LogsView({
   snapshot,
+  getLogs = (namespace, pod) => logSink.forPod(namespace, pod),
   onInspect,
 }: {
   snapshot: ClusterSnapshot;
+  getLogs?: (namespace: string, pod: string) => LogLine[];
   onInspect?: (lines: readonly LogLine[]) => void;
 }) {
   const [filter, setFilter] = useState<LineFilter>("all");
@@ -65,7 +67,7 @@ export function LogsView({
   // lines land, and the recompute over an in-memory buffer is cheap.
   const all: LogLine[] = [];
   for (const pod of pods) {
-    all.push(...logSink.forPod(pod.namespace, pod.name));
+    all.push(...getLogs(pod.namespace, pod.name));
   }
   all.sort((a, b) => a.timestampMs - b.timestampMs);
   const lines = all.filter((line) => {

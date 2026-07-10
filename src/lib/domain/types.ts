@@ -289,6 +289,16 @@ export type ValidatorCheck =
       expectStatus: number;
     }
   | {
+      kind: "http-sample-through-service";
+      namespace: string;
+      service: string;
+      port: number;
+      path: string;
+      expectStatus: number;
+      samples: number;
+      maxFailures: number;
+    }
+  | {
       kind: "no-recent-readiness-failures";
       namespace: string;
       /** Only consider probe-failure events newer than this many seconds ago. */

@@ -1,6 +1,6 @@
 # Problems Audit And Completion Plan
 
-Status: PR 1-7 complete on main; catalog scale foundations and problems 14-17 implemented
+Status: PR 1-7 complete on main; catalog foundations and problems 14-18 implemented
 Audit date: 2026-07-10
 Scope: /problems, /problems/[levelId], the problem content contract, simulator, progress, authoring workflow, and test coverage
 
@@ -12,17 +12,17 @@ and effort estimates are intentionally kept together here.
 
 ## 1. Executive Verdict
 
-The feature now has a trustworthy core platform and 17 high-confidence levels,
+The feature now has a trustworthy core platform and 18 high-confidence levels,
 but it is not yet the complete 66-problem troubleshooting and architecture product.
 
 | Area | Current state | Completion verdict |
 | --- | --- | --- |
-| Catalog | 17 playable levels: 5 beginner, 7 intermediate, 5 advanced | 17 of the approved 66 total levels are authored (26%); 49 remain |
+| Catalog | 18 playable levels: 5 beginner, 7 intermediate, 6 advanced | 18 of the approved 66 total levels are authored (27%); 48 remain |
 | /problems | URL-backed search/filter/sort, mobile filter dialog, paths, prerequisite status, and 20/page pagination are implemented | Catalog-scale browser verification and non-empty Incident/Final Boss views remain |
 | /problems/[levelId] | Multi-file workspace, read-only references, two engines, terminal, logs, events, probes, topology, evidence, hints, constraints, and validation | Core workflow is complete for current capabilities; additional resource capability packs remain |
-| Existing level correctness | All 17 start broken and accept the canonical solution; every level rejects three generic bypass classes | Current catalog repair and the first IMG/LIFE batch are complete |
+| Existing level correctness | All 18 start broken and accept the canonical solution; every level rejects three generic bypass classes | Current catalog, first IMG/LIFE batch, and first sourced incident are complete |
 | Kubernetes coverage | Mostly Services, probes, Deployments, DNS, and ReplicaSets | Too narrow for a representative troubleshooting curriculum |
-| Quality gates | 41 catalog tests, 106 full tests, 13 API tests, lint, typecheck, production build, and focused DevTools checks pass | Route smoke, accessibility, and capability-pack E2E must grow with the catalog |
+| Quality gates | 44 catalog tests pass across 18 levels; the last committed slice has 106 full/13 API tests and a clean production build | Rerun full suite/build for the incident slice; route, a11y, and capability E2E must grow |
 
 Approved target: 66 total levels, consisting of 56 troubleshooting problems and
 10 Architect system-build challenges. This exceeds the original 50-level floor,
@@ -33,10 +33,10 @@ resources and controllers it models well, while a deterministic scripted inciden
 engine handles unsupported behavior through the same ProblemEngine contract.
 Extending Webernetes into a full Kubernetes implementation is not a prerequisite.
 
-Remaining recommended effort after the 17-level catalog foundation:
+Remaining recommended effort after the 18-level catalog foundation:
 
 - 105-167 senior engineer-days to implement the remaining capability packs,
-  author and verify 49 levels, complete Architect build-mode UX, and harden release.
+  author and verify 48 levels, complete Architect build-mode UX, and harden release.
 - About 21-34 person-weeks for one engineer.
 - About 12-19 elapsed weeks for two engineers once capability and content work
   run in parallel.
@@ -75,20 +75,21 @@ CI.
 The seven executable defects listed below are closed. They remain recorded as the
 original regression probes that the dedicated level suite now protects.
 
-### Catalog foundation and problems 14-17 verification
+### Catalog foundation and problems 14-18 verification
 
 | Check | Result on 2026-07-10 |
 | --- | --- |
-| `pnpm test:levels` | Pass: 8 files, 41 tests across all 17 levels |
+| `pnpm test:levels` | Pass: 8 files, 44 tests across all 18 levels |
 | Content and bypass audit | Pass: version/path/capability graph plus canonical solution and three bypass classes for every level |
 | `pnpm typecheck` | Pass after adding challenge mode, Architect difficulty, paths, and lifecycle content |
 | `pnpm test` | Pass: 24 files, 106 tests |
 | `pnpm test:api` | Pass: 3 files, 13 tests |
 | `pnpm lint` | Pass with zero warnings |
-| `pnpm build` | Pass: 67 static pages generated, including all 17 problem routes |
+| `pnpm build` | Last committed slice pass: 67 static pages including 17 routes; rerun pending for problem 18 |
 | Chrome DevTools desktop | Pass: 17 rows, prerequisite lock labels, URL-backed search |
 | Chrome DevTools mobile 390x844 | Pass: active-filter count, focus-trapped filter dialog, path/difficulty restoration from URL |
 | Lifecycle engine | Pass: command override, native startupProbe, wrong probe port, and multi-container sidecar red-to-green solves |
+| LIFE/NET incident engine | Pass: deterministic 200/200/502 sampling, terminating endpoint/log/event evidence, drain fix, and reset |
 
 The sidecar test caught and prevented an invalid authored fix where both containers
 bound port 8080 in the Pod network namespace. The final scenario reserves port 9090
@@ -623,7 +624,7 @@ exact reproduction.
 | 15 | Slow Start Without startupProbe | Intermediate | Startup vs liveness/readiness | LIFE, IMG | Current; deterministic slow image and native startupProbe |
 | 16 | Probe Hits The Wrong Port | Intermediate | Management port vs traffic port | BASE, IMG | Current; native engine solve passes |
 | 17 | Healthy App, Broken Sidecar | Advanced | Multi-container readiness and logs | LIFE, IMG | Current; container-aware logs/describe and native solve pass |
-| 18 | Graceful Shutdown 502s | Advanced | preStop and termination grace | LIFE, NET | New; incident Ravelin |
+| 18 | Graceful Shutdown 502s | Advanced | preStop and termination grace | LIFE, NET | Current; Ravelin-inspired, sampled scripted solve passes |
 | 19 | Rollout Cannot Fit maxSurge | Advanced | Capacity-aware rolling updates | SCHED | New |
 | 20 | Recreate Strategy Outage | Intermediate | Deployment strategy availability | BASE, LIFE | New |
 | 21 | Immutable Deployment Selector | Intermediate | API validation and safe migration | BASE | New |
@@ -939,8 +940,8 @@ Implementation rules:
   and deduplicates required submission IDs. Browser-validated aggregate telemetry
   is visibly labeled instead of being presented as server-verified truth.
 
-Current implementation count: 17 published repair levels. Remaining to the approved
-66-level target: 39 troubleshooting levels and 10 Architect builds (49 total).
+Current implementation count: 18 published repair levels. Remaining to the approved
+66-level target: 38 troubleshooting levels and 10 Architect builds (48 total).
 
 ## 13. Implementation Plan And Estimate
 
@@ -978,7 +979,7 @@ Recommended delivery slices:
 - Dedicated test:levels command.
 
 Exit target: 12 high-confidence levels.
-Status: Complete; the catalog now contains 17 high-confidence levels.
+Status: Complete; the catalog now contains 18 high-confidence levels.
 
 ### Milestone B: Authoring platform
 
@@ -1113,8 +1114,8 @@ Recommended defaults are shown so these do not block implementation:
 ## 17. Final Completion Gate
 
 Current result: **not met**. PR 1-7 close the shared platform and current-level
-correctness work, and the first lifecycle batch brings the catalog to 17/66. The
-remaining release scope is 39 troubleshooting problems plus 10 Architect builds,
+correctness work, and the first incident/lifecycle batches bring the catalog to 18/66.
+The remaining release scope is 38 troubleshooting problems plus 10 Architect builds,
 their required capability packs, catalog-scale dashboard behavior,
 source/path/version metadata, full route and capability browser coverage,
 accessibility, responsive verification, and final content review.

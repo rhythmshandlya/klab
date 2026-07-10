@@ -133,4 +133,36 @@ describe("runValidators", () => {
       expect(result.passed).toBe(true);
     }
   });
+
+  it("rejects intermittent HTTP failures across a bounded sample", async () => {
+    let request = 0;
+    const simulator = {
+      getSnapshot: emptySnapshot,
+      probe: async () => {
+        request += 1;
+        return request % 3 === 0
+          ? { ok: false, status: 502, body: "old backend" }
+          : { ok: true, status: 200, body: "new backend" };
+      },
+    } as unknown as KubeSimulator;
+    const sampled: LevelValidatorDefinition = {
+      id: "sampled-http",
+      title: "Sampled traffic",
+      successLabel: "All samples pass",
+      failureLabel: "A sample failed",
+      kind: "http-sample-through-service",
+      namespace: "default",
+      service: "edge-api-svc",
+      port: 80,
+      path: "/",
+      expectStatus: 200,
+      samples: 6,
+      maxFailures: 0,
+    };
+
+    const report = await runValidators([sampled], { simulator });
+    expect(report.passed).toBe(false);
+    expect(report.results[0]?.detail).toContain("2/6 samples");
+    expect(request).toBe(6);
+  });
 });

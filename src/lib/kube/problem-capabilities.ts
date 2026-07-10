@@ -1,5 +1,7 @@
 import type { ProblemCapability, ProblemEngineSpec, ProblemLevel } from "@/lib/domain/types";
 
+import { scriptedScenarioCapabilities } from "./scripted-scenarios";
+
 export const WEBERNETES_CAPABILITIES: ReadonlySet<ProblemCapability> = new Set([
   "pods",
   "services",
@@ -17,22 +19,10 @@ export const WEBERNETES_CAPABILITIES: ReadonlySet<ProblemCapability> = new Set([
   "multi-container",
 ]);
 
-const SCRIPTED_SCENARIO_CAPABILITIES: Readonly<Record<string, ReadonlySet<ProblemCapability>>> = {
-  "private-registry-pull": new Set([
-    "pods",
-    "services",
-    "deployments",
-    "events",
-    "http-probes",
-    "image-pulls",
-    "secrets",
-  ]),
-};
-
 export function capabilitiesForEngine(spec: ProblemEngineSpec): ReadonlySet<ProblemCapability> {
   return spec.kind === "webernetes"
     ? WEBERNETES_CAPABILITIES
-    : (SCRIPTED_SCENARIO_CAPABILITIES[spec.scenarioId] ?? new Set());
+    : scriptedScenarioCapabilities(spec.scenarioId);
 }
 
 export function unsupportedProblemCapabilities(level: ProblemLevel): ProblemCapability[] {

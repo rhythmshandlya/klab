@@ -52,4 +52,42 @@ describe("ScriptedIncidentEngine reference scenario", () => {
       await engine.close();
     }
   });
+
+  it("samples intermittent shutdown failures and converges after adding a drain window", async () => {
+    const level = getLevelBySlug("graceful-shutdown-502s")!;
+    const solution = LEVEL_SOLUTIONS[level.slug]!;
+    const engine = createProblemEngine(level.engine);
+
+    try {
+      expect((await engine.boot(level)).ok).toBe(true);
+      const currentFiles = Object.fromEntries(
+        level.files
+          .filter((file) => file.access !== "hidden")
+          .map((file) => [file.path, file.initialValue]),
+      );
+      const samples = await Promise.all([
+        engine.probe("http://edge-api-svc/"),
+        engine.probe("http://edge-api-svc/"),
+        engine.probe("http://edge-api-svc/"),
+      ]);
+      expect(samples.map((sample) => sample.status)).toEqual([200, 200, 502]);
+      expect(samples[2]?.body).toContain("edge-api-old");
+
+      const oldLogs = await engine.runCommand("kubectl logs edge-api-old", "default", currentFiles);
+      expect(oldLogs.output).toContain("closing listener immediately");
+      expect((await engine.validate(level, currentFiles)).passed).toBe(false);
+
+      expect((await engine.applyFiles(solution.files)).ok).toBe(true);
+      const report = await engine.validate(level, { ...currentFiles, ...solution.files });
+      expect(report.passed, JSON.stringify(report, null, 2)).toBe(true);
+      const fixedSamples = await Promise.all([
+        engine.probe("http://edge-api-svc/"),
+        engine.probe("http://edge-api-svc/"),
+        engine.probe("http://edge-api-svc/"),
+      ]);
+      expect(fixedSamples.map((sample) => sample.status)).toEqual([200, 200, 200]);
+    } finally {
+      await engine.close();
+    }
+  });
 });

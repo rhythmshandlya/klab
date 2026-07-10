@@ -1,11 +1,16 @@
 import type { ProblemCapability, ProblemEngineSpec, ProblemLevel } from "@/lib/domain/types";
-import { err, ok, type Result } from "@/lib/utils/result";
+import { err, type Result } from "@/lib/utils/result";
 
 import { runCommandLine, type CommandResult } from "./command-runner";
 import type { LogLine } from "./images/log-sink";
 import { parseManifests } from "./manifest-parser";
 import { applyProblemBoot } from "./problem-boot";
 import { capabilitiesForEngine, unsupportedProblemCapabilities } from "./problem-capabilities";
+import {
+  createScriptedScenarioRuntime,
+  emptyScriptedSnapshot,
+  type ScriptedScenarioRuntime,
+} from "./scripted-scenarios";
 import {
   KubeSimulator,
   type AppliedResourceRef,
@@ -28,6 +33,7 @@ export interface ProblemEngine {
     files: Readonly<Record<string, string>>,
   ): Promise<Result<AppliedResourceRef[], string>>;
   probe(url: string): Promise<ProbeResult>;
+  getLogs(namespace: string, pod: string, container?: string): LogLine[];
   validate(level: ProblemLevel, files: Readonly<Record<string, string>>): Promise<ValidationReport>;
   runCommand(
     line: string,
@@ -83,6 +89,10 @@ export class WebernetesProblemEngine implements ProblemEngine {
     return this.simulator.probe(url);
   }
 
+  getLogs(namespace: string, pod: string, container?: string): LogLine[] {
+    return this.simulator.getLogs(namespace, pod, container);
+  }
+
   validate(
     level: ProblemLevel,
     files: Readonly<Record<string, string>>,
@@ -99,32 +109,26 @@ export class WebernetesProblemEngine implements ProblemEngine {
   }
 }
 
-type ScriptedState = "broken" | "fixed";
-
 export class ScriptedIncidentEngine implements ProblemEngine {
   readonly kind = "scripted" as const;
   readonly capabilities: ReadonlySet<ProblemCapability>;
-  private state: ScriptedState = "broken";
   private readonly listeners = new Set<ProblemSnapshotListener>();
+  private readonly runtime: ScriptedScenarioRuntime | undefined;
 
   constructor(private readonly scenarioId: string) {
     this.capabilities = capabilitiesForEngine({ kind: "scripted", scenarioId });
+    this.runtime = createScriptedScenarioRuntime(scenarioId);
   }
 
-  async boot(_level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
-    if (this.scenarioId !== "private-registry-pull") {
-      return err(`Unknown scripted scenario: ${this.scenarioId}`);
-    }
-    const unsupported = unsupportedProblemCapabilities(_level);
+  async boot(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
+    if (!this.runtime) return err(`Unknown scripted scenario: ${this.scenarioId}`);
+    const unsupported = unsupportedProblemCapabilities(level);
     if (unsupported.length > 0) {
       return err(`Scripted scenario does not support: ${unsupported.join(", ")}`);
     }
-    this.state = "broken";
+    const booted = this.runtime.boot();
     this.emit();
-    return ok([
-      { kind: "Deployment", name: "private-api", namespace: "default" },
-      { kind: "Service", name: "private-api-svc", namespace: "default" },
-    ]);
+    return booted;
   }
 
   reset(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
@@ -142,7 +146,7 @@ export class ScriptedIncidentEngine implements ProblemEngine {
   }
 
   getSnapshot(): ClusterSnapshot {
-    return privateRegistrySnapshot(this.state);
+    return this.runtime?.snapshot() ?? emptyScriptedSnapshot();
   }
 
   async applyFiles(
@@ -152,19 +156,12 @@ export class ScriptedIncidentEngine implements ProblemEngine {
   }
 
   async applyYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>> {
+    if (!this.runtime) return err(`Unknown scripted scenario: ${this.scenarioId}`);
     const parsed = parseManifests(yamlText);
     if (!parsed.ok) return err(parsed.error.message);
-    const deployment = parsed.value.find(
-      (manifest) => manifest.kind === "Deployment" && manifest.name === "private-api",
-    );
-    if (!deployment) return err("The private-api Deployment is missing.");
-    const template = objectAt(deployment.raw, "spec.template.spec");
-    const pullSecrets = Array.isArray(template?.imagePullSecrets) ? template.imagePullSecrets : [];
-    this.state = pullSecrets.some((entry) => objectAt(entry, "")?.name === "registry-credentials")
-      ? "fixed"
-      : "broken";
-    this.emit();
-    return ok([{ kind: "Deployment", name: "private-api", namespace: "default" }]);
+    const applied = this.runtime.apply(parsed.value);
+    if (applied.ok) this.emit();
+    return applied;
   }
 
   async deleteYaml(_yamlText: string): Promise<Result<AppliedResourceRef[], string>> {
@@ -172,13 +169,14 @@ export class ScriptedIncidentEngine implements ProblemEngine {
   }
 
   async probe(url: string): Promise<ProbeResult> {
-    const host = safeHostname(url);
-    if (host !== "private-api-svc" && host !== "private-api-svc.default.svc.cluster.local") {
-      return { ok: false, status: 0, body: "", reason: `Service ${host || url} not found` };
-    }
-    return this.state === "fixed"
-      ? { ok: true, status: 200, body: "private api ready\n" }
-      : { ok: false, status: 503, body: "no ready endpoints\n", reason: "ImagePullBackOff" };
+    return (
+      this.runtime?.probe(url) ?? {
+        ok: false,
+        status: 0,
+        body: "",
+        reason: `Unknown scripted scenario: ${this.scenarioId}`,
+      }
+    );
   }
 
   validate(
@@ -196,9 +194,8 @@ export class ScriptedIncidentEngine implements ProblemEngine {
     return runCommandLine(line, { simulator: this, namespace, files });
   }
 
-  getLogs(namespace: string, pod: string, _container?: string): LogLine[] {
-    if (namespace !== "default" || pod !== "private-api-6f4d9") return [];
-    return this.state === "fixed" ? [scriptedLog(pod, "server listening on :8080")] : [];
+  getLogs(namespace: string, pod: string, container?: string): LogLine[] {
+    return this.runtime?.logs(namespace, pod, container) ?? [];
   }
 
   private emit(): void {
@@ -211,113 +208,4 @@ export function createProblemEngine(spec: ProblemEngineSpec): ProblemEngine {
   return spec.kind === "webernetes"
     ? new WebernetesProblemEngine()
     : new ScriptedIncidentEngine(spec.scenarioId);
-}
-
-function privateRegistrySnapshot(state: ScriptedState): ClusterSnapshot {
-  const fixed = state === "fixed";
-  const podName = "private-api-6f4d9";
-  const pod = {
-    metadata: { name: podName, namespace: "default", labels: { app: "private-api" } },
-    spec: {
-      nodeName: "node-1",
-      containers: [{ name: "api", image: "registry.example/private/api:1.0.0" }],
-    },
-    status: {
-      phase: fixed ? "Running" : "Pending",
-      podIP: fixed ? "10.0.0.21" : undefined,
-      conditions: [{ type: "Ready", status: fixed ? "True" : "False" }],
-      containerStatuses: [
-        {
-          name: "api",
-          image: "registry.example/private/api:1.0.0",
-          imageID: fixed ? "scripted://private-api-1.0.0" : "",
-          ready: fixed,
-          restartCount: 0,
-          state: fixed
-            ? { running: { startedAt: new Date("2026-07-10T00:00:00Z") } }
-            : { waiting: { reason: "ImagePullBackOff", message: "pull access denied" } },
-        },
-      ],
-    },
-  };
-  const service = {
-    metadata: { name: "private-api-svc", namespace: "default" },
-    spec: {
-      clusterIP: "10.96.0.90",
-      selector: { app: "private-api" },
-      ports: [{ name: "http", port: 80, targetPort: 8080, protocol: "TCP" }],
-    },
-  };
-  const endpointSlice = {
-    metadata: {
-      name: "private-api-svc-scripted",
-      namespace: "default",
-      labels: { "kubernetes.io/service-name": "private-api-svc" },
-    },
-    addressType: "IPv4",
-    endpoints: fixed
-      ? [{ addresses: ["10.0.0.21"], conditions: { ready: true }, targetRef: { name: podName } }]
-      : [],
-    ports: [{ name: "http", port: 8080, protocol: "TCP" }],
-  };
-  return {
-    pods: [pod],
-    services: [service],
-    deployments: [
-      {
-        metadata: { name: "private-api", namespace: "default" },
-        spec: {
-          replicas: 1,
-          selector: { matchLabels: { app: "private-api" } },
-          template: pod,
-        },
-        status: { replicas: 1, readyReplicas: fixed ? 1 : 0, unavailableReplicas: fixed ? 0 : 1 },
-      },
-    ],
-    replicaSets: [],
-    endpointSlices: [endpointSlice],
-    namespaces: [{ metadata: { name: "default" } }],
-    nodes: [{ metadata: { name: "node-1" } }],
-    events: fixed
-      ? []
-      : [
-          {
-            metadata: { name: "private-api-pull", namespace: "default" },
-            type: "Warning",
-            reason: "Failed",
-            message:
-              "Failed to pull image registry.example/private/api:1.0.0: secret registry-credentials not found",
-          },
-        ],
-  } as unknown as ClusterSnapshot;
-}
-
-function objectAt(value: unknown, path: string): Record<string, unknown> | undefined {
-  const result = path
-    ? path.split(".").reduce<unknown>((current, segment) => {
-        if (typeof current !== "object" || current === null) return undefined;
-        return (current as Record<string, unknown>)[segment];
-      }, value)
-    : value;
-  return typeof result === "object" && result !== null
-    ? (result as Record<string, unknown>)
-    : undefined;
-}
-
-function safeHostname(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "";
-  }
-}
-
-function scriptedLog(pod: string, message: string): LogLine {
-  return {
-    namespace: "default",
-    pod,
-    container: "api",
-    message,
-    timestampMs: Date.parse("2026-07-10T00:00:00Z"),
-  };
 }

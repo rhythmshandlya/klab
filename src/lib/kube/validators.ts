@@ -115,6 +115,19 @@ async function evaluate(
       };
     }
 
+    case "http-sample-through-service": {
+      const url = `http://${validator.service}.${validator.namespace}.svc.cluster.local:${validator.port}${validator.path}`;
+      const statuses: number[] = [];
+      for (let index = 0; index < validator.samples; index += 1) {
+        statuses.push((await simulator.probe(url)).status);
+      }
+      const failures = statuses.filter((status) => status !== validator.expectStatus).length;
+      return {
+        passed: failures <= validator.maxFailures,
+        detail: `${failures}/${validator.samples} samples missed HTTP ${validator.expectStatus} (${statuses.join(", ")})`,
+      };
+    }
+
     case "no-recent-readiness-failures": {
       // Robust current-state interpretation: pass when no Running pod in the namespace
       // is failing readiness. (Event-history scraping is timing-fragile; the window
