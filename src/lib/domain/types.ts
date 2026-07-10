@@ -482,7 +482,9 @@ export type DocsBlock =
       columns: string[];
       rows: { label: string; cells: string[] }[];
     }
-  | { type: "lab"; labId: string };
+  | { type: "lab"; labId: string }
+  /** Embedded hands-on mission: a goal-checked workspace card, keyed by joined mission slug. */
+  | { type: "mission"; missionSlug: string };
 
 export interface DocsLesson {
   slug: string[];

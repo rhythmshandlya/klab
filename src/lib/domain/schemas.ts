@@ -527,6 +527,7 @@ const docsBlockSchema = z.discriminatedUnion("type", [
     rows: z.array(z.object({ label: z.string().min(1), cells: z.array(z.string()) })),
   }),
   z.object({ type: z.literal("lab"), labId: z.string().min(1) }),
+  z.object({ type: z.literal("mission"), missionSlug: z.string().min(1) }),
 ]);
 
 export const docsLessonSchema = z.object({

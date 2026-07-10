@@ -842,6 +842,7 @@ const whatIsKubernetes: DocsLesson = {
         },
       ],
     },
+    { type: "mission", missionSlug: "foundations/what-is-kubernetes" },
     {
       type: "quiz",
       id: "what-is-kubernetes-q1",
@@ -1257,6 +1258,7 @@ const clusterArchitecture: DocsLesson = {
         },
       ],
     },
+    { type: "mission", missionSlug: "foundations/cluster-architecture" },
     {
       type: "takeaways",
       items: [
@@ -1610,6 +1612,7 @@ const desiredVsActual: DocsLesson = {
         },
       ],
     },
+    { type: "mission", missionSlug: "foundations/desired-vs-actual-state" },
     {
       type: "heading",
       id: "takeaways",
@@ -2011,6 +2014,7 @@ const apiObjects: DocsLesson = {
       type: "lab",
       labId: "object-labels",
     },
+    { type: "mission", missionSlug: "foundations/api-objects" },
     {
       type: "heading",
       id: "takeaways",
@@ -2366,6 +2370,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
       solution:
         "metadata:\n  name: web-7d9f-abcde\n  namespace: default\n  labels:\n    app: web\n    tier: frontend\n  annotations:\n    runbook: https://wiki/web-oncall\n  ownerReferences:\n    - apiVersion: apps/v1\n      kind: ReplicaSet\n      name: web-rs\n      uid: abc-123\n      controller: true",
     },
+    { type: "mission", missionSlug: "foundations/labels-annotations-ownership" },
     { type: "lab", labId: "ownership-gc" },
     {
       type: "takeaways",
@@ -2767,6 +2772,7 @@ const declarativeWorkflow: DocsLesson = {
       solution:
         "# overlays/staging/kustomization.yaml\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: staging\nresources:\n  - ../../base\nimages:\n  - name: klab/web-app\n    newTag: 1.0.0",
     },
+    { type: "mission", missionSlug: "foundations/declarative-workflow" },
     { type: "lab", labId: "apply-reapply" },
     {
       type: "takeaways",

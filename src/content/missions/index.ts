@@ -37,3 +37,21 @@ export function getMissionBySlug(slug: string[]): Mission | undefined {
 export function missionHref(m: Mission): string {
   return `/docs/${m.slug.join("/")}`;
 }
+
+/**
+ * Manifests that reconstruct the cluster state a mission expects on entry: the section's
+ * seed plus every earlier mission's do-step files. Known approximation: a do-step's
+ * initialValue is its STARTING yaml, not necessarily the learner's solved state — keep
+ * do-step files authored so that applying them as-is yields the intended durable objects.
+ */
+export function accumulatedSeedManifests(mission: Mission): string[] {
+  const section = getMissionsBySection(mission.section);
+  const seeds: string[] = [...(section[0]?.seedManifests ?? [])];
+  for (const prior of section) {
+    if (prior.order >= mission.order) break;
+    for (const step of prior.steps) {
+      if (step.kind === "do") seeds.push(...step.files.map((f) => f.initialValue));
+    }
+  }
+  return seeds;
+}

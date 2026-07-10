@@ -7,8 +7,10 @@ import { cn } from "@/lib/utils/cn";
 
 import { ChallengeBlock, SpotTheBugBlock } from "./docs-reveal-blocks";
 import { CopyButton } from "./copy-button";
+import { DocsFlowDiagram } from "./docs-flow-diagram";
 import { DocsQuiz } from "./docs-quiz";
 import { InteractiveLab } from "./interactive-lab";
+import { MissionEmbed } from "./mission-embed";
 
 const CALLOUT: Record<"info" | "warning" | "key", { border: string; icon: keyof typeof icons }> = {
   info: { border: "border-blue/30 bg-blue/5", icon: "docs" },
@@ -103,6 +105,8 @@ function Block({ block, lesson }: { block: DocsBlock; lesson: DocsLesson }) {
       if (!lab) return null;
       return <InteractiveLab lab={lab} />;
     }
+    case "mission":
+      return <MissionEmbed missionSlug={block.missionSlug} />;
     default:
       return assertNever(block);
   }
@@ -110,6 +114,17 @@ function Block({ block, lesson }: { block: DocsBlock; lesson: DocsLesson }) {
 
 function NativeDiagram({ block }: { block: DiagramBlock }) {
   switch (block.variant) {
+    // Flow-shaped concepts render on React Flow: real arrowheads, animated edges,
+    // one visual language shared with the live mission topology.
+    case "cluster-architecture":
+    case "api-object":
+    case "workload-hierarchy":
+    case "service-routing":
+      return (
+        <DiagramShell title={block.title} caption={block.caption}>
+          <DocsFlowDiagram variant={block.variant} />
+        </DiagramShell>
+      );
     case "control-loop":
       return (
         <DiagramShell title={block.title} caption={block.caption}>

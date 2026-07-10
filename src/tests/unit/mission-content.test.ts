@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MISSIONS, getMissionBySlug, getMissionsBySection } from "@/content/missions";
+import { DOCS_LESSONS } from "@/content/docs";
+import {
+  MISSIONS,
+  accumulatedSeedManifests,
+  getMissionBySlug,
+  getMissionsBySection,
+} from "@/content/missions";
 
 describe("mission content", () => {
   it("registers Foundations missions in order", () => {
@@ -36,6 +42,34 @@ describe("mission content", () => {
     for (const m of getMissionsBySection("Foundations")) {
       expect(m.steps.some((s) => s.kind === "do")).toBe(true);
       expect(m.steps.at(-1)?.kind).toBe("debrief");
+    }
+  });
+  it("every mission block embedded in a lesson resolves to a registered mission", () => {
+    const embedded = DOCS_LESSONS.flatMap((lesson) =>
+      lesson.content.filter((b) => b.type === "mission").map((b) => b.missionSlug),
+    );
+    expect(embedded.length).toBeGreaterThanOrEqual(6);
+    for (const slug of embedded) {
+      expect(getMissionBySlug(slug.split("/")), `unresolved mission block: ${slug}`).toBeDefined();
+    }
+  });
+  it("every registered mission is embedded in the lesson that shares its slug", () => {
+    for (const m of MISSIONS) {
+      const lesson = DOCS_LESSONS.find((l) => l.slug.join("/") === m.slug.join("/"));
+      expect(lesson, `no lesson for mission ${m.slug.join("/")}`).toBeDefined();
+      expect(
+        lesson?.content.some((b) => b.type === "mission" && b.missionSlug === m.slug.join("/")),
+        `mission ${m.slug.join("/")} not embedded in its lesson`,
+      ).toBe(true);
+    }
+  });
+  it("accumulated seeds grow monotonically along the mission arc", () => {
+    const f = getMissionsBySection("Foundations");
+    let prev = -1;
+    for (const m of f) {
+      const count = accumulatedSeedManifests(m).length;
+      expect(count).toBeGreaterThanOrEqual(prev);
+      prev = count;
     }
   });
 });

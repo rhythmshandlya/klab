@@ -94,13 +94,15 @@ export function MissionDiagram({
   namespace,
 }: {
   spec: DiagramSpec;
-  snapshot: ClusterSnapshot;
-  namespace: string;
+  /** Required only for `mode: "live"` — concept/static diagrams are self-contained. */
+  snapshot?: ClusterSnapshot;
+  namespace?: string;
 }) {
   if (spec.mode === "live") {
+    if (!snapshot) return null;
     return (
       <div className="h-56">
-        <ServiceTopology snapshot={snapshot} namespace={namespace} />
+        <ServiceTopology snapshot={snapshot} namespace={namespace ?? "default"} />
       </div>
     );
   }
