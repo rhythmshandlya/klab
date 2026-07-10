@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  readCommunityPulse,
   readLeaderboard,
   readLevelRecords,
   readRecentSolves,
@@ -110,6 +111,26 @@ describe("community-repo over pglite", () => {
 
       expect(records).toHaveLength(1);
       expect(records[0]).toMatchObject({ levelSlug: "level-1", durationMs: 30_000 });
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("counts distinct players and this week's solves in the pulse", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      expect(await readCommunityPulse(db)).toEqual({ players: 0, solvesThisWeek: 0 });
+
+      const a = await seedUser(db, "userA");
+      const b = await seedUser(db, "userB");
+      const now = new Date();
+      const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+
+      await seedSolve(db, a, "level-1", 10, daysAgo(1));
+      await seedSolve(db, a, "level-2", 10, daysAgo(30));
+      await seedSolve(db, b, "level-1", 10, daysAgo(2));
+
+      expect(await readCommunityPulse(db)).toEqual({ players: 2, solvesThisWeek: 2 });
     } finally {
       await client.close();
     }

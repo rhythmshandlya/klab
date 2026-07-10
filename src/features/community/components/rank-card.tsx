@@ -4,45 +4,68 @@ import { useEffect, useState } from "react";
 
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
 import { icons } from "@/components/icons";
+import { LEVEL_CATALOG } from "@/content/levels";
 import { useProgress } from "@/features/progress/use-progress";
 import { useSession } from "@/lib/auth/client";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * "You" panel above the community lists. XP / streak / solves read from local progress
- * (identity-aware, works for guests). When signed in, it also fetches the server rank
- * from /api/community/rank; guests get a sign-in nudge instead. The session hook only
- * mounts when auth is enabled, mirroring AppShell's ProgressSync pattern.
+ * "You" panel above the community lists. XP / streak / labs read from local progress
+ * (identity-aware, works for guests), with a labs-completed meter against the catalog.
+ * When signed in, the server rank arrives from /api/community/rank (skeleton while it
+ * loads); guests get a sign-in action instead. The session hook only mounts when auth
+ * is enabled, mirroring AppShell's ProgressSync pattern.
  */
 export function RankCard({ authEnabled }: { authEnabled: boolean }) {
   const progress = useProgress();
   const Xp = icons.xp;
   const Streak = icons.streak;
-  const Trophy = icons.trophy;
-
-  const stats = [
-    { label: "XP", value: progress.xp, icon: Xp, tone: "text-purple" },
-    { label: "Day streak", value: progress.streakDays, icon: Streak, tone: "text-amber" },
-    { label: "Solved", value: progress.solvedLevelSlugs.length, icon: Trophy, tone: "text-green" },
-  ];
+  const solved = progress.solvedLevelSlugs.filter((slug) =>
+    LEVEL_CATALOG.some((level) => level.slug === slug),
+  ).length;
+  const total = LEVEL_CATALOG.length;
 
   return (
     <div className="border-border bg-panel flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border px-6 py-5">
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-        {stats.map((s) => (
-          <div key={s.label} className="flex items-center gap-2.5">
-            <s.icon className={cn("size-5", s.tone)} aria-hidden />
-            <div>
-              <p className="tabnums text-foreground text-lg leading-tight font-semibold">
-                {s.value}
-              </p>
-              <p className="text-subtle text-xs">{s.label}</p>
-            </div>
-          </div>
-        ))}
+      <Stat icon={<Xp className="text-purple size-5" aria-hidden />} value={progress.xp} label="XP" />
+      <Stat
+        icon={<Streak className="text-amber size-5" aria-hidden />}
+        value={progress.streakDays}
+        label="Day streak"
+      />
+
+      <div className="min-w-40">
+        <p className="text-foreground text-lg leading-tight font-semibold">
+          <span className="tabnums">{solved}</span>
+          <span className="text-subtle text-sm font-normal"> of {total} labs</span>
+        </p>
+        <div
+          className="bg-panel-elevated mt-1.5 h-1 w-full max-w-40 overflow-hidden rounded-full"
+          role="meter"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={solved}
+          aria-label="Incident labs solved"
+        >
+          <div
+            className="bg-green h-full rounded-full"
+            style={{ width: `${total > 0 ? Math.round((solved / total) * 100) : 0}%` }}
+          />
+        </div>
       </div>
-      <div className="ml-auto">
-        {authEnabled ? <RankOrSignIn /> : null}
+
+      <div className="ml-auto">{authEnabled ? <RankOrSignIn /> : null}</div>
+    </div>
+  );
+}
+
+function Stat({ icon, value, label }: { icon: React.ReactNode; value: number; label: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      {icon}
+      <div>
+        <p className="tabnums text-foreground text-lg leading-tight font-semibold">{value}</p>
+        <p className="text-subtle text-xs">{label}</p>
       </div>
     </div>
   );
@@ -91,11 +114,19 @@ function RankOrSignIn() {
     );
   }
 
-  const rank = payload?.rank;
-  if (payload && !rank) {
-    return <p className="text-muted text-sm">Solve an incident to enter the leaderboard.</p>;
+  if (!payload) {
+    return (
+      <div className="text-right" aria-busy>
+        <div className="bg-panel-elevated ml-auto h-5 w-20 animate-pulse rounded" />
+        <div className="bg-panel-elevated mt-1.5 ml-auto h-3 w-28 animate-pulse rounded" />
+      </div>
+    );
   }
-  if (!rank) return null;
+
+  const rank = payload.rank;
+  if (!rank) {
+    return <p className="text-muted max-w-48 text-right text-sm">Solve one lab to get a rank.</p>;
+  }
 
   const percentile = Math.max(1, Math.round((rank.rank / rank.totalRanked) * 100));
   return (
@@ -103,8 +134,8 @@ function RankOrSignIn() {
       <p className="text-foreground text-lg leading-tight font-semibold">
         Rank <span className="tabnums">#{rank.rank}</span>
       </p>
-      <p className="text-subtle text-xs">
-        of {rank.totalRanked} · top {percentile}%
+      <p className={cn("text-subtle text-xs")}>
+        {rank.totalRanked >= 10 ? `of ${rank.totalRanked} · top ${percentile}%` : `of ${rank.totalRanked} players`}
       </p>
     </div>
   );

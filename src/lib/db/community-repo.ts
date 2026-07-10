@@ -46,6 +46,25 @@ export interface UserRank {
   xp: number;
 }
 
+export interface CommunityPulse {
+  players: number;
+  solvesThisWeek: number;
+}
+
+/** Headline liveness numbers: everyone who ever solved, and solves in the last 7 days. */
+export async function readCommunityPulse(db: ProgressDb): Promise<CommunityPulse> {
+  const rows = await db
+    .select({
+      players: sql<number>`count(distinct ${progressSolved.userId})`.mapWith(Number),
+      solvesThisWeek: sql<number>`count(*) filter (where ${progressSolved.solvedAt} > now() - interval '7 days')`.mapWith(
+        Number,
+      ),
+    })
+    .from(progressSolved);
+  const row = rows[0];
+  return { players: row?.players ?? 0, solvesThisWeek: row?.solvesThisWeek ?? 0 };
+}
+
 /** Top users by total XP (ties broken by solve count, then recency). */
 export async function readLeaderboard(db: ProgressDb, limit: number): Promise<LeaderboardEntry[]> {
   const xp = sum(progressSolved.awardedXp).mapWith(Number);

@@ -18,11 +18,12 @@ export function ActivityFeed({ solves, now }: { solves: readonly RecentSolve[]; 
 
   return (
     <section aria-labelledby="activity-heading">
-      <div className="flex items-center gap-2">
-        <Activity className="text-blue size-4" aria-hidden />
+      <div className="flex items-baseline gap-2">
+        <Activity className="text-blue size-4 self-center" aria-hidden />
         <h2 id="activity-heading" className="text-foreground text-sm font-semibold">
           Recent activity
         </h2>
+        <span className="text-subtle text-xs">latest solves</span>
       </div>
 
       {visible.length === 0 ? (
