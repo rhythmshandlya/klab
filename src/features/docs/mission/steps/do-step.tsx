@@ -45,29 +45,28 @@ export function DoStep({
   const [activePath, setActivePath] = useState(step.files[0]?.path ?? "");
   const [applying, setApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
-  const [result, setResult] = useState<{ passed: boolean; detail: string } | null>(null);
+  // Sticky success: once the goal has been met we keep it met, even if a later
+  // snapshot flickers during convergence.
   const [goalMet, setGoalMet] = useState(false);
   const completedRef = useRef(false);
 
-  const evaluate = useCallback(() => {
-    const outcome = evaluateDoCheck(sim.snapshot, step.check, NAMESPACE);
-    setResult(outcome);
-    if (outcome.passed) {
-      setGoalMet(true);
-      if (!completedRef.current) {
-        completedRef.current = true;
-        onComplete();
-      }
-    }
-  }, [sim.snapshot, step.check, onComplete]);
+  // The check outcome is a pure derivation of the latest snapshot — no state, so it
+  // re-evaluates on every tick after the first apply (the cluster converges over
+  // several ticks, not instantly).
+  const result = useMemo(
+    () => (hasApplied ? evaluateDoCheck(sim.snapshot, step.check, NAMESPACE) : null),
+    [sim.snapshot, hasApplied, step.check],
+  );
 
-  // Re-evaluate every time a new snapshot arrives, once the learner has applied at
-  // least once — the cluster converges over several ticks, not instantly.
+  // Latch the pass exactly once and notify the parent. Syncing a latch from an
+  // external-store snapshot has to happen post-render; the guard makes it a
+  // single transition, not a render loop.
   useEffect(() => {
-    if (!hasApplied) return;
-    evaluate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sim.snapshot, hasApplied]);
+    if (!result?.passed || completedRef.current) return;
+    completedRef.current = true;
+    setGoalMet(true);
+    onComplete();
+  }, [result, onComplete]);
 
   const apply = useCallback(async () => {
     setApplying(true);
