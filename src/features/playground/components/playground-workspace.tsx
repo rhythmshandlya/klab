@@ -1,16 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ErrorBoundary } from "@/components/app-shell/error-boundary";
-import { useRegisterWorkspaceAction } from "@/components/app-shell/workspace-action";
 import { EventsTimeline } from "@/components/events/events-timeline";
 import { icons } from "@/components/icons";
 import { ClusterExplorer } from "@/components/object-explorer/cluster-explorer";
 import { ObjectDetails } from "@/components/object-explorer/object-details";
 import { XtermTerminal, type TerminalRunResult } from "@/components/terminal/xterm-terminal";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import {
+  ResizableGroup,
+  ResizableHandle,
+  ResizablePane,
+  usePersistedLayout,
+} from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlaygroundTemplate } from "@/lib/domain/types";
 import { runCommandLine } from "@/lib/kube/command-runner";
@@ -22,6 +27,7 @@ import { useSimulator } from "@/features/problems/hooks/use-simulator";
 
 import { usePlaygroundStore } from "../playground-store";
 import { MultiFileEditor } from "./multi-file-editor";
+import { NetworkActivity } from "./network-activity";
 import { ResourceSummary } from "./resource-summary";
 import { TemplateSidebar } from "./template-sidebar";
 
@@ -31,7 +37,8 @@ const ServiceTopology = dynamic(
 );
 
 const NAMESPACE = "default";
-type RightTab = "explorer" | "events" | "resources";
+type RightTab = "explorer" | "network" | "events" | "resources";
+const RIGHT_TABS = ["explorer", "network", "events", "resources"] as const;
 
 export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate }) {
   const initTemplate = usePlaygroundStore((s) => s.initTemplate);
@@ -44,10 +51,35 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
   }, [template, initTemplate, loadFiles]);
 
   const sim = useSimulator(template);
+  // Pane sizes survive reloads, same mechanism as the problems workspace.
+  const columnsLayout = usePersistedLayout("klab:layout:playground-workspace:columns");
+  const centerLayout = usePersistedLayout("klab:layout:playground-workspace:center");
+  const rightLayout = usePersistedLayout("klab:layout:playground-workspace:right");
   const [rightTab, setRightTab] = useState<RightTab>("explorer");
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [applying, setApplying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [paused, setPaused] = useState(false);
+
+  // Topology spans every user namespace so e.g. the Namespaces template's team-a
+  // pod is visible; control-plane namespaces stay hidden.
+  const userNamespaces = useMemo(() => {
+    const names = sim.snapshot.namespaces
+      .map((n) => n.metadata?.name ?? "")
+      .filter((n) => n !== "" && !n.startsWith("kube-"));
+    return names.length > 0 ? names : [NAMESPACE];
+  }, [sim.snapshot.namespaces]);
+
+  const togglePause = useCallback(() => {
+    if (!sim.ready) return;
+    if (sim.simulator.isPaused()) {
+      sim.simulator.resume();
+      setPaused(false);
+    } else {
+      sim.simulator.pause();
+      setPaused(true);
+    }
+  }, [sim.ready, sim.simulator]);
 
   const runCommand = useCallback(
     async (line: string): Promise<TerminalRunResult> => {
@@ -76,6 +108,7 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
     await sim.reset();
     usePlaygroundStore.getState().resetToTemplate();
     setSelected(null);
+    setPaused(false);
   }, [sim]);
 
   const handleCopy = useCallback(async () => {
@@ -89,127 +122,183 @@ export function PlaygroundWorkspace({ template }: { template: PlaygroundTemplate
     }
   }, []);
 
-  useRegisterWorkspaceAction({
-    label: "Apply Manifest",
-    icon: "run",
-    onRun: () => void handleApply(),
-    pending: applying,
-    disabled: !sim.ready,
-  });
-
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] gap-3 overflow-x-auto p-3">
-      {/* Left sidebar */}
-      <Panel className="w-64 shrink-0">
-        <PanelHeader title="Sandbox" icon={<icons.playground />} />
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <TemplateSidebar currentTemplateId={template.id} />
-        </div>
-      </Panel>
-
-      {/* Center */}
-      <div className="flex min-w-[420px] flex-1 flex-col gap-3">
-        <Panel className="min-h-0 flex-[3]">
-          <div className="border-border flex h-10 shrink-0 items-center justify-between border-b pr-2 pl-3">
-            <span className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
-              Workspace
-            </span>
-            <div className="flex items-center gap-1.5">
-              <ToolbarButton onClick={() => void handleCopy()} disabled={!sim.ready}>
-                <icons.yaml aria-hidden />
-                {copied ? "Copied" : "Copy YAML"}
-              </ToolbarButton>
-              <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
-                <icons.reset aria-hidden />
-                Reset
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => void handleApply()}
-                disabled={applying || !sim.ready}
-                primary
-              >
-                <icons.run aria-hidden />
-                {applying ? "Applying…" : "Apply Manifests"}
-              </ToolbarButton>
+    <div className="h-[calc(100dvh-3.5rem)] overflow-x-auto p-3">
+      <ResizableGroup
+        orientation="horizontal"
+        id="playground-columns"
+        defaultLayout={columnsLayout.defaultLayout}
+        onLayoutChanged={columnsLayout.onLayoutChanged}
+        className="h-full min-w-[1080px]"
+      >
+        {/* Left sidebar */}
+        <ResizablePane
+          id="rail-left"
+          defaultSize="19%"
+          minSize="220px"
+          maxSize="36%"
+          className="h-full"
+        >
+          <Panel className="h-full">
+            <PanelHeader title="Sandbox" icon={<icons.playground />} />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <TemplateSidebar currentTemplateId={template.id} />
             </div>
-          </div>
-          <ErrorBoundary label="Editor">
-            <MultiFileEditor />
-          </ErrorBoundary>
-        </Panel>
+          </Panel>
+        </ResizablePane>
 
-        <Panel className="min-h-0 flex-[2]">
-          <PanelHeader
-            title="Terminal"
-            icon={<icons.terminal />}
-            actions={<StatusPill status={sim.status} />}
-          />
-          <div className="min-h-0 flex-1">
-            <ErrorBoundary label="Terminal">
-              <XtermTerminal
-                onCommand={runCommand}
-                prompt="kube@sandbox:~$ "
-                welcome={[`Template: ${template.title}`, "Type 'help' for commands."]}
-              />
-            </ErrorBoundary>
-          </div>
-        </Panel>
-      </div>
+        <ResizableHandle orientation="vertical" aria-label="Resize sandbox sidebar" />
 
-      {/* Right */}
-      <div className="flex w-[380px] shrink-0 flex-col gap-3 overflow-hidden">
-        <Panel className="h-[280px] shrink-0">
-          <PanelHeader title="Cluster Topology" icon={<icons.cluster />} />
-          <PanelBody scroll={false} className="p-0">
-            <ErrorBoundary label="Topology">
-              <ServiceTopology
-                snapshot={sim.snapshot}
-                namespace={NAMESPACE}
-                onSelect={setSelected}
-              />
-            </ErrorBoundary>
-          </PanelBody>
-        </Panel>
-
-        <Panel className="min-h-0 flex-1">
-          <div className="border-border flex h-10 shrink-0 items-center gap-1 border-b px-1.5">
-            {(["explorer", "events", "resources"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setRightTab(tab)}
-                className={cn(
-                  "h-8 rounded-md px-2.5 text-xs font-medium capitalize transition-colors",
-                  rightTab === tab
-                    ? "bg-panel-hover text-foreground"
-                    : "text-subtle hover:text-muted",
-                )}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto">
-            {rightTab === "explorer" ? (
-              <>
-                <ClusterExplorer
-                  snapshot={sim.snapshot}
-                  namespace={NAMESPACE}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-                <div className="border-border border-t">
-                  <ObjectDetails snapshot={sim.snapshot} selected={selected} />
+        {/* Center column — vertical split so the editor/terminal ratio is adjustable. */}
+        <ResizablePane id="center" minSize="32%" className="h-full">
+          <ResizableGroup
+            orientation="vertical"
+            id="playground-center"
+            defaultLayout={centerLayout.defaultLayout}
+            onLayoutChanged={centerLayout.onLayoutChanged}
+            className="h-full"
+          >
+            <ResizablePane id="center-editor" defaultSize="60%" minSize="20%" className="h-full">
+              <Panel className="h-full">
+                <div className="border-border flex h-10 shrink-0 items-center justify-between border-b pr-2 pl-3">
+                  <span className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
+                    Workspace
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <ToolbarButton onClick={() => void handleCopy()} disabled={!sim.ready}>
+                      <icons.yaml aria-hidden />
+                      {copied ? "Copied" : "Copy YAML"}
+                    </ToolbarButton>
+                    <ToolbarButton onClick={togglePause} disabled={!sim.ready}>
+                      {paused ? <icons.run aria-hidden /> : <icons.pause aria-hidden />}
+                      {paused ? "Resume" : "Pause"}
+                    </ToolbarButton>
+                    <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
+                      <icons.reset aria-hidden />
+                      Reset
+                    </ToolbarButton>
+                    <ToolbarButton
+                      onClick={() => void handleApply()}
+                      disabled={applying || !sim.ready}
+                      primary
+                    >
+                      <icons.run aria-hidden />
+                      {applying ? "Applying…" : "Apply Manifests"}
+                    </ToolbarButton>
+                  </div>
                 </div>
-              </>
-            ) : rightTab === "events" ? (
-              <EventsTimeline events={sim.snapshot.events} namespace={NAMESPACE} />
-            ) : (
-              <ResourceSummary snapshot={sim.snapshot} />
-            )}
-          </div>
-        </Panel>
-      </div>
+                <ErrorBoundary label="Editor">
+                  <MultiFileEditor />
+                </ErrorBoundary>
+              </Panel>
+            </ResizablePane>
+
+            <ResizableHandle orientation="horizontal" aria-label="Resize terminal height" />
+
+            <ResizablePane id="center-terminal" minSize="18%" className="h-full">
+              <Panel className="h-full">
+                <PanelHeader
+                  title="Terminal"
+                  icon={<icons.terminal />}
+                  actions={<StatusPill status={paused ? "paused" : sim.status} />}
+                />
+                <div className="min-h-0 flex-1">
+                  <ErrorBoundary label="Terminal">
+                    <XtermTerminal
+                      onCommand={runCommand}
+                      prompt="kube@sandbox:~$ "
+                      welcome={[`Template: ${template.title}`, "Type 'help' for commands."]}
+                    />
+                  </ErrorBoundary>
+                </div>
+              </Panel>
+            </ResizablePane>
+          </ResizableGroup>
+        </ResizablePane>
+
+        <ResizableHandle orientation="vertical" aria-label="Resize cluster rail" />
+
+        {/* Right rail — vertical split between topology and the inspector tabs. */}
+        <ResizablePane
+          id="rail-right"
+          defaultSize="26%"
+          minSize="280px"
+          maxSize="45%"
+          className="h-full"
+        >
+          <ResizableGroup
+            orientation="vertical"
+            id="playground-right"
+            defaultLayout={rightLayout.defaultLayout}
+            onLayoutChanged={rightLayout.onLayoutChanged}
+            className="h-full"
+          >
+            <ResizablePane id="topology" defaultSize="34%" minSize="15%" className="h-full">
+              <Panel className="h-full">
+                <PanelHeader title="Cluster Topology" icon={<icons.cluster />} />
+                <PanelBody scroll={false} className="p-0">
+                  <ErrorBoundary label="Topology">
+                    <ServiceTopology
+                      snapshot={sim.snapshot}
+                      namespaces={userNamespaces}
+                      onSelect={setSelected}
+                    />
+                  </ErrorBoundary>
+                </PanelBody>
+              </Panel>
+            </ResizablePane>
+
+            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
+
+            <ResizablePane id="right-tabs" minSize="30%" className="h-full">
+              <Panel className="h-full">
+                <div className="border-border flex h-10 shrink-0 items-center gap-1 border-b px-1.5">
+                  {RIGHT_TABS.map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setRightTab(tab)}
+                      className={cn(
+                        "h-8 rounded-md px-2.5 text-xs font-medium capitalize transition-colors",
+                        rightTab === tab
+                          ? "bg-panel-hover text-foreground"
+                          : "text-subtle hover:text-muted",
+                      )}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto">
+                  {rightTab === "explorer" ? (
+                    <>
+                      <ClusterExplorer
+                        snapshot={sim.snapshot}
+                        namespace={NAMESPACE}
+                        selected={selected}
+                        onSelect={setSelected}
+                      />
+                      <div className="border-border border-t">
+                        <ObjectDetails snapshot={sim.snapshot} selected={selected} />
+                      </div>
+                    </>
+                  ) : rightTab === "network" ? (
+                    sim.ready ? (
+                      <NetworkActivity simulator={sim.simulator} />
+                    ) : (
+                      <p className="text-subtle p-4 text-xs">Cluster is still booting…</p>
+                    )
+                  ) : rightTab === "events" ? (
+                    <EventsTimeline events={sim.snapshot.events} namespace={NAMESPACE} />
+                  ) : (
+                    <ResourceSummary snapshot={sim.snapshot} />
+                  )}
+                </div>
+              </Panel>
+            </ResizablePane>
+          </ResizableGroup>
+        </ResizablePane>
+      </ResizableGroup>
     </div>
   );
 }
@@ -219,9 +308,11 @@ function StatusPill({ status }: { status: string }) {
   const label =
     status === "ready"
       ? "Simulator ready"
-      : status === "error"
-        ? "Simulator error"
-        : "Simulator booting…";
+      : status === "paused"
+        ? "Simulator paused"
+        : status === "error"
+          ? "Simulator error"
+          : "Simulator booting…";
   return (
     <span className="flex items-center gap-1.5 px-1 text-xs">
       <span

@@ -24,10 +24,10 @@ export function MultiFileEditor() {
           <div
             key={path}
             className={cn(
-              "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs",
+              "group flex h-9 shrink-0 items-center gap-1.5 border-b-2 px-2 text-xs transition-colors",
               path === activeFilePath
-                ? "bg-panel-hover text-foreground"
-                : "text-muted hover:text-foreground",
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted hover:text-foreground",
             )}
           >
             <button

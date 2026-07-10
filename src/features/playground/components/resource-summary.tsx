@@ -23,6 +23,7 @@ export function ResourceSummary({
     { label: "ReplicaSets", value: String(inNs(snapshot.replicaSets).length) },
     { label: "EndpointSlices", value: String(inNs(snapshot.endpointSlices).length) },
     { label: "Namespaces", value: String(snapshot.namespaces.length) },
+    { label: "Nodes", value: String(snapshot.nodes.length) },
   ];
   return (
     <div className="grid grid-cols-2 gap-2 p-3">
