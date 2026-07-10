@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Broken Service Chain.
  *
@@ -153,6 +155,7 @@ spec:
 export const brokenServiceChain = {
   id: "broken-service-chain",
   slug: "broken-service-chain",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Broken Service Chain",
   difficulty: "advanced",
   severity: "critical",
@@ -164,6 +167,13 @@ export const brokenServiceChain = {
   story:
     "Checkout is down, but the synthetic monitor on the frontend is green — it returns 200, after all. Dig one layer and orders-svc is throwing 502s. Dig another and web-svc doesn't answer at all. Three tiers, three different stories. Somewhere in frontend → orders → web, one hop is lying and one is dead.",
   objective: "Trace the chain and restore it end to end: orders-svc and web-svc must return 200.",
+  learningObjectives: [
+    "Trace an outage through multiple Service hops instead of stopping at the edge status.",
+    "Use scoped probes and tier-specific logs to identify the failing dependency.",
+  ],
+  prerequisites: ["port-routing-bug", "dns-resolution-failure"],
+  learningPaths: ["networking", "sre-on-call"],
+  capabilities: ["pods", "services", "deployments", "logs", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -351,6 +361,9 @@ export const brokenServiceChain = {
       "Each tier reported only its own hop: the frontend returned 200 (it successfully relayed a failure), orders returned 502 (its upstream call failed), and web-svc silently refused connections. Edge monitoring saw 'healthy'; only walking the chain hop by hop exposed where traffic actually died.",
     whatFixedIt:
       "Correcting web-svc's targetPort to 8080 reconnected the last hop. orders-svc immediately started getting 200s from web-svc, and the frontend's body flipped from status: 502 to status: 200 — the whole chain healed from the bottom.",
+    prevention:
+      "Monitor dependency-level outcomes, keep request context across hops, and continuously probe each internal Service contract as well as the public edge.",
     relatedConcepts: ["services", "networking", "endpoints"],
+    recommendedNextSlugs: ["zombie-replicaset"],
   },
 } satisfies ProblemLevel;

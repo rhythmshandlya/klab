@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Port Routing Bug.
  *
@@ -56,6 +58,7 @@ spec:
 export const portRoutingBug = {
   id: "port-routing-bug",
   slug: "port-routing-bug",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Port Routing Bug",
   difficulty: "beginner",
   severity: "medium",
@@ -67,6 +70,13 @@ export const portRoutingBug = {
   story:
     "After a config cleanup PR, web-svc went dark. The strange part: the pods are Ready, and the Service even lists endpoints. Requests just… never come back. The wiring looks fine until the very last hop.",
   objective: "Make requests through web-svc reach the app again (HTTP 200).",
+  learningObjectives: [
+    "Trace Service port to targetPort and the process listener.",
+    "Separate endpoint readiness from transport-level reachability.",
+  ],
+  prerequisites: ["service-selector-mismatch"],
+  learningPaths: ["kubernetes-foundations", "networking"],
+  capabilities: ["pods", "services", "deployments", "logs", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -235,6 +245,9 @@ export const portRoutingBug = {
       "Readiness and endpoint selection don't validate ports — the pods probed healthy on 8080 and were published as endpoints. But every request forwarded by the Service went to port 3000, where nothing was listening, so connections were refused.",
     whatFixedIt:
       "Setting targetPort to 8080 pointed the Service at the port the container actually binds. The port chain (80 → 8080 → 8080) lined up and requests completed.",
+    prevention:
+      "Prefer named container and Service ports sourced from one value, and include an end-to-end Service probe in deployment checks.",
     relatedConcepts: ["services", "networking", "endpoints"],
+    recommendedNextSlugs: ["service-has-no-endpoints"],
   },
 } satisfies ProblemLevel;

@@ -584,8 +584,6 @@ function runDescribe(
 
 function describePod(pod: V1Pod, snapshot: ClusterSnapshot): string {
   const name = pod.metadata?.name ?? "<unknown>";
-  const container = pod.spec?.containers?.[0];
-  const status = pod.status?.containerStatuses?.[0];
   const readyCond = (pod.status?.conditions ?? []).find((c) => c.type === "Ready");
   const lines = [
     `Name:             ${name}`,
@@ -595,26 +593,50 @@ function describePod(pod: V1Pod, snapshot: ClusterSnapshot): string {
     `IP:               ${pod.status?.podIP ?? "<none>"}`,
     `Labels:           ${formatSelector(pod.metadata?.labels)}`,
     "Containers:",
-    `  ${container?.name ?? "app"}:`,
-    `    Image:          ${container?.image ?? "<none>"}`,
-    `    Port:           ${containerPortsSummary(container)}`,
-    `    Ready:          ${status?.ready ? "True" : "False"}`,
-    `    Restart Count:  ${status?.restartCount ?? 0}`,
   ];
-  const env = container?.env ?? [];
-  if (env.length > 0) {
-    lines.push("    Environment:");
-    for (const entry of env) {
-      lines.push(`      ${entry.name}:  ${entry.value ?? "<set from source>"}`);
+
+  for (const container of pod.spec?.containers ?? []) {
+    const status = (pod.status?.containerStatuses ?? []).find(
+      (candidate) => candidate.name === container.name,
+    );
+    lines.push(
+      `  ${container.name}:`,
+      `    Image:          ${container.image ?? "<none>"}`,
+      `    Port:           ${containerPortsSummary(container)}`,
+      `    Ready:          ${status?.ready ? "True" : "False"}`,
+      `    Restart Count:  ${status?.restartCount ?? 0}`,
+    );
+    if ((container.command ?? []).length > 0) {
+      lines.push(`    Command:        ${container.command!.join(" ")}`);
     }
-  }
-  if (container?.readinessProbe?.httpGet) {
-    const p = container.readinessProbe.httpGet;
-    lines.push(`    Readiness:      http-get ${p.path ?? "/"} port ${String(p.port ?? "")}`);
-  }
-  if (container?.livenessProbe?.httpGet) {
-    const p = container.livenessProbe.httpGet;
-    lines.push(`    Liveness:       http-get ${p.path ?? "/"} port ${String(p.port ?? "")}`);
+    if ((container.args ?? []).length > 0) {
+      lines.push(`    Args:           ${container.args!.join(" ")}`);
+    }
+    const env = container.env ?? [];
+    if (env.length > 0) {
+      lines.push("    Environment:");
+      for (const entry of env) {
+        lines.push(`      ${entry.name}:  ${entry.value ?? "<set from source>"}`);
+      }
+    }
+    if (container.startupProbe?.httpGet) {
+      const probe = container.startupProbe.httpGet;
+      lines.push(
+        `    Startup:        http-get ${probe.path ?? "/"} port ${String(probe.port ?? "")}`,
+      );
+    }
+    if (container.readinessProbe?.httpGet) {
+      const probe = container.readinessProbe.httpGet;
+      lines.push(
+        `    Readiness:      http-get ${probe.path ?? "/"} port ${String(probe.port ?? "")}`,
+      );
+    }
+    if (container.livenessProbe?.httpGet) {
+      const probe = container.livenessProbe.httpGet;
+      lines.push(
+        `    Liveness:       http-get ${probe.path ?? "/"} port ${String(probe.port ?? "")}`,
+      );
+    }
   }
   lines.push(`Conditions:`, `  Ready           ${readyCond?.status ?? "Unknown"}`);
   const events = relatedEvents(snapshot.events, name);

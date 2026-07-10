@@ -3,7 +3,7 @@
 import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import type { Severity } from "@/lib/domain/types";
+import type { ProblemLearningPath, Severity } from "@/lib/domain/types";
 
 import { useLevelStore } from "../level-store";
 
@@ -14,6 +14,15 @@ const SEVERITY_TONE: Record<Severity, "neutral" | "warning" | "danger"> = {
   critical: "danger",
 };
 
+const PATH_LABELS: Record<ProblemLearningPath, string> = {
+  "kubernetes-foundations": "Foundations",
+  "application-debugging": "App debugging",
+  networking: "Networking",
+  reliability: "Reliability",
+  "sre-on-call": "SRE / on-call",
+  "platform-architect": "Platform architect",
+};
+
 export function IncidentBrief() {
   const level = useLevelStore((s) => s.level);
   if (!level) return null;
@@ -22,15 +31,26 @@ export function IncidentBrief() {
 
   return (
     <Panel>
-      <PanelHeader title="Incident Brief" icon={<Warning />} />
+      <PanelHeader
+        title={level.challengeMode === "build" ? "Architecture Brief" : "Incident Brief"}
+        icon={<Warning />}
+      />
       <PanelBody className="space-y-4">
         <div>
           <h2 className="text-foreground text-base font-semibold tracking-tight">{level.title}</h2>
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge tone={SEVERITY_TONE[level.severity]}>
               <Warning aria-hidden />
               <span className="capitalize">{level.severity} severity</span>
             </Badge>
+            <Badge tone="neutral">
+              Kubernetes {level.kubernetesVersion.min}-{level.kubernetesVersion.max}
+            </Badge>
+            {level.learningPaths.map((path) => (
+              <Badge key={path} tone="neutral">
+                {PATH_LABELS[path]}
+              </Badge>
+            ))}
           </div>
         </div>
 
@@ -40,7 +60,34 @@ export function IncidentBrief() {
           <p className="text-foreground text-sm">{level.objective}</p>
         </Section>
 
-        <Section label="Constraints">
+        <Section label="You will practice">
+          <ul className="space-y-1.5">
+            {level.learningObjectives.map((objective) => (
+              <li key={objective} className="text-muted flex items-start gap-2 text-sm">
+                <span className="bg-blue mt-1.5 size-1 shrink-0 rounded-full" aria-hidden />
+                {objective}
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        {level.incidentSource ? (
+          <Section label="Incident source">
+            <a
+              href={level.incidentSource.href}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue text-sm font-medium hover:underline"
+            >
+              Inspired by {level.incidentSource.title}
+            </a>
+            <p className="text-subtle mt-1 text-xs leading-relaxed">
+              {level.incidentSource.adaptationNote}
+            </p>
+          </Section>
+        ) : null}
+
+        <Section label={level.challengeMode === "build" ? "Acceptance criteria" : "Constraints"}>
           <ul className="space-y-1.5">
             {level.constraints.map((c) => (
               <li key={c.id} className="text-muted flex items-start gap-2 text-sm">

@@ -1,43 +1,44 @@
 # Problems Audit And Completion Plan
 
-Status: PR 1-7 complete on main; catalog expansion and release hardening remain
+Status: PR 1-7 complete on main; catalog scale foundations and problems 14-17 implemented
 Audit date: 2026-07-10
 Scope: /problems, /problems/[levelId], the problem content contract, simulator, progress, authoring workflow, and test coverage
 
 This file is the single source of truth for taking the Problems feature from the
-audited 12-level MVP to an end-to-end complete catalog of at least 50 problems.
+audited 12-level MVP to an end-to-end complete catalog of 66 problems: 56
+troubleshooting incidents plus 10 Architect final-boss system builds.
 Findings, required changes, the target catalog, acceptance criteria, sequencing,
 and effort estimates are intentionally kept together here.
 
 ## 1. Executive Verdict
 
-The feature now has a trustworthy core platform and 13 high-confidence levels,
-but it is not yet a complete 50-problem troubleshooting product.
+The feature now has a trustworthy core platform and 17 high-confidence levels,
+but it is not yet the complete 66-problem troubleshooting and architecture product.
 
 | Area | Current state | Completion verdict |
 | --- | --- | --- |
-| Catalog | 13 playable levels: 4 beginner, 5 intermediate, 4 advanced | 13 of the proposed 56 total levels are authored (23%); 43 remain |
-| /problems | Search, sort, saved/completed tabs, desktop filters, status, stats, locking, and activity rail work | Desktop flow is complete for the current catalog; mobile filters and pagination remain for 50+ |
+| Catalog | 17 playable levels: 5 beginner, 7 intermediate, 5 advanced | 17 of the approved 66 total levels are authored (26%); 49 remain |
+| /problems | URL-backed search/filter/sort, mobile filter dialog, paths, prerequisite status, and 20/page pagination are implemented | Catalog-scale browser verification and non-empty Incident/Final Boss views remain |
 | /problems/[levelId] | Multi-file workspace, read-only references, two engines, terminal, logs, events, probes, topology, evidence, hints, constraints, and validation | Core workflow is complete for current capabilities; additional resource capability packs remain |
-| Existing level correctness | All 13 start broken and accept the canonical solution; every level rejects three generic bypass classes | Current catalog repair is complete |
+| Existing level correctness | All 17 start broken and accept the canonical solution; every level rejects three generic bypass classes | Current catalog repair and the first IMG/LIFE batch are complete |
 | Kubernetes coverage | Mostly Services, probes, Deployments, DNS, and ReplicaSets | Too narrow for a representative troubleshooting curriculum |
-| Quality gates | 100 unit/component/integration tests, 13 API tests, lint, typecheck, production build, and focused E2E pass | Route smoke, accessibility, and capability-pack E2E coverage must grow with the catalog |
+| Quality gates | 41 catalog tests, 106 full tests, 13 API tests, lint, typecheck, production build, and focused DevTools checks pass | Route smoke, accessibility, and capability-pack E2E must grow with the catalog |
 
-Recommended target: 56 total levels, consisting of the current 13 plus 43 new
-levels. This gives enough room for a useful difficulty curve and covers the
-important real-world failure families without stopping at 50 exactly.
+Approved target: 66 total levels, consisting of 56 troubleshooting problems and
+10 Architect system-build challenges. This exceeds the original 50-level floor,
+covers the important failure families, and adds a distinct end-to-end mastery tier.
 
 The recommended hybrid implementation is now in place: Webernetes handles the
 resources and controllers it models well, while a deterministic scripted incident
 engine handles unsupported behavior through the same ProblemEngine contract.
 Extending Webernetes into a full Kubernetes implementation is not a prerequisite.
 
-Remaining recommended effort after PR 1-7:
+Remaining recommended effort after the 17-level catalog foundation:
 
-- 90-142 senior engineer-days to implement the remaining capability packs,
-  author and verify 43 levels, scale the catalog UI, and finish release hardening.
-- About 18-29 person-weeks for one engineer.
-- About 10-16 elapsed weeks for two engineers once capability and content work
+- 105-167 senior engineer-days to implement the remaining capability packs,
+  author and verify 49 levels, complete Architect build-mode UX, and harden release.
+- About 21-34 person-weeks for one engineer.
+- About 12-19 elapsed weeks for two engineers once capability and content work
   run in parallel.
 
 ## 2. What Was Verified
@@ -73,6 +74,25 @@ CI.
 
 The seven executable defects listed below are closed. They remain recorded as the
 original regression probes that the dedicated level suite now protects.
+
+### Catalog foundation and problems 14-17 verification
+
+| Check | Result on 2026-07-10 |
+| --- | --- |
+| `pnpm test:levels` | Pass: 8 files, 41 tests across all 17 levels |
+| Content and bypass audit | Pass: version/path/capability graph plus canonical solution and three bypass classes for every level |
+| `pnpm typecheck` | Pass after adding challenge mode, Architect difficulty, paths, and lifecycle content |
+| `pnpm test` | Pass: 24 files, 106 tests |
+| `pnpm test:api` | Pass: 3 files, 13 tests |
+| `pnpm lint` | Pass with zero warnings |
+| `pnpm build` | Pass: 67 static pages generated, including all 17 problem routes |
+| Chrome DevTools desktop | Pass: 17 rows, prerequisite lock labels, URL-backed search |
+| Chrome DevTools mobile 390x844 | Pass: active-filter count, focus-trapped filter dialog, path/difficulty restoration from URL |
+| Lifecycle engine | Pass: command override, native startupProbe, wrong probe port, and multi-container sidecar red-to-green solves |
+
+The sidecar test caught and prevented an invalid authored fix where both containers
+bound port 8080 in the Pod network namespace. The final scenario reserves port 9090
+for the sidecar and proves the corrected configuration through the real simulator.
 
 ### Executable audit probes
 
@@ -459,16 +479,16 @@ without another snapshot. A browser rollback was observed converging from 1/2 to
 
 | Finding | Priority | Required outcome |
 | --- | --- | --- |
-| Filters are hidden below xl with no mobile replacement | P1 | Add a mobile/tablet filter sheet with active-filter count |
+| Filters are hidden below xl with no mobile replacement | Closed | Mobile/tablet Radix dialog with active-filter count implemented and DevTools-verified at 390x844 |
 | Activity rail is hidden below 2xl | P2 | Reflow Daily Challenge and progress into main content |
-| No pagination or incremental loading | P1 before 50 | Add URL-backed pagination; recommended default 20/page |
-| No Study Plan or Incident Inspired views | P1 | Add source and learning-path metadata plus views |
-| No learning-path filter/progress | P2 | Add beginner foundations, CKA, app developer, and SRE/on-call paths |
+| No pagination or incremental loading | Closed in implementation; scale QA remains | URL-backed 20/page pagination implemented; verify with the 21st and 56th entries |
+| No Study Plan, Incident Inspired, or Final Boss views | Partial | Incident and Final Boss tabs plus typed source/build metadata exist; populate and test them with authored levels |
+| No learning-path filter/progress | Partial | Six typed learning paths and URL filter implemented; path-specific progress view remains |
 | Daily challenge "Completed today" means solved at any time | P1 | Persist per-day challenge completion or change the label |
 | Saved count can include stale removed slugs | P2 | Project progress through the current catalog |
-| No source/incident attribution | P1 | Add incident-inspired badge and source link on detail/post-solve |
-| Flat unlock rule: every advanced level after two solves | P2 | Add per-level prerequisites or path-based gates |
-| No URL-backed filter/search state | P2 | Make filtered views shareable and back-button safe |
+| No source/incident attribution | Partial | Typed source, adaptation note, list badge, and detail link implemented; incident-authored levels remain |
+| Flat unlock rule: every advanced level after two solves | Closed | Per-level prerequisite DAG drives rows, deep-link gates, recommendations, and daily challenge |
+| No URL-backed filter/search state | Closed | Search/view/sort/status/difficulty/topic/path/page serialize into the URL and restore on navigation |
 
 Closed during this implementation:
 
@@ -599,10 +619,10 @@ exact reproduction.
 | 11 | Broken Service Chain | Advanced | Trace a multi-hop dependency | BASE | Current; repair |
 | 12 | Zombie ReplicaSet | Advanced | Labels select orphaned workloads | BASE | Current; keep |
 | 13 | Private Registry Pull Secret | Intermediate | Pull events and imagePullSecrets | SCRIPTED, IMG | Current; added in PR 7 |
-| 14 | Command Override Crash | Beginner | command/args override the image entrypoint | BASE, IMG | New |
-| 15 | Slow Start Without startupProbe | Intermediate | Startup vs liveness/readiness | LIFE, IMG | New |
-| 16 | Probe Hits The Wrong Port | Intermediate | Management port vs traffic port | BASE, IMG | New |
-| 17 | Healthy App, Broken Sidecar | Advanced | Multi-container readiness and logs | LIFE, IMG | New |
+| 14 | Command Override Crash | Beginner | command/args override the image entrypoint | BASE, IMG | Current; native engine solve passes |
+| 15 | Slow Start Without startupProbe | Intermediate | Startup vs liveness/readiness | LIFE, IMG | Current; deterministic slow image and native startupProbe |
+| 16 | Probe Hits The Wrong Port | Intermediate | Management port vs traffic port | BASE, IMG | Current; native engine solve passes |
+| 17 | Healthy App, Broken Sidecar | Advanced | Multi-container readiness and logs | LIFE, IMG | Current; container-aware logs/describe and native solve pass |
 | 18 | Graceful Shutdown 502s | Advanced | preStop and termination grace | LIFE, NET | New; incident Ravelin |
 | 19 | Rollout Cannot Fit maxSurge | Advanced | Capacity-aware rolling updates | SCHED | New |
 | 20 | Recreate Strategy Outage | Intermediate | Deployment strategy availability | BASE, LIFE | New |
@@ -642,18 +662,68 @@ exact reproduction.
 | 54 | Pod CIDR/IP Range Exhausted | Advanced | CNI allocation and autoscaler symptoms | CNI, SCHED | New; incident GKE IP exhaustion |
 | 55 | HPA Cannot Compute Replicas | Intermediate | Missing requests/metrics and HPA conditions | SCHED | New |
 | 56 | PodDisruptionBudget Blocks Drain | Intermediate | Voluntary disruptions and impossible budgets | SCHED | New |
+| 57 | Production SaaS Platform | Architect | Build a scalable, disruption-safe public API stack | BASE, LIFE, NET, SCHED | New final boss |
+| 58 | Multi-Tenant Team Platform | Architect | Build namespace, policy, quota, and RBAC guardrails | CFG, NET, SCHED, AUTH | New final boss |
+| 59 | Highly Available Stateful Data Plane | Architect | Build stable identity, storage, backup, and failure-domain safety | WORK, STORE, SCHED | New final boss |
+| 60 | Zero-Downtime Global API | Architect | Build safe ingress, rollout, termination, and autoscaling | LIFE, NET, SCHED | New final boss; Ravelin-informed |
+| 61 | Secure Payments Workload | Architect | Build least-privilege identity, secrets, runtime, and network isolation | CFG, NET, AUTH | New final boss |
+| 62 | Event-Driven Order Platform | Architect | Build API, workers, Jobs, CronJobs, and queue-safe scaling | WORK, CFG, SCHED | New final boss |
+| 63 | GitOps Multi-Environment Delivery | Architect | Build safe bases/overlays, promotion, and reconciliation boundaries | CFG, AUTH | New final boss; Skyscanner-informed |
+| 64 | Observable Microservice Platform | Architect | Build logs, metrics, traces, probes, and dependency isolation | LIFE, CFG, NET, SCHED | New final boss |
+| 65 | Disaster-Recovery Data Service | Architect | Build backup, restore, retention, failover, and disruption controls | WORK, STORE, SCHED | New final boss |
+| 66 | Upgrade-Safe Cluster Workload | Architect | Build API migration, admission safety, drainability, and rollout gates | WORK, SCHED, AUTH, CNI | New final boss |
 
 Catalog balance after implementation:
 
-- 56 total levels.
+- 66 total levels: 56 troubleshooting problems plus 10 Architect system builds.
 - 13 beginner, 22 intermediate, 21 advanced.
+- 10 Architect final-boss challenges, each worth 500 XP.
 - 11 explicitly incident-inspired levels.
 - Coverage across application, workload, configuration, network, DNS, scheduling,
   resources, storage, security, admission, upgrades, and cluster networking.
 
 Before authoring begins, review the difficulty distribution with target users.
 The proposed mix deliberately weights the catalog toward intermediate and tricky
-advanced incidents while retaining a 14-level beginner path.
+advanced incidents while retaining a beginner path and a separately gated Architect path.
+
+### Architect final-boss contract
+
+Architect challenges use `challengeMode: build`, `difficulty: architect`, the
+`platform-architect` path, 500 XP, and multiple advanced prerequisites. They begin
+with an empty or deliberately incomplete repository and require a deployable system,
+not diagnosis of one hidden defect. A challenge cannot ship unless all of these hold:
+
+1. The learner authors at least four meaningful files or Kustomize units.
+2. Acceptance spans availability, security, operability, and lifecycle behavior.
+3. Runtime checks verify behavior; structural checks alone cannot complete a build.
+4. At least five bypasses fail: renamed resource, omitted subsystem, weakened policy,
+   alternate image, and a system that is healthy only in steady state.
+5. Every resource type is visible in Explorer/Topology and inspectable with an
+   advertised command; Secrets are always redacted.
+6. Reset recreates a clean repository and cluster; Apply supports added documents.
+7. The post-build review explains tradeoffs, failure domains, capacity assumptions,
+   security boundaries, operating signals, and at least one valid alternative.
+8. One full browser E2E authors/applies the canonical system for each capability
+   combination, with a route smoke for every Architect challenge.
+
+### Ten Architect briefs
+
+| # | Build question | Required deliverables and non-negotiable invariants | Gate prerequisites |
+| ---: | --- | --- | --- |
+| 57 | Build a production SaaS API that stays available through a rollout, a voluntary node drain, and a 3x traffic spike. | Namespace; 3+ replica Deployment; startup/readiness/liveness; resource requests/limits; ClusterIP Service; public Ingress/Gateway; HPA 3-10; PDB with two available; topology spread; rolling strategy with zero unavailable; dashboards/signals. Runtime must retain 200 responses during rollout and drain. | 19, 35, 38, 55, 56 |
+| 58 | Build a two-team platform where teams can deploy independently without exhausting or reaching each other by default. | Two namespaces; ResourceQuota and LimitRange per team; least-privilege ServiceAccounts/Roles/Bindings; default-deny ingress/egress; explicit DNS egress; one approved cross-namespace API path; secret redaction. Negative probes must prove isolation and forbidden RBAC actions. | 28, 33, 34, 40, 50 |
+| 59 | Build a three-replica stateful data plane that preserves identity and data across rescheduling and one-zone loss. | Headless Service; StatefulSet; per-replica RWO volume claims; readiness; ordered rollout; anti-affinity/topology constraints; PDB; StorageClass/topology alignment; backup CronJob. Pod names and claims must survive restart, quorum must remain, and an invalid-zone schedule must fail visibly. | 32, 44, 46-49, 56 |
+| 60 | Build a global API edge that delivers zero-downtime releases despite slow load-balancer endpoint propagation. | Ingress/Gateway; Service; Deployment; startup/readiness/liveness; preStop drain delay; sufficient termination grace; maxUnavailable 0; capacity-aware surge; HPA; PDB; topology distribution. Repeated sampling during termination and rollout must stay within the error budget. | 18, 19, 35, 36, 55, 56 |
+| 61 | Build a payments workload that can read exactly one Secret and call exactly one ledger Service while running under restricted policy. | Dedicated namespace and ServiceAccount; scoped Role/RoleBinding; Secret reference; non-root UID; read-only root filesystem; dropped capabilities; seccomp RuntimeDefault; resource bounds; default-deny policy plus DNS and ledger egress. Forbidden Secret reads and arbitrary egress must fail. | 27, 28, 33, 34, 50-52 |
+| 62 | Build an event-driven order system with an API, scalable workers, a one-shot migration, and a non-overlapping reconciliation schedule. | API/Service; queue worker Deployment; ConfigMap/Secret contracts; resource requests; HPA; migration Job with bounded backoff; CronJob with Forbid concurrency, deadline, and history limits; disruption-safe rollout. Duplicate jobs and restart storms must remain bounded. | 23-27, 39, 55, 56 |
+| 63 | Build a GitOps repository that promotes one immutable release from staging to production without permitting namespace deletion or unreviewed drift. | Kustomize base; staging/prod overlays; explicit namespaces; immutable image digest; probes/resources; generated config hash; prune boundary; policy preventing Namespace deletion and floating tags; reconciliation status. Rendered manifests must be deterministic and prod promotion must change only approved fields. | 25-29, 51-53 |
+| 64 | Build a three-service platform whose operators can localize latency, errors, and restarts without broad cluster access. | Three Deployments/Services; per-container logs; metrics and trace configuration; correlation IDs; probes; resource bounds; scoped observer RBAC; NetworkPolicies matching the dependency graph; alert/runbook metadata. A dependency failure must identify the correct hop and container through reachable evidence. | 17, 31, 34, 37-40, 50 |
+| 65 | Build a disaster-recovery data service with a tested backup/restore path and explicit RPO/RTO behavior. | StatefulSet/PVCs; StorageClass; scheduled backup; retention; isolated restore Job; restored validation Service; PDB; topology; runbook inputs. The gate corrupts one replica, restores into a new claim, verifies data identity, and proves the primary was not overwritten. | 46-49, 56, 59 |
+| 66 | Build an upgrade-safe workload portfolio that can survive API removal, admission dependency failure, and sequential node drains. | Current API versions; conversion plan; admission webhook with safe failure policy/scope; PDBs; topology; compatible security contexts; explicit version range; staged rollout; deprecated-object inventory. The gate simulates upgrade rejection, webhook outage, and drain while maintaining the declared SLO. | 42, 44, 45, 52, 53, 56, 57-65 |
+
+These are cumulative assessments, not tutorials. Hints may identify an unmet SLO or
+security boundary but must not supply complete manifests. Architect solutions are
+reviewed as systems: a locally passing YAML trick is insufficient.
 
 ## 10. Replacement ProblemLevel Requirements
 
@@ -662,7 +732,8 @@ The content contract must support:
 ### Identity and curriculum
 
 - stable slug and content version
-- difficulty, severity, estimated time, and XP
+- repair/build challenge mode; beginner/intermediate/advanced/architect difficulty
+- severity, estimated time, and XP
 - learning objectives
 - concepts
 - prerequisites and learning paths
@@ -738,7 +809,7 @@ Define one ProblemEngine interface used by the workspace:
 
 3. Optional future RemoteClusterEngine
    - Real ephemeral cluster backend for advanced or enterprise labs.
-   - Not required for the 56-level target.
+   - Not required for the 66-level target.
 
 Rules:
 
@@ -868,8 +939,8 @@ Implementation rules:
   and deduplicates required submission IDs. Browser-validated aggregate telemetry
   is visibly labeled instead of being presented as server-verified truth.
 
-Current implementation count: 13 published levels. Remaining to the approved
-56-level target: 43 levels.
+Current implementation count: 17 published repair levels. Remaining to the approved
+66-level target: 39 troubleshooting levels and 10 Architect builds (49 total).
 
 ## 13. Implementation Plan And Estimate
 
@@ -885,13 +956,14 @@ Assumptions:
 | --- | --- | ---: |
 | 0 | Fix P0 correctness: DNS, apply errors, constraints, and rolling scenario | Complete |
 | 1 | Replacement contract, semantic audit, multi-file UI, and engine interface | Complete |
-| 2 | Remaining hybrid capability packs needed by the target catalog | 20-35 days |
+| 2 | Remaining hybrid capability packs needed by the troubleshooting and Architect catalog | 25-42 days |
 | 3 | Repair/rebuild the original 12 levels and add one scripted reference | Complete |
-| 4 | Author and verify 43 new levels | 48-72 days |
-| 5 | Dashboard pagination, mobile filters, paths, sources, prerequisite gates | 7-10 days |
-| 6 | Catalog-wide E2E, accessibility, performance, docs, and release hardening | 15-25 days |
-|  | Remaining total before overlap | 90-142 days |
-|  | Expected remaining total with phases 2-5 parallelized | 75-122 engineer-days |
+| 4 | Author and verify 39 remaining troubleshooting levels | 43-65 days |
+| 5 | Dashboard pagination, mobile filters, paths, sources, prerequisite gates | 2-4 days remaining |
+| 6 | Author and verify 10 Architect system builds plus build-mode UX | 20-32 days |
+| 7 | Catalog-wide E2E, accessibility, performance, docs, and release hardening | 15-25 days |
+|  | Remaining total before overlap | 105-168 days |
+|  | Expected remaining total with parallelized capability/content work | 88-145 engineer-days |
 
 Recommended delivery slices:
 
@@ -906,7 +978,7 @@ Recommended delivery slices:
 - Dedicated test:levels command.
 
 Exit target: 12 high-confidence levels.
-Status: Complete; the catalog now contains 13 high-confidence levels.
+Status: Complete; the catalog now contains 17 high-confidence levels.
 
 ### Milestone B: Authoring platform
 
@@ -934,8 +1006,18 @@ Remaining estimate after B: 33-52 engineer-days.
 - Study Plans, prerequisites, incident-inspired view.
 - Catalog-wide smoke, accessibility, performance, and content review.
 
-Exit target: every acceptance criterion in this document passes.
+Exit target: all 56 troubleshooting problems pass their per-level and catalog gates.
 Estimate after C: 45-70 engineer-days.
+
+### Milestone E: 66-level Architect release
+
+- Add build-mode workspace behavior and the Platform Architect learning path.
+- Author the ten cumulative system builds in section 9.
+- Verify cross-capability runtime invariants, five bypass classes, and full browser solves.
+- Complete final accessibility, performance, source, and content review for all 66 routes.
+
+Exit target: every acceptance criterion in this document passes, including the
+Architect final-boss contract.
 
 ## 14. Priority Backlog
 
@@ -954,15 +1036,26 @@ Estimate after C: 45-70 engineer-days.
 ### Must complete before publishing 50+
 
 1. [ ] Author and pass the semantic catalog audit with at least 50 levels.
-2. [ ] Add dashboard pagination and verify mobile filters at catalog scale.
-3. [ ] Add incident source and learning-path metadata.
+2. [ ] Dashboard pagination/mobile filters are implemented; repeat at 21, 56, and 66 entries.
+3. [ ] Source, challenge mode, prerequisite, version, and learning-path metadata are implemented; populate incident/Architect content.
 4. [x] Make hint penalties idempotent and derive XP from the trusted catalog.
 5. [ ] Test all advertised commands/evidence as each capability pack is added.
 6. [ ] Add route smoke for every level and full E2E per capability pack.
 7. [ ] Pin the Kubernetes version and complete source review.
 8. [ ] Complete accessibility and narrow-layout verification.
 
-### Can follow the 56-level release
+### Architect release backlog
+
+1. [x] Define build challenge mode, Architect difficulty, 500-XP policy, and path.
+2. [x] Record ten briefs, required subsystems, invariants, and prerequisite gates.
+3. [ ] Support adding/removing learner-authored files and multi-document architecture layouts.
+4. [ ] Add WORK, CFG, NET, SCHED, STORE, AUTH, and CNI Explorer/Topology adapters.
+5. [ ] Add cross-capability validators for rollout/drain sampling, isolation, RBAC,
+   scheduling, persistence, reconciliation, backup/restore, and upgrade simulation.
+6. [ ] Enforce five Architect bypass classes and runtime behavior for all ten builds.
+7. [ ] Add one full canonical browser solve per Architect capability combination.
+
+### Can follow the 66-level release
 
 - Remote real-cluster engine.
 - Multiplayer/team incident mode.
@@ -977,13 +1070,14 @@ Recommended defaults are shown so these do not block implementation:
 
 | Decision | Recommended default |
 | --- | --- |
-| Target size | 56 published levels |
+| Target size | 66 published levels: 56 repair plus 10 Architect build challenges |
 | Engine | Hybrid Webernetes plus scripted incident engine |
 | Kubernetes version | Pin one minor at implementation start; record version range per level |
 | Mobile | Full dashboard support; stacked/segmented solving workspace |
 | Incident attribution | "Inspired by" with direct primary source |
 | Progress trust | Catalog-derived XP; telemetry labeled client-validated |
 | Advanced locking | Per-level prerequisites and paths, not a global solved count |
+| Architect tier | `build` mode, 500 XP, platform-architect path, cumulative prerequisite gates |
 | Content release | Draft -> technical review -> solvability -> investigation QA -> browser smoke -> published |
 
 ## 16. Source Register
@@ -1019,14 +1113,15 @@ Recommended defaults are shown so these do not block implementation:
 ## 17. Final Completion Gate
 
 Current result: **not met**. PR 1-7 close the shared platform and current-level
-correctness work, but the catalog is 13/56. The remaining release scope is 43
-levels, their required capability packs, catalog-scale dashboard behavior,
+correctness work, and the first lifecycle batch brings the catalog to 17/66. The
+remaining release scope is 39 troubleshooting problems plus 10 Architect builds,
+their required capability packs, catalog-scale dashboard behavior,
 source/path/version metadata, full route and capability browser coverage,
 accessibility, responsive verification, and final content review.
 
 The Problems feature is end-to-end complete only when all of the following are true:
 
-- At least 50 published levels exist; the approved target is 56.
+- All 66 approved levels exist: 56 troubleshooting and 10 Architect builds.
 - Every current P0 and P1 finding is closed or explicitly waived with rationale.
 - Every level satisfies the per-level integration contract.
 - Every stated constraint is machine-enforced.
@@ -1038,6 +1133,8 @@ The Problems feature is end-to-end complete only when all of the following are t
 - Progress, hint penalties, XP, and submissions are idempotent.
 - Incident-inspired content has primary-source attribution and an adaptation note.
 - The catalog is reviewed against the pinned Kubernetes minor version.
+- Every Architect build satisfies its multi-file, five-bypass, cross-capability,
+  runtime, post-build review, and full browser-solve contract.
 - Lint, source typecheck, unit/component/integration tests, API tests, production
   build, E2E, accessibility, and problem audit all pass from a clean checkout.
 

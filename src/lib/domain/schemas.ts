@@ -8,7 +8,7 @@ import type { DocsLesson, PlaygroundTemplate, ProblemLevel } from "./types";
  * domain type via the `satisfies` assertions at the bottom, keeping the two in sync.
  */
 
-export const difficultySchema = z.enum(["beginner", "intermediate", "advanced"]);
+export const difficultySchema = z.enum(["beginner", "intermediate", "advanced", "architect"]);
 export const severitySchema = z.enum(["low", "medium", "high", "critical"]);
 
 export const conceptSchema = z.enum([
@@ -148,6 +148,51 @@ const problemEngineSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("webernetes") }),
   z.object({ kind: z.literal("scripted"), scenarioId: z.string().min(1) }),
 ]);
+
+const problemPublicationStatusSchema = z.enum(["draft", "review", "published"]);
+const problemLearningPathSchema = z.enum([
+  "kubernetes-foundations",
+  "application-debugging",
+  "networking",
+  "reliability",
+  "sre-on-call",
+  "platform-architect",
+]);
+const problemChallengeModeSchema = z.enum(["repair", "build"]);
+const problemCapabilitySchema = z.enum([
+  "pods",
+  "services",
+  "deployments",
+  "replicasets",
+  "namespaces",
+  "nodes",
+  "events",
+  "logs",
+  "http-probes",
+  "dns",
+  "rollouts",
+  "image-pulls",
+  "container-restarts",
+  "container-lifecycle",
+  "multi-container",
+  "configmaps",
+  "secrets",
+  "workload-controllers",
+  "network-policy",
+  "scheduling",
+]);
+const kubernetesMinorSchema = z.string().regex(/^1\.\d{2}$/);
+const kubernetesVersionRangeSchema = z.object({
+  min: kubernetesMinorSchema,
+  max: kubernetesMinorSchema,
+  tested: kubernetesMinorSchema,
+});
+const incidentSourceSchema = z.object({
+  title: z.string().min(1),
+  href: z.string().url(),
+  attribution: z.literal("inspired-by"),
+  adaptationNote: z.string().min(1),
+});
 
 const problemBootWaitSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -305,13 +350,18 @@ const postSolveSchema = z.object({
   rootCause: z.string().min(1),
   whyItFailed: z.string().min(1),
   whatFixedIt: z.string().min(1),
+  prevention: z.string().min(1),
   relatedConcepts: z.array(conceptSchema),
   docsHref: z.string().optional(),
+  recommendedNextSlugs: z.array(z.string().min(1)),
 });
 
 export const problemLevelSchema = z.object({
   id: z.string().min(1),
   slug: z.string().min(1),
+  contentVersion: z.number().int().positive(),
+  publicationStatus: problemPublicationStatusSchema,
+  challengeMode: problemChallengeModeSchema,
   title: z.string().min(1),
   difficulty: difficultySchema,
   severity: severitySchema,
@@ -322,6 +372,12 @@ export const problemLevelSchema = z.object({
   blurb: z.string().min(1),
   story: z.string().min(1),
   objective: z.string().min(1),
+  learningObjectives: z.array(z.string().min(1)).min(1),
+  prerequisites: z.array(z.string().min(1)),
+  learningPaths: z.array(problemLearningPathSchema).min(1),
+  capabilities: z.array(problemCapabilitySchema).min(1),
+  kubernetesVersion: kubernetesVersionRangeSchema,
+  incidentSource: incidentSourceSchema.optional(),
   engine: problemEngineSchema,
   constraints: z.array(constraintSchema),
   files: z.array(problemFileSchema).min(1),

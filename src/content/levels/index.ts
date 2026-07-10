@@ -1,18 +1,32 @@
 import { parseLevel } from "@/lib/domain/schemas";
-import type { Difficulty, KubernetesConcept, ProblemLevel, Severity } from "@/lib/domain/types";
+import type {
+  Difficulty,
+  IncidentSource,
+  KubernetesConcept,
+  KubernetesVersionRange,
+  ProblemCapability,
+  ProblemChallengeMode,
+  ProblemLearningPath,
+  ProblemLevel,
+  Severity,
+} from "@/lib/domain/types";
 
 import { brokenReadinessProbe } from "./broken-readiness-probe";
 import { brokenServiceChain } from "./broken-service-chain";
+import { commandOverrideCrash } from "./command-override-crash";
 import { configDrift } from "./config-drift";
 import { dnsResolutionFailure } from "./dns-resolution-failure";
+import { healthyAppBrokenSidecar } from "./healthy-app-broken-sidecar";
 import { livenessProbeDeathSpiral } from "./liveness-probe-death-spiral";
 import { namespaceConfusion } from "./namespace-confusion";
 import { podCrashloopMystery } from "./pod-crashloop-mystery";
 import { portRoutingBug } from "./port-routing-bug";
 import { privateRegistryPullSecret } from "./private-registry-pull-secret";
+import { probeHitsWrongPort } from "./probe-hits-wrong-port";
 import { rollingUpdateGoneWrong } from "./rolling-update-gone-wrong";
 import { serviceHasNoEndpoints } from "./service-has-no-endpoints";
 import { serviceSelectorMismatch } from "./service-selector-mismatch";
+import { slowStartWithoutStartupProbe } from "./slow-start-without-startup-probe";
 import { zombieReplicaset } from "./zombie-replicaset";
 
 /**
@@ -25,14 +39,18 @@ export const LEVELS: readonly ProblemLevel[] = [
   portRoutingBug,
   brokenReadinessProbe,
   namespaceConfusion,
+  commandOverrideCrash,
   serviceHasNoEndpoints,
   podCrashloopMystery,
   privateRegistryPullSecret,
   rollingUpdateGoneWrong,
   dnsResolutionFailure,
+  slowStartWithoutStartupProbe,
+  probeHitsWrongPort,
   livenessProbeDeathSpiral,
   configDrift,
   brokenServiceChain,
+  healthyAppBrokenSidecar,
   zombieReplicaset,
 ].map(parseLevel);
 
@@ -51,7 +69,14 @@ export interface LevelSummary {
   successRate: number;
   statsSource: "authored-estimate" | "client-validated";
   statsSampleSize?: number;
+  challengeMode: ProblemChallengeMode;
   concepts: KubernetesConcept[];
+  learningObjectives: string[];
+  prerequisites: string[];
+  learningPaths: ProblemLearningPath[];
+  capabilities: ProblemCapability[];
+  kubernetesVersion: KubernetesVersionRange;
+  incidentSource?: IncidentSource;
   blurb: string;
 }
 
@@ -65,17 +90,27 @@ export const LEVEL_CATALOG: readonly LevelSummary[] = LEVELS.map((level) => ({
   estimatedMinutes: level.estimatedMinutes,
   successRate: level.successRate,
   statsSource: "authored-estimate",
+  challengeMode: level.challengeMode,
   concepts: level.concepts,
+  learningObjectives: level.learningObjectives,
+  prerequisites: level.prerequisites,
+  learningPaths: level.learningPaths,
+  capabilities: level.capabilities,
+  kubernetesVersion: level.kubernetesVersion,
+  incidentSource: level.incidentSource,
   blurb: level.blurb,
 }));
 
-/**
- * Advanced levels unlock after this many solves (any difficulty). Keeps the early
- * catalog approachable while giving the padlocked tier from the reference design a
- * real, progress-based meaning.
- */
-export const ADVANCED_UNLOCK_SOLVES = 2;
+export function missingPrerequisites(
+  level: Pick<ProblemLevel, "prerequisites">,
+  solvedSlugs: ReadonlySet<string>,
+): string[] {
+  return level.prerequisites.filter((slug) => !solvedSlugs.has(slug));
+}
 
-export function isLevelLocked(difficulty: Difficulty, solvedCount: number): boolean {
-  return difficulty === "advanced" && solvedCount < ADVANCED_UNLOCK_SOLVES;
+export function isLevelLocked(
+  level: Pick<ProblemLevel, "prerequisites">,
+  solvedSlugs: ReadonlySet<string>,
+): boolean {
+  return missingPrerequisites(level, solvedSlugs).length > 0;
 }

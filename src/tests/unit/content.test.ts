@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getLevelBySlug, LEVEL_CATALOG, LEVELS } from "@/content/levels";
 import { LEVEL_SOLUTIONS } from "@/content/levels/solutions";
 import { parseLevel } from "@/lib/domain/schemas";
+import { unsupportedProblemCapabilities } from "@/lib/kube/problem-capabilities";
 
 const XP_BY_DIFFICULTY = { beginner: 100, intermediate: 150, advanced: 200 } as const;
 
@@ -16,6 +17,55 @@ describe("level content", () => {
   it("has no duplicate catalog slugs", () => {
     const slugs = LEVEL_CATALOG.map((l) => l.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it("publishes versioned curriculum metadata with a valid prerequisite graph", () => {
+    const slugs = new Set(LEVELS.map((level) => level.slug));
+    const visit = (slug: string, path: string[]): void => {
+      expect(path, `prerequisite cycle: ${[...path, slug].join(" -> ")}`).not.toContain(slug);
+      const level = getLevelBySlug(slug)!;
+      for (const prerequisite of level.prerequisites) visit(prerequisite, [...path, slug]);
+    };
+
+    for (const level of LEVELS) {
+      expect(level.publicationStatus, level.slug).toBe("published");
+      expect(level.contentVersion, level.slug).toBeGreaterThan(0);
+      expect(level.learningObjectives.length, level.slug).toBeGreaterThanOrEqual(2);
+      expect(new Set(level.learningPaths).size, level.slug).toBe(level.learningPaths.length);
+      expect(new Set(level.capabilities).size, level.slug).toBe(level.capabilities.length);
+      expect(level.kubernetesVersion).toEqual({ min: "1.34", max: "1.36", tested: "1.36" });
+
+      for (const prerequisite of level.prerequisites) {
+        expect(slugs.has(prerequisite), `${level.slug} prerequisite ${prerequisite}`).toBe(true);
+        expect(prerequisite, level.slug).not.toBe(level.slug);
+      }
+      for (const next of level.postSolveExplanation.recommendedNextSlugs) {
+        expect(slugs.has(next), `${level.slug} next ${next}`).toBe(true);
+        expect(next, level.slug).not.toBe(level.slug);
+      }
+      expect(unsupportedProblemCapabilities(level), `${level.slug} engine capabilities`).toEqual(
+        [],
+      );
+      visit(level.slug, []);
+    }
+  });
+
+  it("keeps Architect final bosses distinct from repair problems", () => {
+    for (const level of LEVELS) {
+      if (level.challengeMode === "repair") {
+        expect(level.difficulty, level.slug).not.toBe("architect");
+        continue;
+      }
+
+      expect(level.difficulty, level.slug).toBe("architect");
+      expect(level.xp, level.slug).toBe(500);
+      expect(level.learningPaths, level.slug).toContain("platform-architect");
+      expect(level.prerequisites.length, level.slug).toBeGreaterThanOrEqual(3);
+      expect(
+        level.files.filter((file) => file.access === "editable").length,
+        level.slug,
+      ).toBeGreaterThanOrEqual(4);
+    }
   });
 
   it("every catalog entry is a playable authored level", () => {

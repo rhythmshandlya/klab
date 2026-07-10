@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Service Selector Mismatch.
  *
@@ -56,6 +58,7 @@ spec:
 export const serviceSelectorMismatch = {
   id: "service-selector-mismatch",
   slug: "service-selector-mismatch",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Service Selector Mismatch",
   difficulty: "beginner",
   severity: "high",
@@ -67,6 +70,13 @@ export const serviceSelectorMismatch = {
   story:
     "The 09:12 deploy went green, the pods came up healthy — and then every request to web-svc started timing out. Monitoring shows the pods serving nothing at all. Something between the Service and the pods is broken.",
   objective: "Make web-svc route traffic to the running web-app pods (HTTP 200).",
+  learningObjectives: [
+    "Compare a Service selector with live Pod labels.",
+    "Use EndpointSlices to distinguish healthy Pods from disconnected traffic routing.",
+  ],
+  prerequisites: [],
+  learningPaths: ["kubernetes-foundations", "networking"],
+  capabilities: ["pods", "services", "deployments", "events", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -265,6 +275,9 @@ export const serviceSelectorMismatch = {
       "Label selection is exact. The EndpointSlice controller continuously looks for Ready pods whose labels match the Service selector; with app=web it found none, so web-svc had zero endpoints and every request died at the Service.",
     whatFixedIt:
       "Changing the selector to app=web-app made it match the Deployment's pods. The EndpointSlice controller immediately published their addresses and traffic flowed.",
+    prevention:
+      "Generate Service selectors and workload labels from one shared value, and alert when a production Service has zero ready endpoints.",
     relatedConcepts: ["services", "labels-selectors", "endpoints"],
+    recommendedNextSlugs: ["port-routing-bug"],
   },
 } satisfies ProblemLevel;

@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Namespace Confusion.
  *
@@ -107,6 +109,7 @@ spec:
 export const namespaceConfusion = {
   id: "namespace-confusion",
   slug: "namespace-confusion",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Namespace Confusion",
   difficulty: "beginner",
   severity: "medium",
@@ -118,6 +121,13 @@ export const namespaceConfusion = {
   story:
     "Platform split checkout into its own namespace last sprint — cleaner ownership, they said. Since the migration, every checkout call from the storefront fails. The checkout pods themselves? Perfectly healthy. The storefront pods? Also healthy. And yet.",
   objective: "Make the storefront reach checkout again (storefront-svc returns HTTP 200).",
+  learningObjectives: [
+    "Apply Kubernetes search-domain rules to short and qualified Service names.",
+    "Debug a dependency that moved across namespace boundaries.",
+  ],
+  prerequisites: [],
+  learningPaths: ["kubernetes-foundations", "networking"],
+  capabilities: ["pods", "services", "deployments", "namespaces", "dns", "logs", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -304,6 +314,9 @@ export const namespaceConfusion = {
       "Kubernetes DNS is namespace-relative: `checkout-svc` expands to checkout-svc.<caller's namespace>.svc.cluster.local. From default that name doesn't exist, so every upstream call failed DNS resolution and the storefront returned 502.",
     whatFixedIt:
       "Using the namespace-qualified name (http://checkout-svc.shop/) resolves from anywhere in the cluster. The storefront reached checkout and requests completed.",
+    prevention:
+      "Treat namespace moves as dependency contract changes, use qualified names across namespaces, and exercise DNS resolution in pre-deploy smoke tests.",
     relatedConcepts: ["namespaces", "dns", "services"],
+    recommendedNextSlugs: ["dns-resolution-failure"],
   },
 } satisfies ProblemLevel;

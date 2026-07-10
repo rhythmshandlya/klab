@@ -7,7 +7,7 @@
  * Kept intentionally free of any Webernetes/runtime imports — pure data.
  */
 
-export type Difficulty = "beginner" | "intermediate" | "advanced";
+export type Difficulty = "beginner" | "intermediate" | "advanced" | "architect";
 export type Severity = "low" | "medium" | "high" | "critical";
 
 /** Concept tags used to cross-link levels ⇄ docs ⇄ templates. */
@@ -122,6 +122,53 @@ export interface QuickCommand {
 }
 
 export type ProblemEngineSpec = { kind: "webernetes" } | { kind: "scripted"; scenarioId: string };
+
+export type ProblemPublicationStatus = "draft" | "review" | "published";
+
+export type ProblemLearningPath =
+  | "kubernetes-foundations"
+  | "application-debugging"
+  | "networking"
+  | "reliability"
+  | "sre-on-call"
+  | "platform-architect";
+
+export type ProblemChallengeMode = "repair" | "build";
+
+export type ProblemCapability =
+  | "pods"
+  | "services"
+  | "deployments"
+  | "replicasets"
+  | "namespaces"
+  | "nodes"
+  | "events"
+  | "logs"
+  | "http-probes"
+  | "dns"
+  | "rollouts"
+  | "image-pulls"
+  | "container-restarts"
+  | "container-lifecycle"
+  | "multi-container"
+  | "configmaps"
+  | "secrets"
+  | "workload-controllers"
+  | "network-policy"
+  | "scheduling";
+
+export interface KubernetesVersionRange {
+  min: string;
+  max: string;
+  tested: string;
+}
+
+export interface IncidentSource {
+  title: string;
+  href: string;
+  attribution: "inspired-by";
+  adaptationNote: string;
+}
 
 export type ProblemBootWait =
   | {
@@ -272,6 +319,9 @@ export type ValidatorKind = ValidatorCheck["kind"];
 export interface ProblemLevel {
   id: string;
   slug: string;
+  contentVersion: number;
+  publicationStatus: ProblemPublicationStatus;
+  challengeMode: ProblemChallengeMode;
   title: string;
   difficulty: Difficulty;
   severity: Severity;
@@ -285,6 +335,12 @@ export interface ProblemLevel {
   blurb: string;
   story: string;
   objective: string;
+  learningObjectives: string[];
+  prerequisites: string[];
+  learningPaths: ProblemLearningPath[];
+  capabilities: ProblemCapability[];
+  kubernetesVersion: KubernetesVersionRange;
+  incidentSource?: IncidentSource;
   engine: ProblemEngineSpec;
   constraints: LevelConstraint[];
   files: ProblemFile[];
@@ -304,8 +360,10 @@ export interface PostSolveExplanation {
   rootCause: string;
   whyItFailed: string;
   whatFixedIt: string;
+  prevention: string;
   relatedConcepts: KubernetesConcept[];
   docsHref?: string;
+  recommendedNextSlugs: string[];
 }
 
 export interface PlaygroundTemplate {

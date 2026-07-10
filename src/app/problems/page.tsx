@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { LEVEL_CATALOG, type LevelSummary } from "@/content/levels";
 import { getDb, hasDb } from "@/lib/db";
@@ -21,7 +22,17 @@ const MIN_SAMPLE = 20;
  */
 export default async function ProblemsPage() {
   const catalog = await buildCatalog();
-  return <ProblemsDashboard catalog={catalog} />;
+  return (
+    <Suspense
+      fallback={
+        <div className="text-muted mx-auto w-full max-w-[1500px] px-4 py-12 text-sm" aria-busy>
+          Loading problem catalog...
+        </div>
+      }
+    >
+      <ProblemsDashboard catalog={catalog} />
+    </Suspense>
+  );
 }
 
 async function buildCatalog(): Promise<LevelSummary[]> {

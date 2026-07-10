@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Rolling Update Gone Wrong.
  *
@@ -65,6 +67,7 @@ spec:
 export const rollingUpdateGoneWrong = {
   id: "rolling-update-gone-wrong",
   slug: "rolling-update-gone-wrong",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Rolling Update Gone Wrong",
   difficulty: "intermediate",
   severity: "critical",
@@ -76,6 +79,22 @@ export const rollingUpdateGoneWrong = {
   story:
     "v2.0.0 went out at 23:40. The rollout replaced the old pods — and the new ones have been 'starting' for nine hours, never turning Ready. Customers get 503s, the release channel is on fire, and the author of v2.0.0 is unreachable. Stop the bleeding first; blame later.",
   objective: "Restore web-svc to serving HTTP 200 with all replicas Ready.",
+  learningObjectives: [
+    "Read ReplicaSet history to distinguish a rollout failure from a probe defect.",
+    "Restore service quickly by rolling back to a known-good release.",
+  ],
+  prerequisites: ["broken-readiness-probe", "service-has-no-endpoints"],
+  learningPaths: ["reliability", "sre-on-call"],
+  capabilities: [
+    "pods",
+    "services",
+    "deployments",
+    "replicasets",
+    "rollouts",
+    "events",
+    "logs",
+    "http-probes",
+  ],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -293,6 +312,9 @@ export const rollingUpdateGoneWrong = {
       "The readiness probe was configured correctly and did its job: it refused to mark broken pods Ready, so they never joined the Service. But the rollout had already replaced the old pods, leaving zero healthy endpoints. The probe wasn't the bug; the release was.",
     whatFixedIt:
       "Rolling the image back to klab/web-app:1.0.0 created pods that passed /healthz, became Ready, and restored the Service. In real life you'd follow up by fixing the v2 build — after the incident is over.",
+    prevention:
+      "Use progressive delivery with availability budgets, retain revision history, and automatically halt or roll back releases that fail readiness and traffic checks.",
     relatedConcepts: ["deployments", "rollouts", "readiness-probes"],
+    recommendedNextSlugs: ["liveness-probe-death-spiral"],
   },
 } satisfies ProblemLevel;

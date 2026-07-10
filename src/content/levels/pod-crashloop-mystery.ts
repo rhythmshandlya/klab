@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Pod CrashLoop Mystery.
  *
@@ -55,6 +57,7 @@ spec:
 export const podCrashloopMystery = {
   id: "pod-crashloop-mystery",
   slug: "pod-crashloop-mystery",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Pod CrashLoop Mystery",
   difficulty: "intermediate",
   severity: "high",
@@ -66,6 +69,13 @@ export const podCrashloopMystery = {
   story:
     "The queue-worker fleet was migrated to the new cluster this morning. Since then the job queue has only grown: the workers start, die within seconds, and the kubelet dutifully restarts them into the same wall. Jobs are piling up — find out what the workers are missing.",
   objective: "Get the queue-worker pods Running, Ready, and staying up.",
+  learningObjectives: [
+    "Use logs and restart state to identify an application startup failure.",
+    "Repair required container configuration without replacing the workload image.",
+  ],
+  prerequisites: ["broken-readiness-probe"],
+  learningPaths: ["application-debugging", "sre-on-call"],
+  capabilities: ["pods", "deployments", "events", "logs", "container-restarts"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -249,6 +259,9 @@ export const podCrashloopMystery = {
       "On startup the worker checked its configuration, logged 'FATAL: DATABASE_URL is not set' and exited 1. The kubelet restarted it with exponential back-off — CrashLoopBackOff — but restarts can't fix missing configuration, so the loop never ended.",
     whatFixedIt:
       "Adding the DATABASE_URL env var to the container spec rolled out new pods that started cleanly, passed readiness, and stayed up with zero restarts.",
+    prevention:
+      "Validate required configuration at deployment admission or CI time, and alert on restart-rate changes before workloads reach sustained back-off.",
     relatedConcepts: ["pods", "debugging", "events"],
+    recommendedNextSlugs: ["private-registry-pull-secret"],
   },
 } satisfies ProblemLevel;

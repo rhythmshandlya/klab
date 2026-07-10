@@ -2,6 +2,7 @@ import type { ImageConstructor } from "@ngrok/webernetes";
 
 import { ApiImage } from "./api";
 import { DebugToolsImage } from "./debug-tools";
+import { SlowApiImage } from "./slow-api";
 import { WebAppImage } from "./web-app";
 import { WebAppLegacyImage } from "./web-app-legacy";
 import { WebAppV2Image } from "./web-app-v2";
@@ -19,6 +20,7 @@ export const KLAB_IMAGES: readonly ImageConstructor[] = [
   ApiImage,
   WorkerImage,
   DebugToolsImage,
+  SlowApiImage,
 ];
 
 /** ref -> human description, for docs/level "registered images" panels. */
@@ -29,6 +31,18 @@ export const KLAB_IMAGE_CATALOG: ReadonlyArray<{ ref: string; description: strin
   { ref: "klab/api:1.0.0", description: "API that calls another service by DNS name." },
   { ref: "klab/worker:1.0.0", description: "Queue worker; exits unless DATABASE_URL is set." },
   { ref: "klab/debug-tools:1.0.0", description: "Toolbox pod with a simulated curl." },
+  {
+    ref: "klab/slow-api:1.0.0",
+    description: "API that warms up for five seconds before serving /healthz and /.",
+  },
 ];
 
-export { ApiImage, DebugToolsImage, WebAppImage, WebAppLegacyImage, WebAppV2Image, WorkerImage };
+export {
+  ApiImage,
+  DebugToolsImage,
+  SlowApiImage,
+  WebAppImage,
+  WebAppLegacyImage,
+  WebAppV2Image,
+  WorkerImage,
+};

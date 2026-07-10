@@ -1,10 +1,11 @@
-import type { ProblemEngineSpec, ProblemLevel } from "@/lib/domain/types";
+import type { ProblemCapability, ProblemEngineSpec, ProblemLevel } from "@/lib/domain/types";
 import { err, ok, type Result } from "@/lib/utils/result";
 
 import { runCommandLine, type CommandResult } from "./command-runner";
 import type { LogLine } from "./images/log-sink";
 import { parseManifests } from "./manifest-parser";
 import { applyProblemBoot } from "./problem-boot";
+import { capabilitiesForEngine, unsupportedProblemCapabilities } from "./problem-capabilities";
 import {
   KubeSimulator,
   type AppliedResourceRef,
@@ -17,6 +18,7 @@ export type ProblemSnapshotListener = (snapshot: ClusterSnapshot) => void;
 
 export interface ProblemEngine {
   readonly kind: ProblemEngineSpec["kind"];
+  readonly capabilities: ReadonlySet<ProblemCapability>;
   boot(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>>;
   reset(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>>;
   close(): Promise<void>;
@@ -40,9 +42,14 @@ function joinDocs(documents: readonly string[]): string {
 
 export class WebernetesProblemEngine implements ProblemEngine {
   readonly kind = "webernetes" as const;
+  readonly capabilities = capabilitiesForEngine({ kind: "webernetes" });
   private readonly simulator = new KubeSimulator();
 
   async boot(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
+    const unsupported = unsupportedProblemCapabilities(level);
+    if (unsupported.length > 0) {
+      return err(`Webernetes does not support: ${unsupported.join(", ")}`);
+    }
     const booted = await this.simulator.boot();
     if (!booted.ok) return booted;
     return applyProblemBoot(this.simulator, level);
@@ -96,14 +103,21 @@ type ScriptedState = "broken" | "fixed";
 
 export class ScriptedIncidentEngine implements ProblemEngine {
   readonly kind = "scripted" as const;
+  readonly capabilities: ReadonlySet<ProblemCapability>;
   private state: ScriptedState = "broken";
   private readonly listeners = new Set<ProblemSnapshotListener>();
 
-  constructor(private readonly scenarioId: string) {}
+  constructor(private readonly scenarioId: string) {
+    this.capabilities = capabilitiesForEngine({ kind: "scripted", scenarioId });
+  }
 
   async boot(_level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
     if (this.scenarioId !== "private-registry-pull") {
       return err(`Unknown scripted scenario: ${this.scenarioId}`);
+    }
+    const unsupported = unsupportedProblemCapabilities(_level);
+    if (unsupported.length > 0) {
+      return err(`Scripted scenario does not support: ${unsupported.join(", ")}`);
     }
     this.state = "broken";
     this.emit();

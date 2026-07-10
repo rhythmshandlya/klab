@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Service Has No Endpoints.
  *
@@ -55,6 +57,7 @@ spec:
 export const serviceHasNoEndpoints = {
   id: "service-has-no-endpoints",
   slug: "service-has-no-endpoints",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Service Has No Endpoints",
   difficulty: "intermediate",
   severity: "high",
@@ -66,6 +69,13 @@ export const serviceHasNoEndpoints = {
   story:
     "web-svc has served nothing but 503s all weekend. The dashboards show no crashing pods, no failing probes, no warning events — nothing is red. That's because there is nothing. Friday's incident response 'temporarily' scaled the fleet down, and Friday's on-call is on a beach.",
   objective: "Get web-svc serving again (HTTP 200 with ready endpoints).",
+  learningObjectives: [
+    "Trace an empty EndpointSlice back to desired replica state.",
+    "Recognize silent absence as distinct from crashes and probe failures.",
+  ],
+  prerequisites: ["service-selector-mismatch"],
+  learningPaths: ["application-debugging", "sre-on-call"],
+  capabilities: ["pods", "services", "deployments", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -223,6 +233,9 @@ export const serviceHasNoEndpoints = {
       "A Service is only as alive as the pods its selector matches. With zero replicas the EndpointSlice was empty, and — crucially — nothing looked 'broken': no crash loops, no failing probes, no warning events. Absence doesn't alert.",
     whatFixedIt:
       "Restoring replicas: 2 made the Deployment create pods again; once they passed readiness they were published as endpoints and web-svc served traffic.",
+    prevention:
+      "Alert on desired-versus-available replica drift and ready endpoint count, and protect production scale changes through reviewed declarative configuration.",
     relatedConcepts: ["deployments", "services", "endpoints"],
+    recommendedNextSlugs: ["rolling-update-gone-wrong"],
   },
 } satisfies ProblemLevel;

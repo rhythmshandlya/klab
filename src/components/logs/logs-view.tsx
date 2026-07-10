@@ -38,6 +38,7 @@ export function LogsView({
 }) {
   const [filter, setFilter] = useState<LineFilter>("all");
   const [podFilter, setPodFilter] = useState<string>("all");
+  const [containerFilter, setContainerFilter] = useState<string>("all");
   // Re-render when new log lines land (the sink is imperative, outside React).
   const [, setLogTick] = useState(0);
   useEffect(() => logSink.subscribe(() => setLogTick((t) => t + 1)), []);
@@ -48,11 +49,17 @@ export function LogsView({
         .map((p) => ({
           name: p.metadata?.name ?? "",
           namespace: p.metadata?.namespace ?? "default",
+          containers: (p.spec?.containers ?? []).map((container) => container.name),
         }))
         // Control-plane (kube-*) pods never write to the klab log sink — skip them.
         .filter((p) => p.name !== "" && !p.namespace.startsWith("kube-")),
     [snapshot.pods],
   );
+
+  const containers = useMemo(() => {
+    const selectedPods = podFilter === "all" ? pods : pods.filter((pod) => pod.name === podFilter);
+    return [...new Set(selectedPods.flatMap((pod) => pod.containers))].sort();
+  }, [podFilter, pods]);
 
   // Computed inline (not memoized): the log tick re-renders this component when new
   // lines land, and the recompute over an in-memory buffer is cheap.
@@ -63,13 +70,17 @@ export function LogsView({
   all.sort((a, b) => a.timestampMs - b.timestampMs);
   const lines = all.filter((line) => {
     if (podFilter !== "all" && line.pod !== podFilter) return false;
+    if (containerFilter !== "all" && line.container !== containerFilter) return false;
     if (filter === "http") return HTTP_RE.test(line.message);
     if (filter === "errors") return ERROR_RE.test(line.message);
     return true;
   });
 
   const inspectedKey = lines
-    .map((line) => `${line.timestampMs}:${line.namespace}:${line.pod}:${line.message}`)
+    .map(
+      (line) =>
+        `${line.timestampMs}:${line.namespace}:${line.pod}:${line.container}:${line.message}`,
+    )
     .join("\n");
   const lastInspectedRef = useRef("");
   useEffect(() => {
@@ -105,7 +116,10 @@ export function LogsView({
         ))}
         <select
           value={podFilter}
-          onChange={(e) => setPodFilter(e.target.value)}
+          onChange={(e) => {
+            setPodFilter(e.target.value);
+            setContainerFilter("all");
+          }}
           aria-label="Filter logs by pod"
           className="border-border bg-panel-elevated text-muted ml-auto h-6 rounded-md border px-1.5 text-[11px]"
         >
@@ -116,6 +130,21 @@ export function LogsView({
             </option>
           ))}
         </select>
+        {containers.length > 1 ? (
+          <select
+            value={containerFilter}
+            onChange={(event) => setContainerFilter(event.target.value)}
+            aria-label="Filter logs by container"
+            className="border-border bg-panel-elevated text-muted h-6 rounded-md border px-1.5 text-[11px]"
+          >
+            <option value="all">All containers</option>
+            {containers.map((container) => (
+              <option key={container} value={container}>
+                {container}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </div>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs">
@@ -133,7 +162,9 @@ export function LogsView({
                     <td className="text-subtle w-16 pr-3 whitespace-nowrap">
                       {formatTime(line.timestampMs)}
                     </td>
-                    <td className="text-blue/80 w-40 max-w-40 truncate pr-3">{line.pod}</td>
+                    <td className="text-blue/80 w-48 max-w-48 truncate pr-3">
+                      {line.pod}/{line.container}
+                    </td>
                     <td className={cn("pr-2 break-all", isError ? "text-red" : "text-muted")}>
                       {line.message}
                     </td>

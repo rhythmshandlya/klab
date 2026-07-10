@@ -1,12 +1,19 @@
 "use client";
 
+import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { ADVANCED_UNLOCK_SOLVES, isLevelLocked, type LevelSummary } from "@/content/levels";
-import type { Difficulty, KubernetesConcept } from "@/lib/domain/types";
+import {
+  getLevelBySlug,
+  isLevelLocked,
+  missingPrerequisites,
+  type LevelSummary,
+} from "@/content/levels";
+import type { Difficulty, KubernetesConcept, ProblemLearningPath } from "@/lib/domain/types";
 import { mutateProgress } from "@/lib/storage/progress-store";
 import { useProgress } from "@/features/progress/use-progress";
 import { cn } from "@/lib/utils/cn";
@@ -20,19 +27,33 @@ import { cn } from "@/lib/utils/cn";
 
 type LevelStatus = "solved" | "in-progress" | "unsolved" | "locked";
 type StatusFilter = "all" | LevelStatus;
-type Tab = "all" | "saved" | "completed";
+type Tab = "all" | "architects" | "incidents" | "saved" | "completed";
 type Sort = "featured" | "xp" | "time" | "success" | "title";
+type PathFilter = "all" | ProblemLearningPath;
+
+const PAGE_SIZE = 20;
 
 const DIFFICULTY_META: Record<
   Difficulty,
-  { label: string; dot: string; tone: "success" | "warning" | "danger" }
+  { label: string; dot: string; tone: "success" | "warning" | "danger" | "achievement" }
 > = {
   beginner: { label: "Beginner", dot: "bg-green", tone: "success" },
   intermediate: { label: "Intermediate", dot: "bg-amber", tone: "warning" },
   advanced: { label: "Advanced", dot: "bg-red", tone: "danger" },
+  architect: { label: "Architect", dot: "bg-purple", tone: "achievement" },
 };
 
-const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "advanced"];
+const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "advanced", "architect"];
+
+const LEARNING_PATH_LABELS: Record<ProblemLearningPath, string> = {
+  "kubernetes-foundations": "Foundations",
+  "application-debugging": "App debugging",
+  networking: "Networking",
+  reliability: "Reliability",
+  "sre-on-call": "SRE / on-call",
+  "platform-architect": "Platform architect",
+};
+const LEARNING_PATHS = Object.keys(LEARNING_PATH_LABELS) as ProblemLearningPath[];
 
 const CONCEPT_LABELS: Record<KubernetesConcept, string> = {
   pods: "Pods",
@@ -107,13 +128,42 @@ function localDay(): string {
 }
 
 export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const progress = useProgress();
-  const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<Tab>("all");
-  const [sort, setSort] = useState<Sort>("featured");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [difficultyFilter, setDifficultyFilter] = useState<Set<Difficulty>>(new Set());
-  const [topicFilter, setTopicFilter] = useState<Set<KubernetesConcept>>(new Set());
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [tab, setTab] = useState<Tab>(() =>
+    readChoice(
+      searchParams.get("view"),
+      ["all", "architects", "incidents", "saved", "completed"],
+      "all",
+    ),
+  );
+  const [sort, setSort] = useState<Sort>(() =>
+    readChoice(
+      searchParams.get("sort"),
+      ["featured", "xp", "time", "success", "title"],
+      "featured",
+    ),
+  );
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
+    readChoice(
+      searchParams.get("status"),
+      ["all", "solved", "in-progress", "unsolved", "locked"],
+      "all",
+    ),
+  );
+  const [difficultyFilter, setDifficultyFilter] = useState<Set<Difficulty>>(() =>
+    readSet(searchParams.get("difficulty"), DIFFICULTIES),
+  );
+  const [topicFilter, setTopicFilter] = useState<Set<KubernetesConcept>>(() =>
+    readSet(searchParams.get("topic"), Object.keys(CONCEPT_LABELS) as KubernetesConcept[]),
+  );
+  const [pathFilter, setPathFilter] = useState<PathFilter>(() =>
+    readChoice(searchParams.get("path"), ["all", ...LEARNING_PATHS], "all"),
+  );
+  const [page, setPage] = useState(() => positiveInt(searchParams.get("page")));
   const [showAllTopics, setShowAllTopics] = useState(false);
 
   const solved = useMemo(() => new Set(progress.solvedLevelSlugs), [progress.solvedLevelSlugs]);
@@ -127,11 +177,11 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
   const statusOf = useCallback(
     (level: LevelSummary): LevelStatus => {
       if (solved.has(level.slug)) return "solved";
-      if (isLevelLocked(level.difficulty, solvedCount)) return "locked";
+      if (isLevelLocked(level, solved)) return "locked";
       if (attempted.has(level.slug)) return "in-progress";
       return "unsolved";
     },
-    [solved, attempted, solvedCount],
+    [solved, attempted],
   );
 
   const statusCounts = useMemo(() => {
@@ -147,7 +197,12 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
   }, [catalog, statusOf]);
 
   const difficultyCounts = useMemo(() => {
-    const counts = { beginner: 0, intermediate: 0, advanced: 0 };
+    const counts: Record<Difficulty, number> = {
+      beginner: 0,
+      intermediate: 0,
+      advanced: 0,
+      architect: 0,
+    };
     for (const level of catalog) counts[level.difficulty] += 1;
     return counts;
   }, [catalog]);
@@ -162,17 +217,32 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [catalog]);
 
+  const pathCounts = useMemo(() => {
+    const counts = Object.fromEntries(LEARNING_PATHS.map((path) => [path, 0])) as Record<
+      ProblemLearningPath,
+      number
+    >;
+    for (const level of catalog) {
+      for (const path of level.learningPaths) counts[path] += 1;
+    }
+    return counts;
+  }, [catalog]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let entries = catalog.map((level) => ({ level, status: statusOf(level) }));
 
     if (tab === "saved") entries = entries.filter((e) => saved.has(e.level.slug));
     if (tab === "completed") entries = entries.filter((e) => e.status === "solved");
+    if (tab === "architects") entries = entries.filter((e) => e.level.challengeMode === "build");
+    if (tab === "incidents") entries = entries.filter((e) => e.level.incidentSource);
     if (statusFilter !== "all") entries = entries.filter((e) => e.status === statusFilter);
     if (difficultyFilter.size > 0)
       entries = entries.filter((e) => difficultyFilter.has(e.level.difficulty));
     if (topicFilter.size > 0)
       entries = entries.filter((e) => e.level.concepts.some((c) => topicFilter.has(c)));
+    if (pathFilter !== "all")
+      entries = entries.filter((e) => e.level.learningPaths.includes(pathFilter));
     if (q !== "")
       entries = entries.filter(
         (e) =>
@@ -187,14 +257,98 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     if (sort === "success") sorted.sort((a, b) => b.level.successRate - a.level.successRate);
     if (sort === "title") sorted.sort((a, b) => a.level.title.localeCompare(b.level.title));
     return sorted;
-  }, [catalog, query, tab, sort, statusFilter, difficultyFilter, topicFilter, saved, statusOf]);
+  }, [
+    catalog,
+    query,
+    tab,
+    sort,
+    statusFilter,
+    difficultyFilter,
+    topicFilter,
+    pathFilter,
+    saved,
+    statusOf,
+  ]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pagedRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => {
+    const syncFromLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      setQuery(params.get("q") ?? "");
+      setTab(
+        readChoice<Tab>(
+          params.get("view"),
+          ["all", "architects", "incidents", "saved", "completed"],
+          "all",
+        ),
+      );
+      setSort(
+        readChoice<Sort>(
+          params.get("sort"),
+          ["featured", "xp", "time", "success", "title"],
+          "featured",
+        ),
+      );
+      setStatusFilter(
+        readChoice<StatusFilter>(
+          params.get("status"),
+          ["all", "solved", "in-progress", "unsolved", "locked"],
+          "all",
+        ),
+      );
+      setDifficultyFilter(readSet(params.get("difficulty"), DIFFICULTIES));
+      setTopicFilter(
+        readSet(params.get("topic"), Object.keys(CONCEPT_LABELS) as KubernetesConcept[]),
+      );
+      setPathFilter(readChoice<PathFilter>(params.get("path"), ["all", ...LEARNING_PATHS], "all"));
+      setPage(positiveInt(params.get("page")));
+    };
+
+    window.addEventListener("popstate", syncFromLocation);
+    return () => window.removeEventListener("popstate", syncFromLocation);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const next = new URLSearchParams();
+      if (query.trim()) next.set("q", query.trim());
+      if (tab !== "all") next.set("view", tab);
+      if (sort !== "featured") next.set("sort", sort);
+      if (statusFilter !== "all") next.set("status", statusFilter);
+      if (difficultyFilter.size > 0) next.set("difficulty", [...difficultyFilter].sort().join(","));
+      if (topicFilter.size > 0) next.set("topic", [...topicFilter].sort().join(","));
+      if (pathFilter !== "all") next.set("path", pathFilter);
+      if (currentPage > 1) next.set("page", String(currentPage));
+      const queryString = next.toString();
+      if (queryString !== window.location.search.slice(1)) {
+        router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [
+    query,
+    tab,
+    sort,
+    statusFilter,
+    difficultyFilter,
+    topicFilter,
+    pathFilter,
+    currentPage,
+    pathname,
+    router,
+  ]);
 
   const clearFilters = () => {
     setQuery("");
     setStatusFilter("all");
     setDifficultyFilter(new Set());
     setTopicFilter(new Set());
+    setPathFilter("all");
     setTab("all");
+    setPage(1);
   };
 
   const toggleBookmark = (slug: string) => {
@@ -215,14 +369,46 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     .slice(0, 3);
   const recommended = catalog
     .filter(
-      (l) =>
-        !solved.has(l.slug) &&
-        !isLevelLocked(l.difficulty, solvedCount) &&
-        l.slug !== dailyChallenge?.slug,
+      (l) => !solved.has(l.slug) && !isLevelLocked(l, solved) && l.slug !== dailyChallenge?.slug,
     )
     .slice(0, 3);
 
   const topicsShown = showAllTopics ? topicCounts : topicCounts.slice(0, 8);
+  const activeFilterCount =
+    difficultyFilter.size +
+    topicFilter.size +
+    (statusFilter === "all" ? 0 : 1) +
+    (pathFilter === "all" ? 0 : 1);
+  const filterControlsProps: ProblemFilterControlsProps = {
+    difficultyFilter,
+    difficultyCounts,
+    onToggleDifficulty: (difficulty) => {
+      setDifficultyFilter(toggleSet(difficultyFilter, difficulty));
+      setPage(1);
+    },
+    statusFilter,
+    statusCounts,
+    onStatusChange: (status) => {
+      setStatusFilter(status);
+      setPage(1);
+    },
+    topicFilter,
+    topicsShown,
+    topicCount: topicCounts.length,
+    showAllTopics,
+    onToggleTopic: (topic) => {
+      setTopicFilter(toggleSet(topicFilter, topic));
+      setPage(1);
+    },
+    onToggleAllTopics: () => setShowAllTopics((value) => !value),
+    pathFilter,
+    pathCounts,
+    onPathChange: (path) => {
+      setPathFilter(path);
+      setPage(1);
+    },
+    onClear: clearFilters,
+  };
   const playerLevel = Math.floor(progress.xp / XP_PER_LEVEL) + 1;
   const xpIntoLevel = progress.xp % XP_PER_LEVEL;
 
@@ -231,107 +417,8 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
       <div className="grid gap-6 xl:grid-cols-[230px_minmax(0,1fr)] 2xl:grid-cols-[230px_minmax(0,1fr)_310px]">
         {/* ------------------------------------------------ Left rail: filters */}
         <aside aria-label="Problem filters" className="hidden xl:block">
-          <div className="sticky top-20 space-y-6">
-            <div className="flex items-center justify-between">
-              <p className="text-subtle flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.12em] uppercase">
-                <icons.filter className="size-3.5" aria-hidden />
-                Filters
-              </p>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-subtle hover:text-foreground text-xs transition-colors"
-              >
-                Clear all
-              </button>
-            </div>
-
-            <FilterGroup label="Difficulty">
-              {DIFFICULTIES.map((difficulty) => {
-                const meta = DIFFICULTY_META[difficulty];
-                const active = difficultyFilter.has(difficulty);
-                return (
-                  <label
-                    key={difficulty}
-                    className="text-muted hover:text-foreground flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={active}
-                      onChange={() => {
-                        const next = new Set(difficultyFilter);
-                        if (next.has(difficulty)) next.delete(difficulty);
-                        else next.add(difficulty);
-                        setDifficultyFilter(next);
-                      }}
-                      className="accent-primary size-3.5"
-                    />
-                    <span className={cn("size-2 rounded-full", meta.dot)} aria-hidden />
-                    <span className={cn("flex-1", active && "text-foreground")}>{meta.label}</span>
-                    <span className="tabnums text-subtle text-xs">
-                      {difficultyCounts[difficulty]}
-                    </span>
-                  </label>
-                );
-              })}
-            </FilterGroup>
-
-            <FilterGroup label="Status">
-              {STATUS_FILTERS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setStatusFilter(s.id)}
-                  aria-pressed={statusFilter === s.id}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                    statusFilter === s.id
-                      ? "bg-panel-hover text-foreground"
-                      : "text-muted hover:bg-panel-hover hover:text-foreground",
-                  )}
-                >
-                  {s.label}
-                  <span className="tabnums text-subtle text-xs">{statusCounts[s.id]}</span>
-                </button>
-              ))}
-            </FilterGroup>
-
-            <FilterGroup label="Topics">
-              {topicsShown.map(([concept, count]) => {
-                const active = topicFilter.has(concept);
-                return (
-                  <label
-                    key={concept}
-                    className="text-muted hover:text-foreground flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={active}
-                      onChange={() => {
-                        const next = new Set(topicFilter);
-                        if (next.has(concept)) next.delete(concept);
-                        else next.add(concept);
-                        setTopicFilter(next);
-                      }}
-                      className="accent-primary size-3.5"
-                    />
-                    <span className={cn("flex-1", active && "text-foreground")}>
-                      {CONCEPT_LABELS[concept]}
-                    </span>
-                    <span className="tabnums text-subtle text-xs">{count}</span>
-                  </label>
-                );
-              })}
-              {topicCounts.length > 8 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowAllTopics((v) => !v)}
-                  className="text-blue px-2 py-1 text-xs hover:underline"
-                >
-                  {showAllTopics ? "Show fewer" : `Show all ${topicCounts.length}`}
-                </button>
-              ) : null}
-            </FilterGroup>
+          <div className="sticky top-20">
+            <ProblemFilterControls {...filterControlsProps} />
           </div>
         </aside>
 
@@ -340,7 +427,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
           <header>
             <h1 className="text-foreground text-2xl font-semibold tracking-tight">Problems</h1>
             <p className="text-muted mt-1 text-[15px]">
-              Master Kubernetes by solving real incident-inspired challenges.
+              Repair production incidents, then build complete Kubernetes systems.
             </p>
           </header>
 
@@ -386,13 +473,23 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
 
           {/* Tabs + search + sort */}
           <div
-            className="border-border mt-6 flex items-center gap-1 border-b"
+            className="border-border mt-6 flex items-center gap-1 overflow-x-auto border-b"
             role="tablist"
             aria-label="Problem views"
           >
             {(
               [
                 { id: "all", label: "All Problems", count: catalog.length },
+                {
+                  id: "architects",
+                  label: "Final Boss",
+                  count: catalog.filter((level) => level.challengeMode === "build").length,
+                },
+                {
+                  id: "incidents",
+                  label: "Incident Inspired",
+                  count: catalog.filter((level) => level.incidentSource).length,
+                },
                 { id: "saved", label: "Saved", count: saved.size },
                 { id: "completed", label: "Completed", count: solvedCount },
               ] as { id: Tab; label: string; count: number }[]
@@ -402,9 +499,12 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                 type="button"
                 role="tab"
                 aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  setTab(t.id);
+                  setPage(1);
+                }}
                 className={cn(
-                  "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
                   tab === t.id
                     ? "border-blue text-foreground"
                     : "text-muted hover:text-foreground border-transparent",
@@ -417,11 +517,15 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
+            <MobileProblemFilters activeFilterCount={activeFilterCount} {...filterControlsProps} />
             <div className="border-border bg-panel focus-within:ring-ring flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border px-2.5 focus-within:ring-2">
               <icons.search className="text-subtle size-4 shrink-0" aria-hidden />
               <input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search problems…"
                 aria-label="Search problems"
                 name="problem-search"
@@ -432,7 +536,10 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
               Sort by
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as Sort)}
+                onChange={(event) => {
+                  setSort(event.target.value as Sort);
+                  setPage(1);
+                }}
                 className="border-border bg-panel text-foreground h-9 rounded-md border px-2 text-sm"
               >
                 <option value="featured">Featured</option>
@@ -462,7 +569,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? (
+                {pagedRows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-muted px-4 py-10 text-center text-sm">
                       No problems match these filters.
@@ -476,26 +583,30 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                     </td>
                   </tr>
                 ) : (
-                  rows.map(({ level, status }) => (
+                  pagedRows.map(({ level, status }) => (
                     <ProblemRow
                       key={level.slug}
                       level={level}
                       status={status}
                       saved={saved.has(level.slug)}
                       onToggleSaved={() => toggleBookmark(level.slug)}
-                      solvedCount={solvedCount}
+                      solvedSlugs={solved}
                     />
                   ))
                 )}
               </tbody>
             </table>
           </div>
-          <p className="text-subtle mt-3 text-xs">
-            Showing {rows.length} of {catalog.length} problems
-            {statusCounts.locked > 0
-              ? ` · Advanced problems unlock after ${ADVANCED_UNLOCK_SOLVES} solves`
-              : ""}
-          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-subtle text-xs">
+              Showing {rows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}-
+              {Math.min(currentPage * PAGE_SIZE, rows.length)} of {rows.length} matching problems
+              {rows.length !== catalog.length ? ` (${catalog.length} total)` : ""}
+            </p>
+            {pageCount > 1 ? (
+              <Pagination page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+            ) : null}
+          </div>
         </main>
 
         {/* ------------------------------------------------ Right rail */}
@@ -672,6 +783,260 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
 // Pieces
 // ---------------------------------------------------------------------------
 
+interface ProblemFilterControlsProps {
+  difficultyFilter: ReadonlySet<Difficulty>;
+  difficultyCounts: Record<Difficulty, number>;
+  onToggleDifficulty: (difficulty: Difficulty) => void;
+  statusFilter: StatusFilter;
+  statusCounts: Record<StatusFilter, number>;
+  onStatusChange: (status: StatusFilter) => void;
+  topicFilter: ReadonlySet<KubernetesConcept>;
+  topicsShown: [KubernetesConcept, number][];
+  topicCount: number;
+  showAllTopics: boolean;
+  onToggleTopic: (topic: KubernetesConcept) => void;
+  onToggleAllTopics: () => void;
+  pathFilter: PathFilter;
+  pathCounts: Record<ProblemLearningPath, number>;
+  onPathChange: (path: PathFilter) => void;
+  onClear: () => void;
+}
+
+function ProblemFilterControls({
+  difficultyFilter,
+  difficultyCounts,
+  onToggleDifficulty,
+  statusFilter,
+  statusCounts,
+  onStatusChange,
+  topicFilter,
+  topicsShown,
+  topicCount,
+  showAllTopics,
+  onToggleTopic,
+  onToggleAllTopics,
+  pathFilter,
+  pathCounts,
+  onPathChange,
+  onClear,
+}: ProblemFilterControlsProps) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <p className="text-subtle flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.12em] uppercase">
+          <icons.filter className="size-3.5" aria-hidden />
+          Filters
+        </p>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-subtle hover:text-foreground text-xs transition-colors"
+        >
+          Clear all
+        </button>
+      </div>
+
+      <FilterGroup label="Study path">
+        <select
+          value={pathFilter}
+          onChange={(event) => onPathChange(event.target.value as PathFilter)}
+          aria-label="Study path"
+          className="border-border bg-panel text-foreground h-9 w-full rounded-md border px-2 text-sm"
+        >
+          <option value="all">All paths</option>
+          {LEARNING_PATHS.map((path) => (
+            <option key={path} value={path}>
+              {LEARNING_PATH_LABELS[path]} ({pathCounts[path]})
+            </option>
+          ))}
+        </select>
+      </FilterGroup>
+
+      <FilterGroup label="Difficulty">
+        {DIFFICULTIES.map((difficulty) => {
+          const meta = DIFFICULTY_META[difficulty];
+          const active = difficultyFilter.has(difficulty);
+          return (
+            <label
+              key={difficulty}
+              className="text-muted hover:text-foreground flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={() => onToggleDifficulty(difficulty)}
+                className="accent-primary size-3.5"
+              />
+              <span className={cn("size-2 rounded-full", meta.dot)} aria-hidden />
+              <span className={cn("flex-1", active && "text-foreground")}>{meta.label}</span>
+              <span className="tabnums text-subtle text-xs">{difficultyCounts[difficulty]}</span>
+            </label>
+          );
+        })}
+      </FilterGroup>
+
+      <FilterGroup label="Status">
+        {STATUS_FILTERS.map((status) => (
+          <button
+            key={status.id}
+            type="button"
+            onClick={() => onStatusChange(status.id)}
+            aria-pressed={statusFilter === status.id}
+            className={cn(
+              "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+              statusFilter === status.id
+                ? "bg-panel-hover text-foreground"
+                : "text-muted hover:bg-panel-hover hover:text-foreground",
+            )}
+          >
+            {status.label}
+            <span className="tabnums text-subtle text-xs">{statusCounts[status.id]}</span>
+          </button>
+        ))}
+      </FilterGroup>
+
+      <FilterGroup label="Topics">
+        {topicsShown.map(([concept, count]) => {
+          const active = topicFilter.has(concept);
+          return (
+            <label
+              key={concept}
+              className="text-muted hover:text-foreground flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={() => onToggleTopic(concept)}
+                className="accent-primary size-3.5"
+              />
+              <span className={cn("flex-1", active && "text-foreground")}>
+                {CONCEPT_LABELS[concept]}
+              </span>
+              <span className="tabnums text-subtle text-xs">{count}</span>
+            </label>
+          );
+        })}
+        {topicCount > 8 ? (
+          <button
+            type="button"
+            onClick={onToggleAllTopics}
+            className="text-blue px-2 py-1 text-xs hover:underline"
+          >
+            {showAllTopics ? "Show fewer" : `Show all ${topicCount}`}
+          </button>
+        ) : null}
+      </FilterGroup>
+    </div>
+  );
+}
+
+function MobileProblemFilters({
+  activeFilterCount,
+  ...filters
+}: ProblemFilterControlsProps & { activeFilterCount: number }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Trigger asChild>
+        <button
+          type="button"
+          className="border-border bg-panel text-foreground hover:bg-panel-hover inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors xl:hidden"
+        >
+          <icons.filter className="size-4" aria-hidden />
+          Filters
+          {activeFilterCount > 0 ? (
+            <span className="bg-blue text-primary-foreground tabnums inline-flex size-5 items-center justify-center rounded-full text-[10px]">
+              {activeFilterCount}
+            </span>
+          ) : null}
+        </button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="anim-overlay fixed inset-0 z-50 bg-black/70 backdrop-blur-sm xl:hidden" />
+        <Dialog.Content className="anim-drawer-left border-border bg-panel-elevated fixed inset-y-0 left-0 z-50 flex w-[min(21rem,88vw)] flex-col border-r shadow-2xl xl:hidden">
+          <div className="border-border flex h-14 shrink-0 items-center justify-between border-b px-4">
+            <Dialog.Title className="text-foreground font-semibold">Problem filters</Dialog.Title>
+            <Dialog.Description className="sr-only">
+              Filter the catalog by study path, difficulty, status, and topic.
+            </Dialog.Description>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                aria-label="Close problem filters"
+                className="text-muted hover:bg-panel-hover hover:text-foreground inline-flex size-8 items-center justify-center rounded-md transition-colors"
+              >
+                <icons.close className="size-4" aria-hidden />
+              </button>
+            </Dialog.Close>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <ProblemFilterControls {...filters} />
+          </div>
+          <div className="border-border shrink-0 border-t p-4">
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 h-9 w-full rounded-md text-sm font-medium transition-colors"
+              >
+                Show matching problems
+              </button>
+            </Dialog.Close>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function Pagination({
+  page,
+  pageCount,
+  onPageChange,
+}: {
+  page: number;
+  pageCount: number;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <nav aria-label="Problem pages" className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onPageChange(page - 1)}
+        disabled={page === 1}
+        aria-label="Previous problem page"
+        className="border-border bg-panel text-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
+      >
+        <icons.chevronLeft className="size-4" aria-hidden />
+      </button>
+      {Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => (
+        <button
+          key={number}
+          type="button"
+          onClick={() => onPageChange(number)}
+          aria-current={number === page ? "page" : undefined}
+          className={cn(
+            "tabnums inline-flex size-8 items-center justify-center rounded-md border text-xs transition-colors",
+            number === page
+              ? "border-blue bg-blue/10 text-foreground"
+              : "border-border bg-panel text-muted hover:text-foreground",
+          )}
+        >
+          {number}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => onPageChange(page + 1)}
+        disabled={page === pageCount}
+        aria-label="Next problem page"
+        className="border-border bg-panel text-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
+      >
+        <icons.chevronRight className="size-4" aria-hidden />
+      </button>
+    </nav>
+  );
+}
+
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -746,17 +1111,18 @@ function ProblemRow({
   status,
   saved,
   onToggleSaved,
-  solvedCount,
+  solvedSlugs,
 }: {
   level: LevelSummary;
   status: LevelStatus;
   saved: boolean;
   onToggleSaved: () => void;
-  solvedCount: number;
+  solvedSlugs: ReadonlySet<string>;
 }) {
   const meta = DIFFICULTY_META[level.difficulty];
   const locked = status === "locked";
-  const remaining = Math.max(0, ADVANCED_UNLOCK_SOLVES - solvedCount);
+  const missing = missingPrerequisites(level, solvedSlugs);
+  const firstMissing = missing[0] ? getLevelBySlug(missing[0]) : undefined;
   const statsLabel =
     level.statsSource === "client-validated"
       ? `Client-validated telemetry, n=${level.statsSampleSize ?? 0}`
@@ -764,12 +1130,29 @@ function ProblemRow({
 
   const title = (
     <>
-      <span className={cn("block text-sm font-medium", locked ? "text-muted" : "text-foreground")}>
-        {level.title}
+      <span
+        className={cn(
+          "flex flex-wrap items-center gap-1.5 text-sm font-medium",
+          locked ? "text-muted" : "text-foreground",
+        )}
+      >
+        <span>{level.title}</span>
+        {level.challengeMode === "build" ? (
+          <span className="text-purple inline-flex items-center gap-1 text-[10px] font-medium tracking-wide uppercase">
+            <icons.cluster className="size-3" aria-hidden />
+            System build
+          </span>
+        ) : null}
+        {level.incidentSource ? (
+          <span className="text-amber inline-flex items-center gap-1 text-[10px] font-medium tracking-wide uppercase">
+            <icons.challenge className="size-3" aria-hidden />
+            Incident inspired
+          </span>
+        ) : null}
       </span>
       <span className="text-subtle mt-0.5 block truncate text-xs">
         {locked
-          ? `Locked — solve ${remaining} more problem${remaining === 1 ? "" : "s"}`
+          ? `Locked — complete ${firstMissing?.title ?? missing[0]}${missing.length > 1 ? ` +${missing.length - 1}` : ""}`
           : level.blurb}
       </span>
     </>
@@ -943,4 +1326,26 @@ function ProgressLegend({ color, label, value }: { color: string; label: string;
       <span className="tabnums text-foreground">{value}</span>
     </li>
   );
+}
+
+function readChoice<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+  return value && allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function readSet<T extends string>(value: string | null, allowed: readonly T[]): Set<T> {
+  if (!value) return new Set();
+  const allowedValues = new Set(allowed);
+  return new Set(value.split(",").filter((entry): entry is T => allowedValues.has(entry as T)));
+}
+
+function positiveInt(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function toggleSet<T>(current: ReadonlySet<T>, value: T): Set<T> {
+  const next = new Set(current);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
 }

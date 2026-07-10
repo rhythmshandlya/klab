@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Zombie ReplicaSet.
  *
@@ -94,6 +96,7 @@ spec:
 export const zombieReplicaset = {
   id: "zombie-replicaset",
   slug: "zombie-replicaset",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Zombie ReplicaSet",
   difficulty: "advanced",
   severity: "critical",
@@ -105,6 +108,13 @@ export const zombieReplicaset = {
   story:
     "Support tickets say checkout 'sometimes' errors — retry and it works. Your dashboards agree: a stubborn ~33% error rate, day and night. The web Deployment is green: 2/2 Ready, all probes passing. But web-svc keeps answering 500 to every third visitor, like something is haunting the rotation.",
   objective: "Make EVERY request through web-svc return 200 — retire whatever is poisoning it.",
+  learningObjectives: [
+    "Use ownership and ReplicaSet inventory to find workloads outside a Deployment view.",
+    "Explain why a broad Service selector can route to healthy but obsolete Pods.",
+  ],
+  prerequisites: ["service-selector-mismatch", "service-has-no-endpoints"],
+  learningPaths: ["reliability", "sre-on-call"],
+  capabilities: ["pods", "services", "replicasets", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -305,6 +315,9 @@ export const zombieReplicaset = {
       "Services route by labels, not by ownership. The legacy pod's /healthz still returned 200, so it was Ready and took a full share of traffic — then answered 500 to every real request. Three endpoints, one poisoned: a stable ~33% error rate that no Deployment dashboard would ever show.",
     whatFixedIt:
       "Scaling web-legacy to zero removed the poisoned pod from the EndpointSlice, leaving only the stable pods behind web-svc. Every request now returns 200. (Longer term: delete the orphan and tighten the Service selector, e.g. app=web,track=stable.)",
+    prevention:
+      "Use release-specific labels, garbage-collect orphaned controllers, and audit Service endpoint ownership rather than relying only on Deployment health.",
     relatedConcepts: ["replicasets", "labels-selectors", "services"],
+    recommendedNextSlugs: [],
   },
 } satisfies ProblemLevel;

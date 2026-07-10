@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Broken Readiness Probe.
  *
@@ -59,6 +61,7 @@ spec:
 export const brokenReadinessProbe = {
   id: "broken-readiness-probe",
   slug: "broken-readiness-probe",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Broken Readiness Probe",
   difficulty: "beginner",
   severity: "high",
@@ -70,6 +73,13 @@ export const brokenReadinessProbe = {
   story:
     "On-call paged you: users are getting 503s from web-svc. The pod looks like it started fine, but traffic isn't flowing. Figure out why the Service isn't serving.",
   objective: "Restore traffic through web-svc so it returns HTTP 200 again.",
+  learningObjectives: [
+    "Distinguish a Running container from a Ready Pod.",
+    "Connect readiness failures to EndpointSlice membership and Service availability.",
+  ],
+  prerequisites: [],
+  learningPaths: ["kubernetes-foundations", "reliability"],
+  capabilities: ["pods", "services", "events", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -249,7 +259,10 @@ export const brokenReadinessProbe = {
       "The container was healthy (/healthz → 200) so it kept running, but the kubelet's readiness probe hit /readyz and got 404. It marked the pod NotReady. The EndpointSlice controller only publishes Ready pods, so web-svc had zero endpoints and returned 503 to every request.",
     whatFixedIt:
       "Pointing the readiness probe at /healthz (which returns 200) let the pods report Ready. They were then added to the Service's EndpointSlice, and traffic flowed again.",
+    prevention:
+      "Contract-test probe paths against the built image and monitor Ready replicas and endpoints independently from container liveness.",
     relatedConcepts: ["readiness-probes", "endpointslices", "services"],
     docsHref: "/docs/debugging/readiness-probes",
+    recommendedNextSlugs: ["liveness-probe-death-spiral"],
   },
 } satisfies ProblemLevel;

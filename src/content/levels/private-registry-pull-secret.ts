@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 const DEPLOYMENT_YAML = `apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,6 +38,7 @@ data:
 export const privateRegistryPullSecret = {
   id: "private-registry-pull-secret",
   slug: "private-registry-pull-secret",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Private Registry Pull Secret",
   difficulty: "intermediate",
   severity: "high",
@@ -47,6 +50,21 @@ export const privateRegistryPullSecret = {
   story:
     "A private API release is stuck before the process can start. The registry team confirms the image and credentials are valid. Kubernetes keeps backing off the pull because the Pod was never told which credential Secret to use.",
   objective: "Make the private-api Pod pull its image, become Ready, and serve HTTP 200.",
+  learningObjectives: [
+    "Use events to diagnose a failure that occurs before container startup.",
+    "Attach an existing registry credential without changing the approved image.",
+  ],
+  prerequisites: ["pod-crashloop-mystery"],
+  learningPaths: ["application-debugging", "sre-on-call"],
+  capabilities: [
+    "pods",
+    "services",
+    "deployments",
+    "secrets",
+    "image-pulls",
+    "events",
+    "http-probes",
+  ],
   engine: { kind: "scripted", scenarioId: "private-registry-pull" },
   constraints: [
     {
@@ -219,6 +237,9 @@ export const privateRegistryPullSecret = {
       "Image pulls happen before the container starts. Without imagePullSecrets, the kubelet attempted an anonymous registry pull, received an authorization failure, and backed off. No application logs could exist yet.",
     whatFixedIt:
       "Attaching registry-credentials through spec.template.spec.imagePullSecrets let the kubelet authenticate, pull the image, and start the Pod.",
+    prevention:
+      "Provision registry credentials with the workload namespace and enforce imagePullSecrets for approved private registries through policy checks.",
     relatedConcepts: ["pods", "secrets", "events"],
+    recommendedNextSlugs: ["rolling-update-gone-wrong"],
   },
 } satisfies ProblemLevel;

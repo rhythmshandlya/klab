@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: DNS Resolution Failure.
  *
@@ -101,6 +103,7 @@ spec:
 export const dnsResolutionFailure = {
   id: "dns-resolution-failure",
   slug: "dns-resolution-failure",
+  ...PUBLISHED_PROBLEM_V1,
   title: "DNS Resolution Failure",
   difficulty: "intermediate",
   severity: "high",
@@ -112,6 +115,13 @@ export const dnsResolutionFailure = {
   story:
     "Orders stopped processing after this morning's 'no-op' config refactor. The orders-api pods are healthy, web-svc is healthy, and yet orders-svc answers nothing but 502s. The API swears it can't find its upstream — a service you can see right there in the cluster.",
   objective: "Make orders-svc return HTTP 200 by restoring its upstream connection.",
+  learningObjectives: [
+    "Distinguish NXDOMAIN from connection and application failures.",
+    "Trace a misspelled Service dependency from logs to workload configuration.",
+  ],
+  prerequisites: ["namespace-confusion"],
+  learningPaths: ["networking", "application-debugging"],
+  capabilities: ["pods", "services", "deployments", "dns", "logs", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -278,6 +288,9 @@ export const dnsResolutionFailure = {
       "Service discovery in Kubernetes is DNS. A typo'd name isn't 'slow' or 'flaky' — it's NXDOMAIN, every single time. The orders-api's fetch failed resolution before a connection was ever attempted, and the API surfaced that as 502.",
     whatFixedIt:
       "Correcting the env var to http://web-svc/ let DNS resolve to the Service's cluster IP, and the proxied requests immediately succeeded.",
+    prevention:
+      "Generate internal Service URLs from deployment metadata, validate them with DNS smoke tests, and preserve NXDOMAIN detail in application telemetry.",
     relatedConcepts: ["dns", "services", "networking"],
+    recommendedNextSlugs: ["broken-service-chain"],
   },
 } satisfies ProblemLevel;

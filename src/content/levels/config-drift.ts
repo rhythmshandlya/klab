@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Config Drift.
  *
@@ -62,6 +64,7 @@ spec:
 export const configDrift = {
   id: "config-drift",
   slug: "config-drift",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Config Drift",
   difficulty: "advanced",
   severity: "high",
@@ -73,6 +76,13 @@ export const configDrift = {
   story:
     "A 'standardization' PR from three weeks ago is finally rolling out, and web-app is down. The manifest looks textbook: probe on 8080, containerPort 8080, Service targeting 8080 — all beautifully consistent. The app disagrees with all of them, and it left you a note saying exactly where it went.",
   objective: "Bring the app, its probes, and the Service back into agreement (HTTP 200).",
+  learningObjectives: [
+    "Compare declared ports with the process's observed listener.",
+    "Repair one source of configuration drift without weakening readiness checks.",
+  ],
+  prerequisites: ["port-routing-bug", "broken-readiness-probe"],
+  learningPaths: ["application-debugging", "reliability"],
+  capabilities: ["pods", "services", "deployments", "events", "logs", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -262,6 +272,9 @@ export const configDrift = {
       "Config drift: one value moved and its dependents didn't. The app (honestly) bound :9090; the kubelet probed :8080 and found nothing, so pods never went Ready and the Service had no endpoints. Every declared port agreed with every other declared port — just not with reality.",
     whatFixedIt:
       "Removing the drifted PORT env restored the app's default of 8080, matching the probe and the Service's targetPort. Pods went Ready and traffic flowed.",
+    prevention:
+      "Own runtime ports in one configuration source, render probes and Services from it, and verify the live listener during rollout smoke tests.",
     relatedConcepts: ["deployments", "readiness-probes", "networking"],
+    recommendedNextSlugs: ["broken-service-chain"],
   },
 } satisfies ProblemLevel;

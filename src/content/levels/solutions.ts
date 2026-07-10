@@ -14,6 +14,173 @@ export interface LevelSolution {
 }
 
 export const LEVEL_SOLUTIONS: Record<string, LevelSolution> = {
+  "command-override-crash": {
+    fix: "Remove command and args so the image entrypoint runs",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storefront
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storefront
+  template:
+    metadata:
+      labels:
+        app: storefront
+    spec:
+      containers:
+        - name: storefront
+          image: klab/web-app:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            failureThreshold: 2
+`,
+    },
+  },
+
+  "slow-start-without-startup-probe": {
+    fix: "Add a startupProbe with enough budget for the five-second warm-up",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reports-api
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reports-api
+  template:
+    metadata:
+      labels:
+        app: reports-api
+    spec:
+      containers:
+        - name: api
+          image: klab/slow-api:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 1
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 1
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 1
+            failureThreshold: 2
+`,
+    },
+  },
+
+  "probe-hits-wrong-port": {
+    fix: "Change the readiness probe port from 9090 to 8080",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-api
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payments-api
+  template:
+    metadata:
+      labels:
+        app: payments-api
+    spec:
+      containers:
+        - name: api
+          image: klab/web-app:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 3
+`,
+    },
+  },
+
+  "healthy-app-broken-sidecar": {
+    fix: "Set DATABASE_URL on queue-sidecar",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: checkout
+  template:
+    metadata:
+      labels:
+        app: checkout
+    spec:
+      containers:
+        - name: checkout
+          image: klab/web-app:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+        - name: queue-sidecar
+          image: klab/worker:1.0.0
+          env:
+            - name: PORT
+              value: "9090"
+            - name: DATABASE_URL
+              value: postgres://queue.internal:5432/jobs
+`,
+    },
+  },
+
   "private-registry-pull-secret": {
     fix: "Attach registry-credentials through imagePullSecrets",
     files: {

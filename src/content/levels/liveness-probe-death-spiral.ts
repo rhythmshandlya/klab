@@ -1,5 +1,7 @@
 import type { ProblemLevel } from "@/lib/domain/types";
 
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
+
 /**
  * Level: Liveness Probe Death Spiral.
  *
@@ -64,6 +66,7 @@ spec:
 export const livenessProbeDeathSpiral = {
   id: "liveness-probe-death-spiral",
   slug: "liveness-probe-death-spiral",
+  ...PUBLISHED_PROBLEM_V1,
   title: "Liveness Probe Death Spiral",
   difficulty: "advanced",
   severity: "critical",
@@ -75,6 +78,13 @@ export const livenessProbeDeathSpiral = {
   story:
     "web-svc is flapping: up for a few seconds, dead, up again. The app team insists nothing is wrong with the app — and weirdly, they're right. Meanwhile the pods' restart counters are climbing like a countdown. Something in the cluster is killing healthy containers, on schedule.",
   objective: "Stop the restart spiral and keep web-svc stably serving HTTP 200.",
+  learningObjectives: [
+    "Separate liveness, readiness, and application health semantics.",
+    "Correlate probe events with restart counts and intermittent endpoint loss.",
+  ],
+  prerequisites: ["broken-readiness-probe"],
+  learningPaths: ["reliability", "sre-on-call"],
+  capabilities: ["pods", "services", "deployments", "events", "http-probes", "container-restarts"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -267,7 +277,10 @@ export const livenessProbeDeathSpiral = {
       "Readiness and liveness answer different questions. Readiness (correctly on /healthz) passed, so pods joined the Service — then liveness (on /readyz) failed twice, the kubelet killed the container, endpoints emptied, and the cycle restarted. From outside it looked like flapping; from inside it was scheduled execution.",
     whatFixedIt:
       "Pointing the liveness probe at /healthz stopped the kills. The rollout produced fresh pods with zero restarts that stayed Ready, and the Service stopped flapping.",
+    prevention:
+      "Give liveness a deliberately conservative contract, test probe endpoints with the release image, and alert when kubelet restarts rise while application health remains good.",
     relatedConcepts: ["liveness-probes", "readiness-probes", "events"],
     docsHref: "/docs/debugging/readiness-probes",
+    recommendedNextSlugs: ["config-drift"],
   },
 } satisfies ProblemLevel;

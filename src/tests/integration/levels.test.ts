@@ -67,6 +67,7 @@ const BROKEN_STATE_READY: Record<string, (s: ClusterSnapshot) => boolean> = {
   "port-routing-bug": (s) => readyPods(s, { app: "web-app" }) >= 2,
   "broken-readiness-probe": (s) => existingPods(s, { app: "web-app" }) >= 1,
   "namespace-confusion": (s) => readyPods(s, { app: "storefront" }) >= 1,
+  "command-override-crash": (s) => anyRestarts(s, { app: "storefront" }),
   "service-has-no-endpoints": (s) => s.deployments.some((d) => d.metadata?.name === "web-app"),
   "pod-crashloop-mystery": (s) => anyRestarts(s, { app: "queue-worker" }),
   "private-registry-pull-secret": (s) =>
@@ -77,12 +78,15 @@ const BROKEN_STATE_READY: Record<string, (s: ClusterSnapshot) => boolean> = {
     s.replicaSets.filter((replicaSet) => replicaSet.metadata?.name?.startsWith("web-app-"))
       .length >= 2 && podsUsingImage(s, "klab/web-app:2.0.0") >= 1,
   "dns-resolution-failure": (s) => readyPods(s, { app: "orders-api" }) >= 1,
+  "slow-start-without-startup-probe": (s) => anyRestarts(s, { app: "reports-api" }),
+  "probe-hits-wrong-port": (s) => existingPods(s, { app: "payments-api" }) >= 2,
   "liveness-probe-death-spiral": (s) => anyRestarts(s, { app: "web-app" }),
   "config-drift": (s) => existingPods(s, { app: "web-app" }) >= 2,
   "broken-service-chain": (s) =>
     readyPods(s, { app: "web-app" }) >= 2 &&
     readyPods(s, { app: "orders-api" }) >= 1 &&
     readyPods(s, { app: "frontend" }) >= 1,
+  "healthy-app-broken-sidecar": (s) => anyRestarts(s, { app: "checkout" }),
   "zombie-replicaset": (s) =>
     readyPods(s, { app: "web", track: "stable" }) >= 2 &&
     readyPods(s, { app: "web", track: "legacy" }) >= 1,

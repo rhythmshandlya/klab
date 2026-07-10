@@ -78,6 +78,7 @@ export function ValidationDialog({
               <Explain label="Root cause" body={level.postSolveExplanation.rootCause} />
               <Explain label="Why it failed" body={level.postSolveExplanation.whyItFailed} />
               <Explain label="What fixed it" body={level.postSolveExplanation.whatFixedIt} />
+              <Explain label="Prevention" body={level.postSolveExplanation.prevention} />
               {level.postSolveExplanation.relatedConcepts.length > 0 ? (
                 <div>
                   <p className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
@@ -103,6 +104,25 @@ export function ValidationDialog({
                   <icons.docs className="size-4" aria-hidden />
                   Read the related docs lesson
                 </Link>
+              ) : null}
+              {level.postSolveExplanation.recommendedNextSlugs.length > 0 ? (
+                <div>
+                  <p className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
+                    Continue with
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {level.postSolveExplanation.recommendedNextSlugs.map((slug) => (
+                      <Link
+                        key={slug}
+                        href={`/problems/${slug}`}
+                        className="border-border bg-panel-elevated text-foreground hover:border-border-strong inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors"
+                      >
+                        {slug.replaceAll("-", " ")}
+                        <icons.arrowRight className="size-3.5" aria-hidden />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}
