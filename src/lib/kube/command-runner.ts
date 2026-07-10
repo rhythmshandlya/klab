@@ -1,4 +1,12 @@
-import type { CoreV1Event, V1Container, V1Pod, V1Service } from "@ngrok/webernetes";
+import type {
+  CoreV1Event,
+  V1Container,
+  V1Deployment,
+  V1Node,
+  V1Pod,
+  V1ReplicaSet,
+  V1Service,
+} from "@ngrok/webernetes";
 
 import { stringifyManifest } from "./manifest-parser";
 import { createProbeSignal, type InvestigationSignal } from "./evidence";
@@ -25,10 +33,25 @@ import type { Result } from "@/lib/utils/result";
 
 export interface CommandRuntime {
   getSnapshot(): ClusterSnapshot;
-  probe(url: string): Promise<ProbeResult>;
+  probe(url: string, namespace?: string): Promise<ProbeResult>;
   getLogs(namespace: string, pod: string, container?: string): LogLine[];
   applyYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
   deleteYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
+  // Optional capabilities — KubeSimulator provides them all; scripted problem
+  // engines may omit them, and the matching commands degrade with a clear message.
+  exec?(
+    namespace: string,
+    pod: string,
+    container: string | undefined,
+    argv: string[],
+  ): Promise<Result<{ exitCode: number; stdout: string; stderr: string }, string>>;
+  scaleDeployment?(
+    name: string,
+    namespace: string,
+    replicas: number,
+  ): Promise<Result<void, string>>;
+  restartDeployment?(name: string, namespace: string): Promise<Result<void, string>>;
+  deleteResource?(kind: string, name: string, namespace: string): Promise<Result<void, string>>;
 }
 
 export interface TerminalContext {
@@ -57,7 +80,10 @@ type GetResource =
   | "endpointslices"
   | "events"
   | "namespaces"
+  | "nodes"
   | "all";
+
+type DescribeResource = "pod" | "service" | "deployment" | "replicaset" | "namespace" | "node";
 
 export type Command =
   | { kind: "clear" }
@@ -69,18 +95,26 @@ export type Command =
       resource: GetResource;
       name?: string;
       outputYaml: boolean;
+      outputWide: boolean;
       namespace?: string;
+      allNamespaces: boolean;
+      selector?: string;
       sortByLastTimestamp: boolean;
     }
   | {
       kind: "describe";
-      resource: "pod" | "service" | "deployment";
+      resource: DescribeResource;
       name: string;
       namespace?: string;
     }
   | { kind: "logs"; pod: string; container?: string; namespace?: string }
   | { kind: "apply"; file: string }
   | { kind: "delete"; file: string }
+  | { kind: "delete-resource"; manifestKind: string; name: string; namespace?: string }
+  | { kind: "scale"; name: string; replicas: number; namespace?: string }
+  | { kind: "rollout"; verb: "status" | "restart" | "history"; name: string; namespace?: string }
+  | { kind: "exec"; pod: string; container?: string; argv: string[]; namespace?: string }
+  | { kind: "create-namespace"; name: string }
   | { kind: "unsupported"; message: string };
 
 // ---------------------------------------------------------------------------
@@ -123,39 +157,78 @@ const GET_RESOURCE_ALIASES: Record<string, GetResource> = {
   ns: "namespaces",
   namespace: "namespaces",
   namespaces: "namespaces",
+  node: "nodes",
+  nodes: "nodes",
+  no: "nodes",
   all: "all",
+};
+
+/** Manifest kinds for `kubectl delete <resource> <name>` and `-o yaml` lookups. */
+const MANIFEST_KINDS: Partial<Record<GetResource, string>> = {
+  pods: "Pod",
+  services: "Service",
+  deployments: "Deployment",
+  replicasets: "ReplicaSet",
+  namespaces: "Namespace",
+  nodes: "Node",
 };
 
 interface ParsedArgs {
   positionals: string[];
   outputYaml: boolean;
+  outputWide: boolean;
   namespace?: string;
+  allNamespaces: boolean;
+  selector?: string;
   container?: string;
   file?: string;
+  replicas?: number;
   sortByLastTimestamp: boolean;
 }
 
 function parseArgs(args: string[]): ParsedArgs {
   const positionals: string[] = [];
-  const parsed: ParsedArgs = { positionals, outputYaml: false, sortByLastTimestamp: false };
+  const parsed: ParsedArgs = {
+    positionals,
+    outputYaml: false,
+    outputWide: false,
+    allNamespaces: false,
+    sortByLastTimestamp: false,
+  };
+  const setOutput = (value: string | undefined) => {
+    parsed.outputYaml = value === "yaml";
+    parsed.outputWide = value === "wide";
+  };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] ?? "";
     if (arg === "-o" || arg === "--output") {
-      parsed.outputYaml = (args[++i] ?? "") === "yaml";
+      setOutput(args[++i]);
     } else if (arg.startsWith("-o=") || arg.startsWith("--output=")) {
-      parsed.outputYaml = arg.split("=")[1] === "yaml";
+      setOutput(arg.split("=")[1]);
     } else if (arg === "-oyaml") {
       parsed.outputYaml = true;
+    } else if (arg === "-owide") {
+      parsed.outputWide = true;
     } else if (arg === "-n" || arg === "--namespace") {
       parsed.namespace = args[++i];
     } else if (arg.startsWith("--namespace=")) {
       parsed.namespace = arg.split("=")[1];
+    } else if (arg === "-A" || arg === "--all-namespaces") {
+      parsed.allNamespaces = true;
+    } else if (arg === "-l" || arg === "--selector") {
+      parsed.selector = args[++i];
+    } else if (arg.startsWith("-l=") || arg.startsWith("--selector=")) {
+      parsed.selector = arg.split("=").slice(1).join("=");
     } else if (arg === "-c" || arg === "--container") {
       parsed.container = args[++i];
     } else if (arg === "-f" || arg === "--filename") {
       parsed.file = args[++i];
     } else if (arg.startsWith("-f=") || arg.startsWith("--filename=")) {
       parsed.file = arg.split("=")[1];
+    } else if (arg === "--replicas") {
+      parsed.replicas = Number(args[++i]);
+    } else if (arg.startsWith("--replicas=")) {
+      parsed.replicas = Number(arg.split("=")[1]);
     } else if (arg.startsWith("--sort-by")) {
       parsed.sortByLastTimestamp = arg.includes("lastTimestamp") || !arg.includes("=");
     } else if (!arg.startsWith("-")) {
@@ -163,6 +236,27 @@ function parseArgs(args: string[]): ParsedArgs {
     }
   }
   return parsed;
+}
+
+/**
+ * Match labels against an equality-based selector: `k=v`, `k==v`, `k!=v`, or a bare
+ * key (existence), comma-separated. Set-based expressions (`in`, `notin`) are not
+ * supported — the parse simply fails the match, mirroring "no results".
+ */
+export function matchesLabelSelector(
+  labels: Record<string, string> | undefined,
+  selector: string,
+): boolean {
+  const have = labels ?? {};
+  return selector.split(",").every((term) => {
+    const clause = term.trim();
+    if (!clause) return true;
+    const notEqual = clause.match(/^([^!=]+)!=(.*)$/);
+    if (notEqual) return have[notEqual[1]!.trim()] !== notEqual[2]!.trim();
+    const equal = clause.match(/^([^!=]+)==?(.*)$/);
+    if (equal) return have[equal[1]!.trim()] === equal[2]!.trim();
+    return clause in have;
+  });
 }
 
 export function parseCommand(line: string): Command {
@@ -217,7 +311,10 @@ function parseKubectl(args: string[]): Command {
         resource,
         name: parsed.positionals[1],
         outputYaml: parsed.outputYaml,
+        outputWide: parsed.outputWide,
         namespace: parsed.namespace,
+        allNamespaces: parsed.allNamespaces,
+        selector: parsed.selector,
         sortByLastTimestamp: parsed.sortByLastTimestamp,
       };
     }
@@ -225,17 +322,83 @@ function parseKubectl(args: string[]): Command {
       const parsed = parseArgs(rest);
       const typeToken = (parsed.positionals[0] ?? "").toLowerCase();
       const name = parsed.positionals[1];
-      const resource =
-        GET_RESOURCE_ALIASES[typeToken] === "pods"
-          ? "pod"
-          : GET_RESOURCE_ALIASES[typeToken] === "services"
-            ? "service"
-            : GET_RESOURCE_ALIASES[typeToken] === "deployments"
-              ? "deployment"
-              : undefined;
-      if (!resource) return unsupported("kubectl describe: supported for pod, svc, deployment.");
+      const describable: Partial<Record<GetResource, DescribeResource>> = {
+        pods: "pod",
+        services: "service",
+        deployments: "deployment",
+        replicasets: "replicaset",
+        namespaces: "namespace",
+        nodes: "node",
+      };
+      const alias = GET_RESOURCE_ALIASES[typeToken];
+      const resource = alias ? describable[alias] : undefined;
+      if (!resource)
+        return unsupported("kubectl describe: supported for pod, svc, deployment, rs, ns, node.");
       if (!name) return unsupported(`kubectl describe ${typeToken}: specify a name.`);
       return { kind: "describe", resource, name, namespace: parsed.namespace };
+    }
+    case "scale": {
+      const parsed = parseArgs(rest);
+      const target = parseKindNameTarget(parsed.positionals, "deployments");
+      if (!target || target.resource !== "deployments") {
+        return unsupported(
+          "kubectl scale: specify a deployment, e.g. 'kubectl scale deployment web --replicas=3'.",
+        );
+      }
+      if (
+        parsed.replicas === undefined ||
+        !Number.isInteger(parsed.replicas) ||
+        parsed.replicas < 0
+      ) {
+        return unsupported("kubectl scale: specify a non-negative --replicas=<count>.");
+      }
+      return {
+        kind: "scale",
+        name: target.name,
+        replicas: parsed.replicas,
+        namespace: parsed.namespace,
+      };
+    }
+    case "rollout": {
+      const verb = rest[0];
+      if (verb !== "status" && verb !== "restart" && verb !== "history") {
+        return unsupported("kubectl rollout: supported verbs are status, restart, history.");
+      }
+      const parsed = parseArgs(rest.slice(1));
+      const target = parseKindNameTarget(parsed.positionals, "deployments");
+      if (!target || target.resource !== "deployments") {
+        return unsupported(
+          `kubectl rollout ${verb}: specify a deployment, e.g. 'kubectl rollout ${verb} deployment/web'.`,
+        );
+      }
+      return { kind: "rollout", verb, name: target.name, namespace: parsed.namespace };
+    }
+    case "exec": {
+      // `--` separates kubectl flags from the command to run inside the container.
+      const separator = rest.indexOf("--");
+      const own = separator === -1 ? rest : rest.slice(0, separator);
+      const argv = separator === -1 ? [] : rest.slice(separator + 1);
+      // Tolerate the ubiquitous -it/-i/-t; this terminal is not a TTY either way.
+      const parsed = parseArgs(own.filter((a) => !["-it", "-ti", "-i", "-t"].includes(a)));
+      const pod = parsed.positionals[0];
+      if (!pod || argv.length === 0) {
+        return unsupported(
+          "kubectl exec: usage 'kubectl exec <pod> [-c <container>] -- <command>', e.g. 'kubectl exec web -- env'.",
+        );
+      }
+      return { kind: "exec", pod, container: parsed.container, argv, namespace: parsed.namespace };
+    }
+    case "create": {
+      const parsed = parseArgs(rest);
+      const what = (parsed.positionals[0] ?? "").toLowerCase();
+      const name = parsed.positionals[1];
+      if (GET_RESOURCE_ALIASES[what] !== "namespaces") {
+        return unsupported(
+          "kubectl create: only 'kubectl create namespace <name>' is supported — apply a manifest for anything else.",
+        );
+      }
+      if (!name) return unsupported("kubectl create namespace: specify a name.");
+      return { kind: "create-namespace", name };
     }
     case "logs": {
       const parsed = parseArgs(rest);
@@ -252,18 +415,50 @@ function parseKubectl(args: string[]): Command {
       return { kind: "apply", file };
     }
     case "delete": {
-      const file = parseArgs(rest).file;
-      if (!file)
+      const parsed = parseArgs(rest);
+      if (parsed.file) return { kind: "delete", file: parsed.file };
+      // `kubectl delete <resource> <name>` / `<resource>/<name>`
+      const target = parseKindNameTarget(parsed.positionals);
+      const manifestKind = target ? MANIFEST_KINDS[target.resource] : undefined;
+      if (!target || !manifestKind) {
         return unsupported(
-          "kubectl delete: specify a file with -f, e.g. 'kubectl delete -f deployment.yaml'.",
+          "kubectl delete: use 'kubectl delete <pod|svc|deploy|rs|ns|node> <name>' or '-f <file>'.",
         );
-      return { kind: "delete", file };
+      }
+      return {
+        kind: "delete-resource",
+        manifestKind,
+        name: target.name,
+        namespace: parsed.namespace,
+      };
     }
     default:
       return unsupported(
-        `kubectl ${sub ?? ""}: unsupported subcommand. Supported: get, describe, logs, apply, delete.`,
+        `kubectl ${sub ?? ""}: unsupported subcommand. Supported: get, describe, logs, exec, scale, rollout, create, apply, delete.`,
       );
   }
+}
+
+/** Parse `<kind> <name>` or `<kind>/<name>` positionals into a resource + name. */
+function parseKindNameTarget(
+  positionals: string[],
+  expect?: GetResource,
+): { resource: GetResource; name: string } | null {
+  const first = positionals[0] ?? "";
+  let kindToken: string;
+  let name: string | undefined;
+  if (first.includes("/")) {
+    const [k, n] = first.split("/");
+    kindToken = k ?? "";
+    name = n;
+  } else {
+    kindToken = first;
+    name = positionals[1];
+  }
+  const resource = GET_RESOURCE_ALIASES[kindToken.toLowerCase()];
+  if (!resource || !name) return null;
+  if (expect && resource !== expect) return null;
+  return { resource, name };
 }
 
 function unsupported(message: string): Command {
@@ -302,13 +497,23 @@ export async function executeCommand(
       return runApply(command.file, ctx);
     case "delete":
       return runDelete(command.file, ctx);
+    case "delete-resource":
+      return runDeleteResource(command, ctx);
+    case "scale":
+      return runScale(command, ctx);
+    case "rollout":
+      return runRollout(command, rawLine, ctx);
+    case "exec":
+      return runExec(command, rawLine, ctx);
+    case "create-namespace":
+      return runCreateNamespace(command.name, ctx);
     case "unsupported":
       return { output: command.message, isError: command.message !== "", signals: [] };
   }
 }
 
 async function runCurl(url: string, ctx: TerminalContext): Promise<CommandResult> {
-  const result = await ctx.simulator.probe(url);
+  const result = await ctx.simulator.probe(url, ctx.namespace);
   const signals: InvestigationSignal[] = [createProbeSignal(url, result)];
   if (result.status === 0) {
     return {
@@ -383,12 +588,19 @@ function runGet(
   };
 }
 
+interface RenderOpts {
+  /** Prefix a NAMESPACE column (kubectl -A behavior). */
+  showNamespace: boolean;
+  /** -o wide: extra columns where kubectl has them. */
+  wide: boolean;
+}
+
 function renderGet(
   command: Extract<Command, { kind: "get" }>,
   namespace: string,
   snapshot: ClusterSnapshot,
 ): string {
-  const { resource, name, outputYaml } = command;
+  const { resource, name, outputYaml, outputWide, allNamespaces, selector } = command;
 
   if (outputYaml && name) {
     const object = findByName(resource, name, namespace, snapshot);
@@ -396,106 +608,152 @@ function renderGet(
     return stringifyManifest(object);
   }
 
+  const opts: RenderOpts = { showNamespace: allNamespaces, wide: outputWide };
+  const pick = <
+    T extends { metadata?: { name?: string; namespace?: string; labels?: Record<string, string> } },
+  >(
+    items: T[],
+  ): T[] => scopeItems(items, { namespace, allNamespaces, name, selector });
+
   switch (resource) {
     case "pods":
-      return renderPods(inNamespace(snapshot.pods, namespace, name));
+      return renderPods(pick(snapshot.pods), opts);
     case "services":
-      return renderServices(inNamespace(snapshot.services, namespace, name), snapshot);
+      return renderServices(pick(snapshot.services), opts);
     case "deployments":
-      return renderDeployments(inNamespace(snapshot.deployments, namespace, name));
+      return renderDeployments(pick(snapshot.deployments), opts);
     case "replicasets":
-      return renderReplicaSets(inNamespace(snapshot.replicaSets, namespace, name));
+      return renderReplicaSets(pick(snapshot.replicaSets), opts);
     case "endpoints":
-      return renderEndpoints(inNamespace(snapshot.services, namespace, name), snapshot);
+      return renderEndpoints(pick(snapshot.services), snapshot, opts);
     case "endpointslices":
-      return renderEndpointSlices(inNamespace(snapshot.endpointSlices, namespace, name));
+      return renderEndpointSlices(pick(snapshot.endpointSlices), opts);
     case "events":
-      return renderEvents(snapshot.events, namespace, command.sortByLastTimestamp);
+      return renderEvents(snapshot.events, namespace, command.sortByLastTimestamp, allNamespaces);
     case "namespaces":
-      return renderNamespaces(snapshot, name);
+      return renderNamespaces(clusterScoped(snapshot.namespaces, name, selector));
+    case "nodes":
+      return renderNodes(clusterScoped(snapshot.nodes, name, selector), snapshot);
     case "all":
       return [
-        renderPods(inNamespace(snapshot.pods, namespace)),
+        renderPods(pick(snapshot.pods), opts),
         "",
-        renderServices(inNamespace(snapshot.services, namespace), snapshot),
+        renderServices(pick(snapshot.services), opts),
         "",
-        renderDeployments(inNamespace(snapshot.deployments, namespace)),
+        renderDeployments(pick(snapshot.deployments), opts),
         "",
-        renderReplicaSets(inNamespace(snapshot.replicaSets, namespace)),
+        renderReplicaSets(pick(snapshot.replicaSets), opts),
       ].join("\n");
   }
 }
 
-function renderPods(pods: V1Pod[]): string {
+function withNamespaceColumn(
+  opts: RenderOpts,
+  headers: string[],
+  rows: { namespace: string; cells: string[] }[],
+): string {
+  if (!opts.showNamespace)
+    return formatTable(
+      headers,
+      rows.map((r) => r.cells),
+    );
+  return formatTable(
+    ["NAMESPACE", ...headers],
+    rows.map((r) => [r.namespace, ...r.cells]),
+  );
+}
+
+function renderPods(pods: V1Pod[], opts: RenderOpts): string {
   if (pods.length === 0) return "No resources found.";
   const rows = pods.map((pod) => {
     const { ready, total } = podReadyCounts(pod);
-    return [
+    const cells = [
       pod.metadata?.name ?? "<unknown>",
       `${ready}/${total}`,
       podPhase(pod),
       String(podRestarts(pod)),
       humanizeAge(pod.metadata?.creationTimestamp),
     ];
+    if (opts.wide) {
+      cells.push(pod.status?.podIP ?? "<none>", pod.spec?.nodeName ?? "<none>");
+    }
+    return { namespace: pod.metadata?.namespace ?? "default", cells };
   });
-  return formatTable(["NAME", "READY", "STATUS", "RESTARTS", "AGE"], rows);
+  const headers = ["NAME", "READY", "STATUS", "RESTARTS", "AGE"];
+  if (opts.wide) headers.push("IP", "NODE");
+  return withNamespaceColumn(opts, headers, rows);
 }
 
-function renderServices(services: V1Service[], snapshot: ClusterSnapshot): string {
+function renderServices(services: V1Service[], opts: RenderOpts): string {
   if (services.length === 0) return "No resources found.";
-  const rows = services.map((svc) => [
-    svc.metadata?.name ?? "<unknown>",
-    svc.spec?.type ?? "ClusterIP",
-    svc.spec?.clusterIP ?? "<none>",
-    "<none>",
-    servicePortsSummary(svc),
-    humanizeAge(svc.metadata?.creationTimestamp),
-  ]);
-  void snapshot;
-  return formatTable(["NAME", "TYPE", "CLUSTER-IP", "EXTERNAL-IP", "PORT(S)", "AGE"], rows);
+  const rows = services.map((svc) => {
+    const cells = [
+      svc.metadata?.name ?? "<unknown>",
+      svc.spec?.type ?? "ClusterIP",
+      svc.spec?.clusterIP ?? "<none>",
+      "<none>",
+      servicePortsSummary(svc),
+      humanizeAge(svc.metadata?.creationTimestamp),
+    ];
+    if (opts.wide) cells.push(formatSelector(svc.spec?.selector));
+    return { namespace: svc.metadata?.namespace ?? "default", cells };
+  });
+  const headers = ["NAME", "TYPE", "CLUSTER-IP", "EXTERNAL-IP", "PORT(S)", "AGE"];
+  if (opts.wide) headers.push("SELECTOR");
+  return withNamespaceColumn(opts, headers, rows);
 }
 
-function renderDeployments(deployments: ClusterSnapshot["deployments"]): string {
+function renderDeployments(deployments: ClusterSnapshot["deployments"], opts: RenderOpts): string {
   if (deployments.length === 0) return "No resources found.";
-  const rows = deployments.map((d) => [
-    d.metadata?.name ?? "<unknown>",
-    `${deploymentReadyReplicas(d)}/${d.spec?.replicas ?? 0}`,
-    String(d.status?.updatedReplicas ?? 0),
-    String(d.status?.availableReplicas ?? 0),
-    humanizeAge(d.metadata?.creationTimestamp),
-  ]);
-  return formatTable(["NAME", "READY", "UP-TO-DATE", "AVAILABLE", "AGE"], rows);
+  const rows = deployments.map((d) => ({
+    namespace: d.metadata?.namespace ?? "default",
+    cells: [
+      d.metadata?.name ?? "<unknown>",
+      `${deploymentReadyReplicas(d)}/${d.spec?.replicas ?? 0}`,
+      String(d.status?.updatedReplicas ?? 0),
+      String(d.status?.availableReplicas ?? 0),
+      humanizeAge(d.metadata?.creationTimestamp),
+    ],
+  }));
+  return withNamespaceColumn(opts, ["NAME", "READY", "UP-TO-DATE", "AVAILABLE", "AGE"], rows);
 }
 
-function renderReplicaSets(replicaSets: ClusterSnapshot["replicaSets"]): string {
+function renderReplicaSets(replicaSets: ClusterSnapshot["replicaSets"], opts: RenderOpts): string {
   if (replicaSets.length === 0) return "No resources found.";
-  const rows = replicaSets.map((rs) => [
-    rs.metadata?.name ?? "<unknown>",
-    String(rs.spec?.replicas ?? 0),
-    String(rs.status?.replicas ?? 0),
-    String(rs.status?.readyReplicas ?? 0),
-    humanizeAge(rs.metadata?.creationTimestamp),
-  ]);
-  return formatTable(["NAME", "DESIRED", "CURRENT", "READY", "AGE"], rows);
+  const rows = replicaSets.map((rs) => ({
+    namespace: rs.metadata?.namespace ?? "default",
+    cells: [
+      rs.metadata?.name ?? "<unknown>",
+      String(rs.spec?.replicas ?? 0),
+      String(rs.status?.replicas ?? 0),
+      String(rs.status?.readyReplicas ?? 0),
+      humanizeAge(rs.metadata?.creationTimestamp),
+    ],
+  }));
+  return withNamespaceColumn(opts, ["NAME", "DESIRED", "CURRENT", "READY", "AGE"], rows);
 }
 
-function renderEndpoints(services: V1Service[], snapshot: ClusterSnapshot): string {
+function renderEndpoints(
+  services: V1Service[],
+  snapshot: ClusterSnapshot,
+  opts: RenderOpts,
+): string {
   if (services.length === 0) return "No resources found.";
   const rows = services.map((svc) => {
     const addresses = readyAddresses(svc, snapshot);
-    return [
-      svc.metadata?.name ?? "<unknown>",
-      addresses.length > 0 ? addresses.join(",") : "<none>",
-      humanizeAge(svc.metadata?.creationTimestamp),
-    ];
+    return {
+      namespace: svc.metadata?.namespace ?? "default",
+      cells: [
+        svc.metadata?.name ?? "<unknown>",
+        addresses.length > 0 ? addresses.join(",") : "<none>",
+        humanizeAge(svc.metadata?.creationTimestamp),
+      ],
+    };
   });
-  return formatTable(["NAME", "ENDPOINTS", "AGE"], rows);
+  return withNamespaceColumn(opts, ["NAME", "ENDPOINTS", "AGE"], rows);
 }
 
-function renderNamespaces(snapshot: ClusterSnapshot, name?: string): string {
-  const namespaces = snapshot.namespaces.filter(
-    (n) => name === undefined || n.metadata?.name === name,
-  );
+function renderNamespaces(namespaces: ClusterSnapshot["namespaces"]): string {
   if (namespaces.length === 0) return "No resources found.";
   const rows = namespaces.map((n) => [
     n.metadata?.name ?? "<unknown>",
@@ -505,40 +763,73 @@ function renderNamespaces(snapshot: ClusterSnapshot, name?: string): string {
   return formatTable(["NAME", "STATUS", "AGE"], rows);
 }
 
-function renderEndpointSlices(slices: ClusterSnapshot["endpointSlices"]): string {
+function renderNodes(nodes: V1Node[], snapshot: ClusterSnapshot): string {
+  if (nodes.length === 0) return "No resources found.";
+  const rows = nodes.map((node) => {
+    const name = node.metadata?.name ?? "<unknown>";
+    const ready = (node.status?.conditions ?? []).find((c) => c.type === "Ready");
+    const roles = Object.keys(node.metadata?.labels ?? {})
+      .filter((l) => l.startsWith("node-role.kubernetes.io/"))
+      .map((l) => l.split("/")[1])
+      .filter(Boolean)
+      .join(",");
+    const podCount = snapshot.pods.filter((p) => p.spec?.nodeName === name).length;
+    return [
+      name,
+      ready?.status === "True" ? "Ready" : "NotReady",
+      roles || "<none>",
+      String(podCount),
+      humanizeAge(node.metadata?.creationTimestamp),
+      node.status?.nodeInfo?.kubeletVersion ?? "<unknown>",
+    ];
+  });
+  return formatTable(["NAME", "STATUS", "ROLES", "PODS", "AGE", "VERSION"], rows);
+}
+
+function renderEndpointSlices(slices: ClusterSnapshot["endpointSlices"], opts: RenderOpts): string {
   if (slices.length === 0) return "No resources found.";
   const rows = slices.map((slice) => {
     const ports = (slice.ports ?? []).map((p) => String(p.port ?? "")).join(",") || "<none>";
     const addresses = (slice.endpoints ?? []).flatMap((e) => e.addresses ?? []);
-    return [
-      slice.metadata?.name ?? "<unknown>",
-      slice.addressType ?? "IPv4",
-      ports,
-      addresses.length > 0 ? addresses.join(",") : "<none>",
-      humanizeAge(slice.metadata?.creationTimestamp),
-    ];
+    return {
+      namespace: slice.metadata?.namespace ?? "default",
+      cells: [
+        slice.metadata?.name ?? "<unknown>",
+        slice.addressType ?? "IPv4",
+        ports,
+        addresses.length > 0 ? addresses.join(",") : "<none>",
+        humanizeAge(slice.metadata?.creationTimestamp),
+      ],
+    };
   });
-  return formatTable(["NAME", "ADDRESSTYPE", "PORTS", "ENDPOINTS", "AGE"], rows);
+  return withNamespaceColumn(opts, ["NAME", "ADDRESSTYPE", "PORTS", "ENDPOINTS", "AGE"], rows);
 }
 
 function renderEvents(
   events: CoreV1Event[],
   namespace: string,
   sortByLastTimestamp: boolean,
+  allNamespaces = false,
 ): string {
-  const filtered = events.filter((e) => (e.metadata?.namespace ?? "default") === namespace);
+  const filtered = allNamespaces
+    ? events
+    : events.filter((e) => (e.metadata?.namespace ?? "default") === namespace);
   if (filtered.length === 0) return "No events found.";
   const sorted = sortByLastTimestamp
     ? [...filtered].sort((a, b) => timeOf(a) - timeOf(b))
     : filtered;
-  const rows = sorted.map((e) => [
-    eventAge(e),
-    e.type ?? "Normal",
-    e.reason ?? "",
-    `${e.involvedObject?.kind ?? ""}/${e.involvedObject?.name ?? ""}`,
-    e.message ?? "",
-  ]);
-  return formatTable(["LAST SEEN", "TYPE", "REASON", "OBJECT", "MESSAGE"], rows);
+  const rows = sorted.map((e) => {
+    const cells = [
+      eventAge(e),
+      e.type ?? "Normal",
+      e.reason ?? "",
+      `${e.involvedObject?.kind ?? ""}/${e.involvedObject?.name ?? ""}`,
+      e.message ?? "",
+    ];
+    return allNamespaces ? [e.metadata?.namespace ?? "default", ...cells] : cells;
+  });
+  const headers = ["LAST SEEN", "TYPE", "REASON", "OBJECT", "MESSAGE"];
+  return formatTable(allNamespaces ? ["NAMESPACE", ...headers] : headers, rows);
 }
 
 function runDescribe(
@@ -548,38 +839,163 @@ function runDescribe(
 ): CommandResult {
   const snapshot = ctx.simulator.getSnapshot();
   const namespace = command.namespace ?? ctx.namespace;
+  const named = <T extends { metadata?: { name?: string; namespace?: string } }>(
+    items: T[],
+    namespaced = true,
+  ): T | undefined =>
+    items.find(
+      (item) =>
+        item.metadata?.name === command.name &&
+        (!namespaced || (item.metadata?.namespace ?? "default") === namespace),
+    );
+
   let output: string;
-  if (command.resource === "pod") {
-    const pod = snapshot.pods.find(
-      (p) =>
-        p.metadata?.name === command.name && (p.metadata?.namespace ?? "default") === namespace,
-    );
-    output = pod ? describePod(pod, snapshot) : notFound("pod", command.name, namespace);
-  } else if (command.resource === "service") {
-    const svc = snapshot.services.find(
-      (s) =>
-        s.metadata?.name === command.name && (s.metadata?.namespace ?? "default") === namespace,
-    );
-    output = svc ? describeService(svc, snapshot) : notFound("service", command.name, namespace);
-  } else {
-    const dep = snapshot.deployments.find(
-      (d) =>
-        d.metadata?.name === command.name && (d.metadata?.namespace ?? "default") === namespace,
-    );
-    output = dep
-      ? [
-          `Name:               ${dep.metadata?.name}`,
-          `Namespace:          ${dep.metadata?.namespace ?? "default"}`,
-          `Replicas:           ${deploymentReadyReplicas(dep)} ready / ${dep.spec?.replicas ?? 0} desired`,
-          `Selector:           ${formatSelector(dep.spec?.selector?.matchLabels)}`,
-        ].join("\n")
-      : notFound("deployment", command.name, namespace);
+  switch (command.resource) {
+    case "pod": {
+      const pod = named(snapshot.pods);
+      output = pod ? describePod(pod, snapshot) : notFound("pod", command.name, namespace);
+      break;
+    }
+    case "service": {
+      const svc = named(snapshot.services);
+      output = svc ? describeService(svc, snapshot) : notFound("service", command.name, namespace);
+      break;
+    }
+    case "deployment": {
+      const dep = named(snapshot.deployments);
+      output = dep
+        ? describeDeployment(dep, snapshot)
+        : notFound("deployment", command.name, namespace);
+      break;
+    }
+    case "replicaset": {
+      const rs = named(snapshot.replicaSets);
+      output = rs
+        ? describeReplicaSet(rs, snapshot)
+        : notFound("replicaset", command.name, namespace);
+      break;
+    }
+    case "namespace": {
+      const ns = named(snapshot.namespaces, false);
+      output = ns
+        ? describeNamespace(ns, snapshot)
+        : notFound("namespace", command.name, namespace);
+      break;
+    }
+    case "node": {
+      const node = named(snapshot.nodes, false);
+      output = node ? describeNode(node, snapshot) : notFound("node", command.name, namespace);
+      break;
+    }
   }
   return {
     output,
     isError: false,
     signals: [{ type: "command", command: rawLine, output }],
   };
+}
+
+function describeDeployment(dep: V1Deployment, snapshot: ClusterSnapshot): string {
+  const name = dep.metadata?.name ?? "<unknown>";
+  const strategy = dep.spec?.strategy?.type ?? "RollingUpdate";
+  const rolling = dep.spec?.strategy?.rollingUpdate;
+  const lines = [
+    `Name:               ${name}`,
+    `Namespace:          ${dep.metadata?.namespace ?? "default"}`,
+    `Labels:             ${formatSelector(dep.metadata?.labels)}`,
+    `Selector:           ${formatSelector(dep.spec?.selector?.matchLabels)}`,
+    `Replicas:           ${dep.spec?.replicas ?? 0} desired | ${dep.status?.updatedReplicas ?? 0} updated | ${dep.status?.replicas ?? 0} total | ${dep.status?.availableReplicas ?? 0} available`,
+    `StrategyType:       ${strategy}`,
+  ];
+  if (strategy === "RollingUpdate" && rolling) {
+    lines.push(
+      `RollingUpdateStrategy:  ${String(rolling.maxUnavailable ?? "25%")} max unavailable, ${String(rolling.maxSurge ?? "25%")} max surge`,
+    );
+  }
+  const images = (dep.spec?.template?.spec?.containers ?? [])
+    .map((c) => c.image)
+    .filter(Boolean)
+    .join(", ");
+  if (images) lines.push(`Image(s):           ${images}`);
+  const conditions = dep.status?.conditions ?? [];
+  if (conditions.length > 0) {
+    lines.push("Conditions:", "  Type           Status  Reason");
+    for (const c of conditions) {
+      lines.push(`  ${(c.type ?? "").padEnd(15)}${(c.status ?? "").padEnd(8)}${c.reason ?? ""}`);
+    }
+  }
+  const events = relatedEvents(snapshot.events, name);
+  if (events.length > 0) {
+    lines.push("Events:");
+    for (const e of events)
+      lines.push(`  ${e.type ?? "Normal"}  ${e.reason ?? ""}  ${e.message ?? ""}`);
+  }
+  return lines.join("\n");
+}
+
+function describeReplicaSet(rs: V1ReplicaSet, snapshot: ClusterSnapshot): string {
+  const name = rs.metadata?.name ?? "<unknown>";
+  const owner = (rs.metadata?.ownerReferences ?? [])[0];
+  const lines = [
+    `Name:               ${name}`,
+    `Namespace:          ${rs.metadata?.namespace ?? "default"}`,
+    `Selector:           ${formatSelector(rs.spec?.selector?.matchLabels)}`,
+    `Labels:             ${formatSelector(rs.metadata?.labels)}`,
+    `Controlled By:      ${owner ? `${owner.kind}/${owner.name}` : "<none>"}`,
+    `Replicas:           ${rs.status?.replicas ?? 0} current / ${rs.spec?.replicas ?? 0} desired`,
+    `Pods Status:        ${rs.status?.readyReplicas ?? 0} ready`,
+  ];
+  const events = relatedEvents(snapshot.events, name);
+  if (events.length > 0) {
+    lines.push("Events:");
+    for (const e of events)
+      lines.push(`  ${e.type ?? "Normal"}  ${e.reason ?? ""}  ${e.message ?? ""}`);
+  }
+  return lines.join("\n");
+}
+
+function describeNamespace(
+  ns: ClusterSnapshot["namespaces"][number],
+  snapshot: ClusterSnapshot,
+): string {
+  const name = ns.metadata?.name ?? "<unknown>";
+  const podCount = snapshot.pods.filter(
+    (p) => (p.metadata?.namespace ?? "default") === name,
+  ).length;
+  const svcCount = snapshot.services.filter(
+    (s) => (s.metadata?.namespace ?? "default") === name,
+  ).length;
+  return [
+    `Name:         ${name}`,
+    `Labels:       ${formatSelector(ns.metadata?.labels)}`,
+    `Status:       ${ns.status?.phase ?? "Active"}`,
+    "",
+    `Resources in namespace: ${podCount} pod(s), ${svcCount} service(s)`,
+    "",
+    "No resource quota.",
+    "No LimitRange resource.",
+  ].join("\n");
+}
+
+function describeNode(node: V1Node, snapshot: ClusterSnapshot): string {
+  const name = node.metadata?.name ?? "<unknown>";
+  const lines = [
+    `Name:               ${name}`,
+    `Labels:             ${formatSelector(node.metadata?.labels)}`,
+    `Kubelet Version:    ${node.status?.nodeInfo?.kubeletVersion ?? "<unknown>"}`,
+    `Pod CIDR:           ${node.spec?.podCIDR ?? "<none>"}`,
+  ];
+  const conditions = node.status?.conditions ?? [];
+  if (conditions.length > 0) {
+    lines.push("Conditions:", "  Type    Status");
+    for (const c of conditions) lines.push(`  ${(c.type ?? "").padEnd(8)}${c.status ?? ""}`);
+  }
+  const pods = snapshot.pods.filter((p) => p.spec?.nodeName === name);
+  lines.push(`Non-terminated Pods:  (${pods.length} in total)`);
+  for (const p of pods) {
+    lines.push(`  ${p.metadata?.namespace ?? "default"}/${p.metadata?.name ?? "<unknown>"}`);
+  }
+  return lines.join("\n");
 }
 
 function describePod(pod: V1Pod, snapshot: ClusterSnapshot): string {
@@ -718,6 +1134,143 @@ async function runDelete(file: string, ctx: TerminalContext): Promise<CommandRes
   return { output: output || "no resources to delete", isError: false, signals: [] };
 }
 
+const CAPABILITY_UNAVAILABLE = "this command is not available in this scenario.";
+
+async function runDeleteResource(
+  command: Extract<Command, { kind: "delete-resource" }>,
+  ctx: TerminalContext,
+): Promise<CommandResult> {
+  if (!ctx.simulator.deleteResource) {
+    return { output: `kubectl delete: ${CAPABILITY_UNAVAILABLE}`, isError: true, signals: [] };
+  }
+  const namespace = command.namespace ?? ctx.namespace;
+  const result = await ctx.simulator.deleteResource(command.manifestKind, command.name, namespace);
+  if (!result.ok) return { output: `error: ${result.error}`, isError: true, signals: [] };
+  return {
+    output: `${command.manifestKind.toLowerCase()} "${command.name}" deleted`,
+    isError: false,
+    signals: [],
+  };
+}
+
+async function runScale(
+  command: Extract<Command, { kind: "scale" }>,
+  ctx: TerminalContext,
+): Promise<CommandResult> {
+  if (!ctx.simulator.scaleDeployment) {
+    return { output: `kubectl scale: ${CAPABILITY_UNAVAILABLE}`, isError: true, signals: [] };
+  }
+  const namespace = command.namespace ?? ctx.namespace;
+  const result = await ctx.simulator.scaleDeployment(command.name, namespace, command.replicas);
+  if (!result.ok) return { output: `error: ${result.error}`, isError: true, signals: [] };
+  return { output: `deployment.apps/${command.name} scaled`, isError: false, signals: [] };
+}
+
+async function runRollout(
+  command: Extract<Command, { kind: "rollout" }>,
+  rawLine: string,
+  ctx: TerminalContext,
+): Promise<CommandResult> {
+  const namespace = command.namespace ?? ctx.namespace;
+  const snapshot = ctx.simulator.getSnapshot();
+  const deployment = snapshot.deployments.find(
+    (d) => d.metadata?.name === command.name && (d.metadata?.namespace ?? "default") === namespace,
+  );
+  if (!deployment) {
+    return { output: notFound("deployment", command.name, namespace), isError: true, signals: [] };
+  }
+
+  if (command.verb === "restart") {
+    if (!ctx.simulator.restartDeployment) {
+      return {
+        output: `kubectl rollout restart: ${CAPABILITY_UNAVAILABLE}`,
+        isError: true,
+        signals: [],
+      };
+    }
+    const result = await ctx.simulator.restartDeployment(command.name, namespace);
+    if (!result.ok) return { output: `error: ${result.error}`, isError: true, signals: [] };
+    return { output: `deployment.apps/${command.name} restarted`, isError: false, signals: [] };
+  }
+
+  if (command.verb === "history") {
+    const owned = snapshot.replicaSets
+      .filter(
+        (rs) =>
+          (rs.metadata?.namespace ?? "default") === namespace &&
+          (rs.metadata?.ownerReferences ?? []).some(
+            (ref) => ref.kind === "Deployment" && ref.name === command.name,
+          ),
+      )
+      .map((rs) => ({
+        revision: Number(rs.metadata?.annotations?.["deployment.kubernetes.io/revision"] ?? 0),
+        rs,
+      }))
+      .sort((a, b) => a.revision - b.revision);
+    const rows = owned.map(({ revision, rs }) => [
+      String(revision || "<none>"),
+      rs.metadata?.name ?? "<unknown>",
+      `${rs.status?.readyReplicas ?? 0}/${rs.spec?.replicas ?? 0} ready`,
+    ]);
+    const output =
+      rows.length > 0
+        ? `deployment.apps/${command.name}\n${formatTable(["REVISION", "REPLICASET", "STATUS"], rows)}`
+        : `deployment.apps/${command.name}\nNo rollout history found.`;
+    return { output, isError: false, signals: [{ type: "command", command: rawLine, output }] };
+  }
+
+  // status — mirror kubectl's phrasing from live status fields.
+  const desired = deployment.spec?.replicas ?? 0;
+  const updated = deployment.status?.updatedReplicas ?? 0;
+  const available = deployment.status?.availableReplicas ?? 0;
+  const total = deployment.status?.replicas ?? 0;
+  let output: string;
+  if (updated < desired) {
+    output = `Waiting for deployment "${command.name}" rollout to finish: ${updated} out of ${desired} new replicas have been updated...`;
+  } else if (total > updated) {
+    output = `Waiting for deployment "${command.name}" rollout to finish: ${total - updated} old replicas are pending termination...`;
+  } else if (available < desired) {
+    output = `Waiting for deployment "${command.name}" rollout to finish: ${available} of ${desired} updated replicas are available...`;
+  } else {
+    output = `deployment "${command.name}" successfully rolled out`;
+  }
+  return { output, isError: false, signals: [{ type: "command", command: rawLine, output }] };
+}
+
+async function runExec(
+  command: Extract<Command, { kind: "exec" }>,
+  rawLine: string,
+  ctx: TerminalContext,
+): Promise<CommandResult> {
+  if (!ctx.simulator.exec) {
+    return { output: `kubectl exec: ${CAPABILITY_UNAVAILABLE}`, isError: true, signals: [] };
+  }
+  const namespace = command.namespace ?? ctx.namespace;
+  const snapshot = ctx.simulator.getSnapshot();
+  const pod = snapshot.pods.find(
+    (p) => p.metadata?.name === command.pod && (p.metadata?.namespace ?? "default") === namespace,
+  );
+  if (!pod) return { output: notFound("pod", command.pod, namespace), isError: true, signals: [] };
+  const result = await ctx.simulator.exec(namespace, command.pod, command.container, command.argv);
+  if (!result.ok) return { output: `error: ${result.error}`, isError: true, signals: [] };
+  const { exitCode, stdout, stderr } = result.value;
+  const parts = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean);
+  if (exitCode !== 0) parts.push(`command terminated with exit code ${exitCode}`);
+  const output = parts.join("\n") || "";
+  return {
+    output,
+    isError: exitCode !== 0,
+    signals: [{ type: "command", command: rawLine, output }],
+  };
+}
+
+async function runCreateNamespace(name: string, ctx: TerminalContext): Promise<CommandResult> {
+  const manifest = `apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ${name}\n`;
+  const result = await ctx.simulator.applyYaml(manifest);
+  if (!result.ok) return { output: `error: ${result.error}`, isError: true, signals: [] };
+  return { output: `namespace/${name} created`, isError: false, signals: [] };
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -747,15 +1300,31 @@ function buildGetSignals(
   return signals;
 }
 
-function inNamespace<T extends { metadata?: { name?: string; namespace?: string } }>(
+/** Namespace + name + label-selector filtering for namespaced resources. */
+function scopeItems<
+  T extends { metadata?: { name?: string; namespace?: string; labels?: Record<string, string> } },
+>(
   items: T[],
-  namespace: string,
-  name?: string,
+  scope: { namespace: string; allNamespaces: boolean; name?: string; selector?: string },
 ): T[] {
   return items.filter(
     (item) =>
-      (item.metadata?.namespace ?? "default") === namespace &&
-      (name === undefined || item.metadata?.name === name),
+      (scope.allNamespaces || (item.metadata?.namespace ?? "default") === scope.namespace) &&
+      (scope.name === undefined || item.metadata?.name === scope.name) &&
+      (scope.selector === undefined || matchesLabelSelector(item.metadata?.labels, scope.selector)),
+  );
+}
+
+/** Name + label-selector filtering for cluster-scoped resources (nodes, namespaces). */
+function clusterScoped<T extends { metadata?: { name?: string; labels?: Record<string, string> } }>(
+  items: T[],
+  name?: string,
+  selector?: string,
+): T[] {
+  return items.filter(
+    (item) =>
+      (name === undefined || item.metadata?.name === name) &&
+      (selector === undefined || matchesLabelSelector(item.metadata?.labels, selector)),
   );
 }
 
@@ -765,6 +1334,8 @@ function findByName(
   namespace: string,
   snapshot: ClusterSnapshot,
 ): unknown {
+  if (resource === "nodes") return snapshot.nodes.find((n) => n.metadata?.name === name);
+  if (resource === "namespaces") return snapshot.namespaces.find((n) => n.metadata?.name === name);
   const map: Partial<Record<GetResource, { metadata?: { name?: string; namespace?: string } }[]>> =
     {
       pods: snapshot.pods,
@@ -824,20 +1395,120 @@ function notFound(resource: string, name: string, namespace: string): string {
   return `Error from server (NotFound): ${resource} "${name}" not found in namespace "${namespace}".`;
 }
 
+export interface CommandReferenceEntry {
+  command: string;
+  description: string;
+  category: "Read" | "Change" | "Debug" | "Network" | "Shell";
+}
+
+/**
+ * The single source of truth for what the simulated shell supports — rendered by
+ * `help` in the terminal and by the searchable command reference in the UI.
+ */
+export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
+  {
+    command: "kubectl get pods|svc|deploy|rs|endpoints|eps|ns|nodes|events|all",
+    description: "List resources (aliases work: po, svc, deploy, rs, ns, no)",
+    category: "Read",
+  },
+  {
+    command: "kubectl get <resource> <name> -o yaml",
+    description: "Print a resource's full manifest",
+    category: "Read",
+  },
+  {
+    command: "kubectl get pods -o wide",
+    description: "List pods with IP and node columns",
+    category: "Read",
+  },
+  {
+    command: "kubectl get pods -l app=web",
+    description: "Filter by label selector (k=v, k!=v, bare key)",
+    category: "Read",
+  },
+  {
+    command: "kubectl get pods -A",
+    description: "List across all namespaces",
+    category: "Read",
+  },
+  {
+    command: "kubectl get events --sort-by=.lastTimestamp",
+    description: "Events, oldest first",
+    category: "Read",
+  },
+  {
+    command: "kubectl describe pod|svc|deploy|rs|ns|node <name>",
+    description: "Detailed state, probes, conditions, and recent events",
+    category: "Read",
+  },
+  {
+    command: "kubectl apply -f <file>",
+    description: "Apply a manifest from the editor",
+    category: "Change",
+  },
+  {
+    command: "kubectl delete -f <file>",
+    description: "Delete everything a manifest file declares",
+    category: "Change",
+  },
+  {
+    command: "kubectl delete <pod|svc|deploy|rs|ns|node> <name>",
+    description: "Delete one resource by name",
+    category: "Change",
+  },
+  {
+    command: "kubectl scale deployment <name> --replicas=<n>",
+    description: "Set a deployment's desired replica count",
+    category: "Change",
+  },
+  {
+    command: "kubectl rollout status deployment/<name>",
+    description: "Report rollout progress",
+    category: "Change",
+  },
+  {
+    command: "kubectl rollout restart deployment/<name>",
+    description: "Trigger a rolling restart",
+    category: "Change",
+  },
+  {
+    command: "kubectl rollout history deployment/<name>",
+    description: "List a deployment's ReplicaSet revisions",
+    category: "Change",
+  },
+  {
+    command: "kubectl create namespace <name>",
+    description: "Create a namespace",
+    category: "Change",
+  },
+  {
+    command: "kubectl logs <pod> [-c <container>]",
+    description: "Print a pod's container logs",
+    category: "Debug",
+  },
+  {
+    command: "kubectl exec <pod> [-c <container>] -- <cmd>",
+    description: "Run a command inside a container (env, cat, sh -c ...)",
+    category: "Debug",
+  },
+  {
+    command: "curl <url>",
+    description: "Probe a Service or pod URL through the cluster network",
+    category: "Network",
+  },
+  {
+    command: "dig <service>",
+    description: "Resolve a Service's cluster IP (DNS forms supported)",
+    category: "Network",
+  },
+  { command: "clear", description: "Clear the terminal (Ctrl+L)", category: "Shell" },
+  { command: "help", description: "Show this message", category: "Shell" },
+];
+
 const HELP_TEXT = [
   "klab simulated shell — supported commands:",
   "",
-  "  kubectl get pods|svc|deployments|replicasets|endpoints|endpointslices|namespaces|events",
-  "  kubectl get <resource> <name> -o yaml",
-  "  kubectl get events --sort-by=.lastTimestamp",
-  "  kubectl describe pod|svc|deployment <name>",
-  "  kubectl logs <pod> [-c <container>]",
-  "  kubectl apply -f <file>",
-  "  kubectl delete -f <file>",
-  "  curl <url>              probe a Service or pod URL",
-  "  dig <service>          resolve a Service's cluster IP",
-  "  clear                  clear the terminal (Ctrl+L)",
-  "  help                   show this message",
+  ...COMMAND_REFERENCE.map((entry) => `  ${entry.command.padEnd(56)} ${entry.description}`),
   "",
-  "Flags: -n <namespace>, -o yaml. This is a learning simulator, not a real shell.",
+  "Flags: -n <namespace>, -A, -l <selector>, -o yaml|wide. This is a learning simulator, not a real shell.",
 ].join("\n");

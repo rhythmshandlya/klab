@@ -33,6 +33,7 @@ import {
   Lock,
   Menu,
   Network,
+  Pause,
   Play,
   RotateCcw,
   Route,
@@ -42,6 +43,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Terminal,
+  Trash2,
   Trophy,
   Users,
   XCircle,
@@ -69,6 +71,7 @@ export const icons = {
   warning: AlertTriangle,
   error: XCircle,
   run: Play,
+  pause: Pause,
   reset: RotateCcw,
   diff: GitCompare,
   validate: ShieldCheck,
@@ -90,6 +93,7 @@ export const icons = {
   challenge: Zap,
   community: Users,
   close: X,
+  trash: Trash2,
   menu: Menu,
 } as const;
 

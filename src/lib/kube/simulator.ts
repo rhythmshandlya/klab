@@ -7,6 +7,7 @@ import type {
   ImageConstructor,
   Informer,
   KubernetesObject,
+  NetworkResponseEvent,
   V1Deployment,
   V1EndpointSlice,
   V1Namespace,
@@ -60,6 +61,27 @@ export interface AppliedResourceRef {
   namespace: string;
 }
 
+/** One hop in a simulated network request's path (pod → service → pod ...). */
+export interface NetworkActivityHop {
+  kind: "pod" | "node" | "service" | "external";
+  name: string;
+}
+
+/** A completed request on the cluster network, recorded for the activity feed. */
+export interface NetworkActivityEvent {
+  id: number;
+  /** Wall-clock ms when the response was observed. */
+  at: number;
+  method: string;
+  url: string;
+  status?: number;
+  error?: string;
+  latencyMs: number;
+  hops: NetworkActivityHop[];
+  /** True for kubelet health-check traffic (readiness/liveness/startup probes). */
+  isProbe: boolean;
+}
+
 const EMPTY_SNAPSHOT: ClusterSnapshot = {
   pods: [],
   services: [],
@@ -83,6 +105,9 @@ const INFORMER_RESOURCES: ClusterInformerResource[] = [
 ];
 
 type SnapshotListener = (snapshot: ClusterSnapshot) => void;
+type NetworkActivityListener = (events: readonly NetworkActivityEvent[]) => void;
+
+const NETWORK_ACTIVITY_LIMIT = 100;
 
 export interface KubeSimulatorOptions {
   /** Image constructors to register. Defaults to all klab images. */
@@ -95,6 +120,9 @@ export class KubeSimulator {
   private readonly caches = new Map<ClusterInformerResource, Map<string, KubernetesObject>>();
   private readonly listeners = new Set<SnapshotListener>();
   private snapshot: ClusterSnapshot = EMPTY_SNAPSHOT;
+  private networkActivity: NetworkActivityEvent[] = [];
+  private networkListeners = new Set<NetworkActivityListener>();
+  private networkEventId = 0;
   private notifyScheduled = false;
   private statusValue: SimulatorStatus = "idle";
   private readonly options: KubeSimulatorOptions;
@@ -150,6 +178,7 @@ export class KubeSimulator {
       for (const image of images) cluster.registerImage(image);
       await cluster.init();
       this.cluster = cluster;
+      cluster.on("response", (event) => this.recordNetworkEvent(event));
       this.startInformers(cluster);
       this.statusValue = "ready";
       this.rebuildAndNotify();
@@ -280,31 +309,10 @@ export class KubeSimulator {
     if (!parsed.ok) return err(parsed.error.message);
     const cluster = this.requireCluster();
     if (!cluster.ok) return cluster;
-    const api = cluster.value.api;
     const deleted: AppliedResourceRef[] = [];
     try {
       for (const m of parsed.value) {
-        const ref = { name: m.name, namespace: m.namespace };
-        switch (m.kind) {
-          case "Deployment":
-            await api.appsv1.deleteNamespacedDeployment(ref);
-            break;
-          case "ReplicaSet":
-            await api.appsv1.deleteNamespacedReplicaSet(ref);
-            break;
-          case "Pod":
-            await api.corev1.deleteNamespacedPod(ref);
-            break;
-          case "Service":
-            await api.corev1.deleteNamespacedService(ref);
-            break;
-          case "Namespace":
-            await api.corev1.deleteNamespace({ name: m.name });
-            break;
-          case "Node":
-            await api.corev1.deleteNode({ name: m.name });
-            break;
-        }
+        await deleteByKind(cluster.value, m.kind, m.name, m.namespace);
         deleted.push({ kind: m.kind, name: m.name, namespace: m.namespace });
       }
       return ok(deleted);
@@ -314,11 +322,11 @@ export class KubeSimulator {
   }
 
   /** Probe a URL through the cluster network (powers curl + the network-probe panel). */
-  async probe(url: string): Promise<ProbeResult> {
+  async probe(url: string, namespace = "default"): Promise<ProbeResult> {
     const cluster = this.requireCluster();
     if (!cluster.ok) return { ok: false, status: 0, body: "", reason: cluster.error };
     try {
-      const response = await cluster.value.fetch(url);
+      const response = await cluster.value.fetch(this.expandServiceUrl(url, namespace));
       return {
         ok: response.status >= 200 && response.status < 400,
         status: response.status,
@@ -326,6 +334,28 @@ export class KubeSimulator {
       };
     } catch (error) {
       return { ok: false, status: 0, body: "", reason: describeError(error, "Request failed") };
+    }
+  }
+
+  /**
+   * Mirror a pod's DNS search domains for probe URLs: `http://web-svc/` resolves the
+   * way it would inside a pod, i.e. `web-svc.<ns>.svc.cluster.local`. Bare cluster
+   * fetches originate "outside" the pod network, so short names would otherwise fail.
+   */
+  private expandServiceUrl(url: string, namespace: string): string {
+    try {
+      const parsed = new URL(url.includes("://") ? url : `http://${url}`);
+      const host = parsed.hostname;
+      // Dotted hosts (FQDNs, IPs) pass through untouched — only bare names expand.
+      if (host.includes(".")) return url;
+      const isService = this.snapshot.services.some(
+        (s) => s.metadata?.name === host && (s.metadata?.namespace ?? "default") === namespace,
+      );
+      if (!isService) return url;
+      parsed.hostname = `${host}.${namespace}.svc.cluster.local`;
+      return parsed.toString();
+    } catch {
+      return url;
     }
   }
 
@@ -348,6 +378,127 @@ export class KubeSimulator {
 
   getLogs(namespace: string, pod: string, container?: string): LogLine[] {
     return logSink.forPod(namespace, pod, container);
+  }
+
+  /** Set a Deployment's desired replica count via the scale subresource. */
+  async scaleDeployment(
+    name: string,
+    namespace: string,
+    replicas: number,
+  ): Promise<Result<void, string>> {
+    const cluster = this.requireCluster();
+    if (!cluster.ok) return cluster;
+    try {
+      const scale = await cluster.value.api.appsv1.readNamespacedDeploymentScale({
+        name,
+        namespace,
+      });
+      scale.spec = { ...scale.spec, replicas };
+      await cluster.value.api.appsv1.replaceNamespacedDeploymentScale({
+        name,
+        namespace,
+        body: scale,
+      });
+      return ok(undefined);
+    } catch (error) {
+      return err(describeError(error, `Failed to scale deployment "${name}"`));
+    }
+  }
+
+  /**
+   * Trigger a rolling restart the way `kubectl rollout restart` does: stamp the pod
+   * template with a restartedAt annotation so the deployment controller rolls new pods.
+   */
+  async restartDeployment(name: string, namespace: string): Promise<Result<void, string>> {
+    const cluster = this.requireCluster();
+    if (!cluster.ok) return cluster;
+    try {
+      const { PatchStrategy, setHeaderOptions } = await import("@ngrok/webernetes");
+      await cluster.value.api.appsv1.patchNamespacedDeployment(
+        {
+          name,
+          namespace,
+          body: {
+            spec: {
+              template: {
+                metadata: {
+                  annotations: {
+                    "kubectl.kubernetes.io/restartedAt": new Date().toISOString(),
+                  },
+                },
+              },
+            },
+          },
+        },
+        setHeaderOptions("Content-Type", PatchStrategy.StrategicMergePatch),
+      );
+      return ok(undefined);
+    } catch (error) {
+      return err(describeError(error, `Failed to restart deployment "${name}"`));
+    }
+  }
+
+  /** Delete a single resource by kind + name (kubectl delete <kind> <name>). */
+  async deleteResource(
+    kind: string,
+    name: string,
+    namespace: string,
+  ): Promise<Result<void, string>> {
+    const cluster = this.requireCluster();
+    if (!cluster.ok) return cluster;
+    try {
+      await deleteByKind(cluster.value, kind, name, namespace);
+      return ok(undefined);
+    } catch (error) {
+      return err(describeError(error, `Failed to delete ${kind.toLowerCase()} "${name}"`));
+    }
+  }
+
+  /** Freeze the whole simulation (controllers, probes, network, virtual clock). */
+  pause(): void {
+    this.cluster?.pause();
+  }
+
+  /** Resume a paused simulation. */
+  resume(): void {
+    this.cluster?.resume();
+  }
+
+  isPaused(): boolean {
+    return this.cluster?.isPaused() ?? false;
+  }
+
+  getNetworkActivity(): readonly NetworkActivityEvent[] {
+    return this.networkActivity;
+  }
+
+  subscribeNetworkActivity(listener: NetworkActivityListener): () => void {
+    this.networkListeners.add(listener);
+    listener(this.networkActivity);
+    return () => this.networkListeners.delete(listener);
+  }
+
+  private recordNetworkEvent(event: NetworkResponseEvent): void {
+    const record: NetworkActivityEvent = {
+      id: ++this.networkEventId,
+      at: Date.now(),
+      method: event.request.method,
+      url: event.request.url.toString(),
+      status: event.response?.status,
+      error: event.error?.message,
+      latencyMs: event.latencyMs,
+      hops: event.chain.map((hop) =>
+        hop.type === "external"
+          ? { kind: "external" as const, name: hop.host }
+          : { kind: hop.type, name: hop.resource.metadata?.name ?? "<unknown>" },
+      ),
+      isProbe: Object.keys(event.request.header).some(
+        (key) => key.toLowerCase() === "x-webernetes-health-check",
+      ),
+    };
+    // Newest first, bounded buffer.
+    this.networkActivity = [record, ...this.networkActivity].slice(0, NETWORK_ACTIVITY_LIMIT);
+    for (const listener of this.networkListeners) listener(this.networkActivity);
   }
 
   /** Tear down and recreate a fresh cluster. */
@@ -375,6 +526,8 @@ export class KubeSimulator {
     for (const cache of this.caches.values()) cache.clear();
     logSink.clear();
     this.snapshot = EMPTY_SNAPSHOT;
+    this.networkActivity = [];
+    for (const listener of this.networkListeners) listener(this.networkActivity);
   }
 
   private requireCluster(): Result<Cluster, string> {
@@ -382,6 +535,39 @@ export class KubeSimulator {
       return err("Cluster is not ready. Boot the simulator first.");
     }
     return ok(this.cluster);
+  }
+}
+
+/** Route a delete to the right typed API by manifest kind. Throws on API errors. */
+async function deleteByKind(
+  cluster: Cluster,
+  kind: string,
+  name: string,
+  namespace: string,
+): Promise<void> {
+  const api = cluster.api;
+  const ref = { name, namespace };
+  switch (kind) {
+    case "Deployment":
+      await api.appsv1.deleteNamespacedDeployment(ref);
+      break;
+    case "ReplicaSet":
+      await api.appsv1.deleteNamespacedReplicaSet(ref);
+      break;
+    case "Pod":
+      await api.corev1.deleteNamespacedPod(ref);
+      break;
+    case "Service":
+      await api.corev1.deleteNamespacedService(ref);
+      break;
+    case "Namespace":
+      await api.corev1.deleteNamespace({ name });
+      break;
+    case "Node":
+      await api.corev1.deleteNode({ name });
+      break;
+    default:
+      throw new Error(`Unsupported kind "${kind}"`);
   }
 }
 
