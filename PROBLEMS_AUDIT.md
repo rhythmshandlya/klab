@@ -1155,8 +1155,9 @@ Problems backlog elsewhere.
 - Required branch: `main`
 - Problems catalog/lifecycle commit: `542d305 feat: scale problem catalog and add lifecycle challenges`
 - First sourced incident commit: `eee3466 feat: add sampled graceful shutdown incident`
-- Concurrent Docs commits `591c83b` and `21fb22d` are intentional and are ancestors
-  of `eee3466`; do not revert or rewrite them.
+- Concurrent Docs commits `591c83b`, `21fb22d`, and `e1a1430` are intentional;
+  do not revert or rewrite them. Preserve any later Docs commits unless they make
+  the Problems task genuinely impossible.
 - The previous agent did not spawn subagents. Multiple workspace processes may still
   move branches, so run `git branch --show-current`, `git log -5 --oneline`, and
   `git status --short` before every commit.
