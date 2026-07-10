@@ -116,8 +116,10 @@ export function DoStep({
         {step.hint ? <p className="text-subtle mt-1 text-xs">{step.hint}</p> : null}
       </div>
 
-      <div className="border-border bg-panel grid min-h-[24rem] grid-cols-1 overflow-hidden rounded-md border lg:grid-cols-[1fr_1fr_280px]">
-        <div className="border-border flex min-h-[16rem] flex-col border-b lg:border-r lg:border-b-0">
+      {/* min-w-0 on every column: Monaco and xterm report large intrinsic widths, and
+          without it the grid lets the terminal crush the editor to a sliver. */}
+      <div className="border-border bg-panel grid min-h-[24rem] grid-cols-1 overflow-hidden rounded-md border lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_280px]">
+        <div className="border-border flex min-h-[16rem] min-w-0 flex-col border-b lg:border-r lg:border-b-0">
           <div className="border-border flex h-9 shrink-0 items-center gap-1 border-b px-2">
             {paths.map((path) => (
               <button
@@ -146,7 +148,7 @@ export function DoStep({
           </div>
         </div>
 
-        <div className="bg-terminal flex min-h-[16rem] flex-col border-b lg:border-r lg:border-b-0">
+        <div className="bg-terminal flex min-h-[16rem] min-w-0 flex-col border-b lg:border-r lg:border-b-0">
           <div className="border-border flex h-9 shrink-0 items-center gap-1.5 border-b px-3">
             <icons.terminal className="text-green size-3.5" aria-hidden />
             <span className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
@@ -162,7 +164,7 @@ export function DoStep({
         </div>
 
         {/* Live cluster state — the diagram IS the running cluster, updating as changes apply. */}
-        <div className="bg-panel-elevated flex min-h-[16rem] flex-col overflow-y-auto">
+        <div className="bg-panel-elevated flex min-h-[16rem] min-w-0 flex-col overflow-y-auto">
           <div className="border-border grid grid-cols-3 gap-2 border-b p-3">
             <Metric label="Desired" value={desiredReplicas} />
             <Metric

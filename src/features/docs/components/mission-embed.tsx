@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { icons } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -72,19 +72,20 @@ function LiveMission({ mission }: { mission: Mission }) {
   const doSteps = mission.steps.filter((s): s is DoStepSpec => s.kind === "do");
   const wrap = mission.steps.find((s): s is DebriefSpec => s.kind === "debrief");
   const [completed, setCompleted] = useState<ReadonlySet<string>>(new Set());
+  // Ref mirrors `completed` so the side effect (progress write) stays OUT of the
+  // state updater — updaters must be pure, and mutateProgress re-renders other
+  // components (TopNav XP) which React forbids mid-render.
+  const completedRef = useRef<Set<string>>(new Set());
   const done = doSteps.length > 0 && doSteps.every((s) => completed.has(s.id));
 
   const complete = (id: string) => {
-    setCompleted((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      // Doing the hands-on work is what completes the lesson (grow-only, synced).
-      if (doSteps.every((s) => next.has(s.id))) {
-        mutateProgress({ kind: "completedLesson", slug: mission.slug.join("/") });
-      }
-      return next;
-    });
+    if (completedRef.current.has(id)) return;
+    completedRef.current.add(id);
+    setCompleted(new Set(completedRef.current));
+    // Doing the hands-on work is what completes the lesson (grow-only, synced).
+    if (doSteps.every((s) => completedRef.current.has(s.id))) {
+      mutateProgress({ kind: "completedLesson", slug: mission.slug.join("/") });
+    }
   };
 
   return (
