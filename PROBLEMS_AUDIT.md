@@ -1141,3 +1141,272 @@ The Problems feature is end-to-end complete only when all of the following are t
 
 Until this gate passes, the feature should be described as a high-confidence
 starter catalog rather than a complete Kubernetes incident lab library.
+
+## 18. Agent Handoff And Exhaustive Remaining Work Ledger
+
+Last updated: 2026-07-10 after problem 18. This section is the resume point for the
+next agent. Earlier sections retain the rationale, audits, target catalog, Architect
+briefs, source register, estimates, and acceptance contracts; do not create a second
+Problems backlog elsewhere.
+
+### Repository state to inherit
+
+- Workspace: `C:\Users\armaa\Documents\klab`
+- Required branch: `main`
+- Problems catalog/lifecycle commit: `542d305 feat: scale problem catalog and add lifecycle challenges`
+- First sourced incident commit: `eee3466 feat: add sampled graceful shutdown incident`
+- Concurrent Docs commits `591c83b` and `21fb22d` are intentional and are ancestors
+  of `eee3466`; do not revert or rewrite them.
+- The previous agent did not spawn subagents. Multiple workspace processes may still
+  move branches, so run `git branch --show-current`, `git log -5 --oneline`, and
+  `git status --short` before every commit.
+- A user-owned Next dev server was listening on port 3000. Reuse it if healthy; do
+  not terminate it merely to run Problems tests.
+
+### Implemented and trusted at handoff
+
+- Problems 1-18 are published and schema-valid: 5 beginner, 7 intermediate, and
+  6 advanced. All have canonical solutions, prerequisite metadata, paths,
+  capability declarations, Kubernetes 1.34-1.36 metadata, constraints, evidence,
+  hints, prevention guidance, and next-problem links.
+- Problems 1-18 pass the catalog red-to-green engine harness and three generic
+  bypass classes. `pnpm test:levels` passes 8 files / 44 tests.
+- Problems 14-17 are native lifecycle scenarios: command override, startupProbe,
+  wrong probe port, and multi-container sidecar. The sidecar uses port 9090 to avoid
+  an invalid same-Pod port collision.
+- Problem 18 is Ravelin-inspired and explicitly labeled as an adaptation. It models
+  a terminating endpoint that returns every third request as 502, then converges
+  after a `preStop` sleep and sufficient termination grace.
+- The scripted engine now uses `scripted-scenarios.ts`; do not put new scenario
+  branches back into `problem-engine.ts`. Each scenario owns capabilities, boot,
+  snapshot, apply transition, probes, and logs.
+- Network Probe supports one request or a bounded six-request sample. The new
+  `http-sample-through-service` validator enforces intermittent availability.
+- Logs UI reads through `ProblemEngine.getLogs`, so native and scripted logs use one
+  visible/evidence-capable path. Pod describe now shows every container, command,
+  args, startup/readiness/liveness probes, preStop, and termination grace.
+- `/problems` has typed paths, prerequisites, URL-backed search/view/sort/filter/page,
+  a 20-row page size, mobile Radix filters, Incident Inspired and Final Boss views,
+  and deterministic locked/daily/recommended selection.
+- The Architect domain is defined: `challengeMode: build`, `difficulty: architect`,
+  `platform-architect` path, 500 XP, and a Final Boss catalog view. The exact ten
+  briefs and their gates are in section 9; no Architect level is authored yet.
+
+### Verification already completed
+
+- `pnpm typecheck`: pass after problem 18 and the scripted registry refactor.
+- `pnpm lint`: pass after problem 18.
+- `pnpm test:levels`: pass, 8 files / 44 tests across all 18 levels.
+- Focused incident/content tests: pass, including deterministic 200/200/502 traffic,
+  fixed all-200 traffic, source metadata, manifest bypasses, reset, and scripted logs.
+- Network sample and validator component/unit tests: pass, 2 files / 4 tests.
+- Before problem 18, `pnpm test` passed 24 files / 106 tests, `pnpm test:api`
+  passed 3 files / 13 tests, and `pnpm build` generated 67 static pages.
+- Chrome DevTools verified the 17-level desktop catalog, URL search, prerequisite
+  rows, and the 390x844 mobile filter dialog before problem 18.
+
+### Immediate resume checklist
+
+1. Confirm `main` and a clean worktree. If another process added unrelated files,
+   preserve them and scope the next commit explicitly.
+2. Rerun `pnpm test`, `pnpm test:api`, and `pnpm build` for the 18-level incident
+   commit. Update the verification table above with the exact counts/pages.
+3. Retry Chrome DevTools MCP. It worked earlier, then disappeared from the callable
+   tool registry after a user interruption. The in-app browser fallback also listed
+   no available browser. Do not claim problem 18 browser QA until a connector works.
+4. Browser-check `/problems`: total 18, Incident Inspired 1, Final Boss 0, source
+   badge, source/path filters, mobile dialog, URL restoration, and no console errors.
+5. Browser-check `/problems/graceful-shutdown-502s` end to end. A guest can be seeded
+   with the two prerequisites using the validated `klab:progress:v1` localStorage
+   shape, then reloaded:
+
+```js
+localStorage.setItem(
+  "klab:progress:v1",
+  JSON.stringify({
+    version: 1,
+    xp: 350,
+    streakDays: 0,
+    solvedLevelSlugs: ["rolling-update-gone-wrong", "liveness-probe-death-spiral"],
+    hintReveals: {},
+    attemptedLevelSlugs: [],
+    savedProblemSlugs: [],
+    completedLessonSlugs: [],
+  }),
+);
+location.reload();
+```
+
+6. In that route verify: scenario ready; old/new ReplicaSets; terminating old Pod;
+   three Service endpoints; old-Pod SIGTERM logs; Killing event; `Sample 6x` shows
+   two 502s; source link opens the Ravelin article; the canonical YAML below applies;
+   checks auto-converge; six samples become all 200; post-solve shows prevention,
+   source/adaptation, and next links; Reset restores the intermittent failure.
+7. Add or update a production Playwright E2E for the sampled scripted capability.
+8. Only after steps 1-7 are green, begin the next content/capability slice.
+
+Canonical problem 18 edit:
+
+```yaml
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: api
+          # retain the existing image, port, and readiness probe
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+```
+
+### Remaining dashboard and workspace work
+
+- Verify pagination at the 21st, 56th, and 66th entries, including invalid/out-of-
+  range URL pages, Back/Forward, filter changes, and narrow viewports.
+- Populate and verify non-empty Incident Inspired and Final Boss views. Incident now
+  has one entry; Final Boss remains empty until problem 57.
+- Add learning-path progress/Study Plan presentation, not only path filtering.
+- Correct Daily Challenge wording or persist completion for the selected local day;
+  “Completed today” must never mean solved on an earlier day.
+- Project saved/attempted/solved slugs through the live catalog so removed slugs do
+  not inflate counts.
+- Reflow the activity rail below 2xl instead of hiding useful Daily/Progress content.
+- Complete 360px, 768px, 1280px, and wide-desktop checks with the full catalog.
+- Replace the solving workspace’s desktop-only minimum-width layout with a usable
+  stacked/segmented narrow layout. Verify every resizable panel and toolbar.
+- Extend Diff for added/deleted documents. Architect build mode also needs learner
+  file creation/removal and folder-scale navigation without breaking read-only files.
+- Add container disambiguation everywhere multi-container evidence appears, including
+  Object Details and any future `logs --previous` path.
+- Add capability-specific Object Details fields, conditions, owners, events, and
+  guaranteed Secret redaction.
+- Add only the terminal features required by authored levels: `logs --previous`,
+  `exec`, rollout commands/history, selectors, JSONPath, and future resource kinds.
+- Add repeated/progressive investigation timestamps only if required by a shipped
+  scenario; do not add a generic replay system prematurely.
+
+### Remaining troubleshooting catalog: problems 19-56
+
+The authoritative prompts and source assignments are in section 9. Implement in
+capability-coherent batches, and for every problem add schema-valid content,
+canonical solution, broken-state predicate, three bypass rejections, command/evidence
+reachability, engine solve test, route smoke, and capability-pack E2E.
+
+1. BASE/LIFE/SCHED rollout batch: 19 Rollout Cannot Fit maxSurge; 20 Recreate
+   Strategy Outage; 21 Immutable Deployment Selector.
+2. WORK/SCHED batch: 22 DaemonSet Missing A Toleration; 23 Job Restart Storm
+   (Universe-inspired); 24 Overlapping CronJobs.
+3. CFG/AUTH batch: 25 ConfigMap Key Typo; 26 ConfigMap Changed, Pods Did Not;
+   27 Secret Key Mismatch; 28 Secret File Permission Failure; 29 GitOps Template
+   Deletes Namespaces (Skyscanner-inspired).
+4. BASE/NET batch: 30 Named targetPort Mismatch; 31 Service Selector Is Too Broad;
+   32 Headless Service Breaks Stateful DNS; 33 Default-Deny NetworkPolicy;
+   34 NetworkPolicy Blocks DNS; 35 Ingress Rewrite Sends The Wrong Path;
+   36 externalTrafficPolicy Local Blackhole; 37 CoreDNS OOM And ndots Retry Storm
+   (Zalando-inspired).
+5. SCHED/CNI batch: 38 CPU Throttling With Low Average CPU (Buffer-inspired);
+   39 Memory Limit OOMKilled; 40 Missing Limits Cause Node SystemOOM
+   (Blue Matador-inspired); 41 Pod Pending: Insufficient CPU; 42 Stale Node Label
+   After Upgrade (Reddit-inspired); 43 Taint Without Toleration; 44 All Replicas On
+   One Failing Node (Moonlight-inspired); 45 PriorityClass Preemption Cascade
+   (Grafana-inspired).
+6. STORE batch: 46 PVC Pending: Wrong StorageClass; 47 ReadWriteOnce Multi-Attach;
+   48 Volume And Pod In Different Zones; 49 StatefulSet Orphaned PVC.
+7. AUTH batch: 50 Wrong ServiceAccount, RBAC Forbidden; 51 runAsNonRoot Permission
+   Failure; 52 Admission Webhook Blocks The API; 53 Removed API Version After Upgrade.
+8. CNI/SCHED closing batch: 54 Pod CIDR/IP Range Exhausted; 55 HPA Cannot Compute
+   Replicas; 56 PodDisruptionBudget Blocks Drain.
+
+### Capability packs still required
+
+- WORK: DaemonSet, Job, CronJob resources; controller status; restart/backoff,
+  concurrency/deadline/history behavior; terminal/explorer/topology adapters.
+- CFG: ConfigMap, Secret, references/volumes, safe values/redaction, rollout-on-config
+  behavior, Kustomize rendering, GitOps reconciliation and prune boundaries.
+- NET: headless Services, NetworkPolicy ingress/egress and DNS exceptions, Ingress or
+  Gateway routing/rewrite, externalTrafficPolicy/node locality, repeated traffic.
+- SCHED: resource requests/limits, Pending reasons, CPU throttling, OOM/last state,
+  taints/tolerations, affinity/topology, priority/preemption, HPA, PDB/drain.
+- STORE: StorageClass, PV/PVC binding, access modes/attachment, zone affinity,
+  StatefulSet identity/retention, backup/restore transitions.
+- AUTH: ServiceAccounts, Roles/Bindings, authorization commands, SecurityContext,
+  admission webhooks/policies, API-version rejection/migration, Secret redaction.
+- CNI: node labels/component placement, Pod CIDR/IP pools, allocation exhaustion,
+  autoscaler interaction, upgrade state.
+- Each pack must expose typed capabilities through `ProblemEngine`, fail unsupported
+  declarations in the content audit, render its objects, and carry fixture tests
+  against official Kubernetes behavior. Prefer additional registry runtimes over
+  growing `problem-engine.ts`.
+
+### Architect final-boss work: problems 57-66
+
+- Implement build-mode workspace behavior first: empty/incomplete repository boot,
+  file add/remove, apply-all, cross-file errors, aggregate Diff, and Architecture
+  Brief/post-build review language.
+- Author all ten section-9 briefs: Production SaaS Platform; Multi-Tenant Team
+  Platform; Highly Available Stateful Data Plane; Zero-Downtime Global API; Secure
+  Payments Workload; Event-Driven Order Platform; GitOps Multi-Environment Delivery;
+  Observable Microservice Platform; Disaster-Recovery Data Service; Upgrade-Safe
+  Cluster Workload.
+- Every Architect problem must use `challengeMode: build`, `difficulty: architect`,
+  500 XP, `platform-architect`, at least three real prerequisites, and at least four
+  meaningful editable files.
+- Enforce five bypass classes per build: rename, omitted subsystem, weakened policy,
+  alternate image, and steady-state-only health. Add runtime availability, security,
+  lifecycle, and operability checks; structural YAML alone cannot pass.
+- Add resource-complete Explorer/Topology views, Secret redaction, an architecture
+  tradeoff review, and one full canonical browser solve per capability combination.
+
+### Remaining content, source, and documentation work
+
+- Source-review every incident adaptation against its direct primary source. Keep
+  quotations within copyright limits; content should paraphrase mechanisms.
+- The target has 11 explicitly incident-inspired troubleshooting problems. Problem
+  18 is the first populated source. Complete the Reddit, Skyscanner, Buffer, GKE IP,
+  Blue Matador, Grafana, Moonlight, Zalando, Universe, and webhook/upgrade-class
+  adaptations listed in sections 9 and 16.
+- Keep “Inspired by” and the adaptation note visible in the catalog, brief, and
+  post-solve flow; never claim an exact reproduction.
+- Keep each problem pinned to the supported Kubernetes 1.34-1.36 range and tested
+  against 1.36 until the project deliberately advances the pin.
+- Update CONTRIBUTING and authoring scripts for new validators, capabilities,
+  scenario registry entries, source review, build mode, five-bypass Architect tests,
+  and browser gates.
+- Update any product copy/counts only from the live catalog; do not hard-code 18,
+  56, or 66 in UI components when a projection can derive it.
+
+### Remaining release verification
+
+- Add catalog-wide route smoke for all 66 problem routes.
+- Add one full solve E2E for every capability pack and every distinct Architect
+  capability combination; retain the existing native and scripted solve coverage.
+- Test every advertised quick command, evidence trigger, hint gate, probe target,
+  Explorer object, Topology node, Apply error, Reset, and post-solve link.
+- Run accessibility automation plus keyboard/focus/manual checks at 360, 768, 1280,
+  and wide desktop. Include dialogs, tabs, tables, Monaco, xterm, resizers, and the
+  multi-panel narrow workspace.
+- Run catalog-scale performance and Lighthouse checks; bound initial DOM/render work,
+  simulator boot cost, filtering, and route navigation. Verify no blank/overlapping
+  panels and no horizontal text clipping.
+- Re-run `pnpm test:levels`, `pnpm test`, `pnpm test:api`, `pnpm lint`,
+  `pnpm typecheck`, `pnpm build`, Playwright, accessibility, and the semantic audit
+  from a clean checkout. Record exact final counts in section 2.
+- Confirm progress, hint penalties, XP, saves, attempts, guest/account merge, and
+  duplicate submissions remain idempotent with Architect 500-XP solves.
+- Close or explicitly waive every remaining P0/P1 row with rationale. Only then
+  change the section-17 result to met and describe Problems as complete.
+
+### Recommended next implementation order
+
+1. Finish problem 18 browser/full-suite verification.
+2. Implement and publish problems 19-21; this also forces pagination to become
+   visible at 21 entries and supplies the first catalog-scale page test.
+3. Implement WORK (22-24), then CFG (25-29), because both unlock substantial
+   troubleshooting and Architect coverage without depending on storage/CNI.
+4. Implement NET (30-37) and SCHED (38-45), then STORE (46-49), AUTH (50-53), and
+   CNI/SCHED (54-56).
+5. Build file-management/build-mode UX and author Architect 57-66 against the now-
+   proven capability packs.
+6. Perform the catalog-wide release verification and close section 17.
