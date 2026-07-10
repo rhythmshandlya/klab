@@ -28,6 +28,7 @@ const diagramSpec = z.discriminatedUnion("mode", [
 const doCheck = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("pods-ready"), selector: z.record(z.string(), z.string()), minReady: z.number().int().positive() }),
   z.object({ kind: z.literal("deployment-available"), name: z.string(), minAvailable: z.number().int().positive() }),
+  z.object({ kind: z.literal("deployment-replicas"), name: z.string(), replicas: z.number().int().positive() }),
   z.object({ kind: z.literal("service-has-endpoints"), name: z.string(), minEndpoints: z.number().int().positive() }),
 ]);
 const step = z.discriminatedUnion("kind", [

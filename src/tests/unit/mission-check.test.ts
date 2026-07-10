@@ -43,6 +43,42 @@ describe("evaluateDoCheck deployment-available", () => {
   });
 });
 
+describe("evaluateDoCheck deployment-replicas", () => {
+  const deploymentAt = (desired: number, ready: number): ClusterSnapshot => ({
+    ...empty,
+    deployments: [
+      {
+        metadata: { name: "web", namespace: "default" },
+        spec: {
+          replicas: desired,
+          selector: { matchLabels: { app: "web" } },
+          template: { metadata: { labels: { app: "web" } } },
+        },
+        status: { replicas: desired, readyReplicas: ready, updatedReplicas: ready },
+      },
+    ] as ClusterSnapshot["deployments"],
+  });
+
+  it("fails when desired exceeds the exact target, even if enough are ready", () => {
+    // The downscale gate: 3 ready >= 2 would satisfy a min-check, but desired is still 3.
+    const r = evaluateDoCheck(deploymentAt(3, 3), { kind: "deployment-replicas", name: "web", replicas: 2 });
+    expect(r.passed).toBe(false);
+    expect(r.detail).toMatch(/desired 3 \(want 2\)/);
+  });
+  it("fails while converging (desired matches but not enough ready)", () => {
+    const r = evaluateDoCheck(deploymentAt(2, 1), { kind: "deployment-replicas", name: "web", replicas: 2 });
+    expect(r.passed).toBe(false);
+  });
+  it("passes when desired matches exactly and replicas are ready", () => {
+    const r = evaluateDoCheck(deploymentAt(2, 2), { kind: "deployment-replicas", name: "web", replicas: 2 });
+    expect(r.passed).toBe(true);
+  });
+  it("fails when the deployment does not exist", () => {
+    const r = evaluateDoCheck(empty, { kind: "deployment-replicas", name: "web", replicas: 2 });
+    expect(r.passed).toBe(false);
+  });
+});
+
 describe("evaluateDoCheck service-has-endpoints", () => {
   it("fails when service has no ready endpoints", () => {
     const snap: ClusterSnapshot = { ...empty, services: [

@@ -23,6 +23,16 @@ export function evaluateDoCheck(
       const avail = dep ? deploymentReadyReplicas(dep) : 0;
       return { passed: avail >= check.minAvailable, detail: `${avail}/${check.minAvailable} available` };
     }
+    case "deployment-replicas": {
+      const dep = snapshot.deployments.find((d) => ns(d) === namespace && d.metadata?.name === check.name);
+      const desired = dep?.spec?.replicas ?? 0;
+      const ready = dep ? deploymentReadyReplicas(dep) : 0;
+      // Exact desired match gates the edit itself; ready >= replicas confirms convergence.
+      return {
+        passed: desired === check.replicas && ready >= check.replicas,
+        detail: `desired ${desired} (want ${check.replicas}), ${ready} ready`,
+      };
+    }
     case "service-has-endpoints": {
       const svc = snapshot.services.find((s) => ns(s) === namespace && s.metadata?.name === check.name);
       const eps = svc ? readyEndpointCount(svc, snapshot.endpointSlices) : 0;

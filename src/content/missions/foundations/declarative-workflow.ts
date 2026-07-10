@@ -63,8 +63,8 @@ export const declarativeWorkflow: Mission = {
       files: [
         { path: "web-deployment.yaml", initialValue: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n        tier: frontend\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          ports:\n            - containerPort: 8080\n", language: "yaml" },
       ],
-      check: { kind: "deployment-available", name: "web", minAvailable: 2 },
-      hint: "Change spec.replicas from 3 to 2 and apply. The image tag stays pinned to 1.0.0 so the diff is deterministic — only the replica count should change.",
+      check: { kind: "deployment-replicas", name: "web", replicas: 2 },
+      hint: "Change spec.replicas from 3 to 2 and apply. The image tag stays pinned to 1.0.0 so the diff is deterministic — only the replica count should change. Applying without the edit keeps desired at 3, so the check will hold until you actually right-size it.",
       debrief: "You fed a deliberate, diffable change into the reconciliation loop, and it converged to a healthy two-replica Deployment. This same render-diff-apply-verify loop is how every durable change to a cluster should be made.",
     },
     {

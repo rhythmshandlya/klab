@@ -35,6 +35,12 @@ export interface PredictSpec {
 export type DoCheck =
   | { kind: "pods-ready"; selector: Record<string, string>; minReady: number }
   | { kind: "deployment-available"; name: string; minAvailable: number }
+  /**
+   * Exact desired-replica match: passes only when spec.replicas === replicas AND that
+   * many are ready. Min-only checks cannot gate a downscale (the pre-edit state already
+   * satisfies them); use this whenever the taught action is scaling DOWN.
+   */
+  | { kind: "deployment-replicas"; name: string; replicas: number }
   | { kind: "service-has-endpoints"; name: string; minEndpoints: number };
 
 export type MissionStep =
