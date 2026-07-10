@@ -3,8 +3,9 @@ import { assertMissionInvariants, parseMission } from "@/lib/domain/mission-sche
 import { whatIsKubernetes } from "./foundations/what-is-kubernetes";
 import { clusterArchitecture } from "./foundations/cluster-architecture";
 import { desiredVsActualState } from "./foundations/desired-vs-actual-state";
+import { apiObjects } from "./foundations/api-objects";
 
-const RAW: Mission[] = [whatIsKubernetes, clusterArchitecture, desiredVsActualState];
+const RAW: Mission[] = [whatIsKubernetes, clusterArchitecture, desiredVsActualState, apiObjects];
 
 export const MISSIONS: Mission[] = RAW.map((m) => {
   const parsed = parseMission(m);
