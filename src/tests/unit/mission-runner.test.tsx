@@ -67,3 +67,46 @@ describe("MissionRunner", () => {
     expect(screen.getByText("Finish mission")).toBeInTheDocument();
   });
 });
+
+const twoTeachMission: Mission = {
+  slug: ["foundations", "two-teach"],
+  section: "Foundations",
+  order: 1,
+  title: "Two Teach",
+  coldOpen: { goal: "g", clusterNote: "c" },
+  inheritsCluster: false,
+  seedManifests: [],
+  concepts: [],
+  steps: [
+    { kind: "teach", id: "t1", idea: "first idea", ack: "Got it" },
+    { kind: "teach", id: "t2", idea: "second idea", ack: "Got it" },
+    { kind: "debrief", id: "d", summary: "s", takeaways: ["one"] },
+  ],
+};
+
+describe("MissionRunner with consecutive same-kind steps", () => {
+  it("does not carry stale local state across two consecutive teach steps", () => {
+    const onDone = vi.fn();
+    render(<MissionRunner mission={twoTeachMission} sim={fakeSim} onMissionComplete={onDone} />);
+
+    // Step 1: teach step renders its idea, ack unlocks Next.
+    expect(screen.getByText("first idea")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Got it"));
+    fireEvent.click(screen.getByText("Next"));
+
+    // Step 2: a fresh teach step instance — its own idea renders and the ack
+    // button must NOT be pre-completed/locked by the previous step's state.
+    expect(screen.getByText("second idea")).toBeInTheDocument();
+    expect(screen.queryByText("first idea")).not.toBeInTheDocument();
+    expect(screen.getByText("Next")).toBeDisabled();
+    const ackButton = screen.getByText("Got it").closest("button");
+    expect(ackButton).not.toBeDisabled();
+
+    fireEvent.click(screen.getByText("Got it"));
+    fireEvent.click(screen.getByText("Next"));
+    fireEvent.click(screen.getByText("Finish mission"));
+
+    expect(mutate).toHaveBeenCalledWith({ kind: "completedLesson", slug: "foundations/two-teach" });
+    expect(onDone).toHaveBeenCalled();
+  });
+});

@@ -131,6 +131,7 @@ export function MissionRunner({
       case "teach":
         return (
           <TeachStep
+            key={step.id}
             step={step}
             onComplete={() => markComplete(step.id)}
             snapshot={sim.snapshot}
@@ -140,6 +141,7 @@ export function MissionRunner({
       case "predict":
         return (
           <PredictStep
+            key={step.id}
             step={step}
             onComplete={() => markComplete(step.id)}
             snapshot={sim.snapshot}
@@ -147,10 +149,11 @@ export function MissionRunner({
           />
         );
       case "check":
-        return <CheckStep step={step} onComplete={() => markComplete(step.id)} />;
+        return <CheckStep key={step.id} step={step} onComplete={() => markComplete(step.id)} />;
       case "do":
         return (
           <DoStep
+            key={step.id}
             step={step}
             sim={sim}
             onComplete={() => {
@@ -161,6 +164,7 @@ export function MissionRunner({
       case "debrief":
         return (
           <DebriefStep
+            key={step.id}
             step={step}
             onComplete={() => {
               markComplete(step.id);
