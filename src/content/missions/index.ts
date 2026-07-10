@@ -2,8 +2,9 @@ import type { Mission } from "@/lib/domain/mission-types";
 import { assertMissionInvariants, parseMission } from "@/lib/domain/mission-schema";
 import { whatIsKubernetes } from "./foundations/what-is-kubernetes";
 import { clusterArchitecture } from "./foundations/cluster-architecture";
+import { desiredVsActualState } from "./foundations/desired-vs-actual-state";
 
-const RAW: Mission[] = [whatIsKubernetes, clusterArchitecture];
+const RAW: Mission[] = [whatIsKubernetes, clusterArchitecture, desiredVsActualState];
 
 export const MISSIONS: Mission[] = RAW.map((m) => {
   const parsed = parseMission(m);
