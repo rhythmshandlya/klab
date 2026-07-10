@@ -14,6 +14,121 @@ export interface LevelSolution {
 }
 
 export const LEVEL_SOLUTIONS: Record<string, LevelSolution> = {
+  "recreate-strategy-outage": {
+    fix: "Switch the Deployment strategy from Recreate to RollingUpdate with maxUnavailable 0",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+  namespace: default
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: checkout
+  template:
+    metadata:
+      labels:
+        app: checkout
+    spec:
+      containers:
+        - name: api
+          image: klab/checkout:2.1.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+`,
+    },
+  },
+
+  "rollout-cannot-fit-maxsurge": {
+    fix: "Set maxSurge 0 and maxUnavailable 1 to roll within cluster capacity",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics
+  namespace: default
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: analytics
+  template:
+    metadata:
+      labels:
+        app: analytics
+        track: v2
+    spec:
+      containers:
+        - name: api
+          image: klab/analytics:2.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: "2"
+            limits:
+              cpu: "2"
+`,
+    },
+  },
+
+  "immutable-deployment-selector": {
+    fix: "Revert the immutable selector and add tier: api to the pod template labels",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: search
+  template:
+    metadata:
+      labels:
+        app: search
+        tier: api
+    spec:
+      containers:
+        - name: api
+          image: klab/search:1.4.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+`,
+    },
+  },
+
   "graceful-shutdown-502s": {
     fix: "Delay shutdown for endpoint propagation and extend the total grace period",
     files: {

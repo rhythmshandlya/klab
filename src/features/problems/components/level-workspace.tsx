@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorBoundary } from "@/components/app-shell/error-boundary";
-import { useRegisterWorkspaceAction } from "@/components/app-shell/workspace-action";
 import { DiffView } from "@/components/editor/diff-editor";
 import { EventsTimeline } from "@/components/events/events-timeline";
 import { icons } from "@/components/icons";
@@ -398,16 +397,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
     [revealHint, level.slug],
   );
 
-  // Route-specific nav primary action + ⌘R (Cmd+Shift+R still reloads). The nav is
-  // the ONLY Run Validation button — the editor toolbar applies/diffs/resets.
-  useRegisterWorkspaceAction({
-    label: "Run Validation",
-    icon: "validate",
-    shortcut: "⌘R",
-    onRun: () => void handleValidate(),
-    pending: validating,
-    disabled: !sim.ready,
-  });
+  // ⌘R runs validation from anywhere on the level (Cmd+Shift+R still reloads).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "r" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
@@ -540,8 +530,8 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                           className={cn(
                             "flex h-10 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors",
                             centerTab === tab.id
-                              ? "border-blue text-foreground"
-                              : "text-muted hover:text-foreground border-transparent",
+                              ? "border-foreground text-foreground"
+                              : "border-transparent text-muted hover:text-foreground",
                           )}
                         >
                           <Icon className="size-4" aria-hidden />
@@ -649,10 +639,10 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                         aria-controls="problem-file-editor"
                         onClick={() => setActiveFile(file.path)}
                         className={cn(
-                          "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 font-mono text-xs transition-colors",
+                          "flex h-9 shrink-0 items-center gap-1.5 border-b-2 px-2 font-mono text-xs transition-colors",
                           active
-                            ? "bg-panel-hover text-foreground"
-                            : "text-muted hover:text-foreground",
+                            ? "border-foreground text-foreground"
+                            : "border-transparent text-muted hover:text-foreground",
                         )}
                       >
                         <icons.yaml className="text-subtle size-3.5" aria-hidden />
@@ -678,6 +668,14 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                       >
                         <icons.run aria-hidden />
                         {applying ? "Applying…" : "Apply Changes"}
+                      </ToolbarButton>
+                      <ToolbarButton
+                        onClick={() => void handleValidate()}
+                        disabled={validating || !sim.ready}
+                        primary
+                      >
+                        <icons.validate aria-hidden />
+                        {validating ? "Validating…" : "Run Validation"}
                       </ToolbarButton>
                       <ToolbarButton onClick={() => setCenterTab("diff")}>
                         <icons.diff aria-hidden />

@@ -506,8 +506,8 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                 className={cn(
                   "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
                   tab === t.id
-                    ? "border-blue text-foreground"
-                    : "text-muted hover:text-foreground border-transparent",
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted hover:text-foreground",
                 )}
               >
                 {t.label}

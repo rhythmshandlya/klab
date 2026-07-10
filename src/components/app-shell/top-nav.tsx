@@ -4,15 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { AuthMenu } from "@/components/auth/auth-menu";
-import { useCommandPalette } from "@/components/command-palette/command-palette-provider";
 import { ClusterMark, icons } from "@/components/icons";
-import { Kbd } from "@/components/ui/kbd";
 import { PLACEHOLDER_USER } from "@/lib/config/placeholders";
 import { useProgress } from "@/features/progress/use-progress";
 import { cn } from "@/lib/utils/cn";
 
 import { isSectionActive, NAV_ITEMS } from "./nav-items";
-import { useWorkspaceAction } from "./workspace-action";
 
 export function TopNav({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname() ?? "/";
@@ -20,11 +17,10 @@ export function TopNav({ authEnabled = false }: { authEnabled?: boolean }) {
 
   return (
     <header className="border-border bg-app/80 sticky top-0 z-40 h-14 border-b backdrop-blur-xl">
-      <div className="mx-auto flex h-full items-center gap-4 px-4">
+      <div className="mx-auto flex h-full items-center gap-6 px-4">
         <Brand />
         <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
           {NAV_ITEMS.map((item) => {
-            const Icon = icons[item.icon];
             const active = isSectionActive(pathname, item.href);
             return (
               <Link
@@ -32,22 +28,19 @@ export function TopNav({ authEnabled = false }: { authEnabled?: boolean }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
+                  "flex h-8 items-center px-3 text-sm transition-colors",
                   active
-                    ? "bg-panel-hover text-foreground"
-                    : "text-muted hover:bg-panel-hover hover:text-foreground",
+                    ? "text-foreground font-semibold"
+                    : "text-muted hover:text-foreground",
                 )}
               >
-                <Icon className="size-4" aria-hidden />
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
-          <PrimaryAction />
-          <CommandButton />
+        <div className="ml-auto flex items-center gap-3">
           <div className="hidden items-center gap-2 sm:flex">
             <StatChip icon="streak" value={progress.streakDays} label="day streak" />
             <StatChip icon="xp" value={progress.xp} label="XP" />
@@ -68,44 +61,6 @@ function Brand() {
       <ClusterMark className="text-blue size-6" />
       <span className="text-[15px] font-semibold tracking-tight">klab</span>
     </Link>
-  );
-}
-
-function PrimaryAction() {
-  const action = useWorkspaceAction();
-  if (!action) return null;
-  const Icon = icons[action.icon];
-  return (
-    <button
-      type="button"
-      onClick={action.onRun}
-      disabled={action.disabled || action.pending}
-      className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring focus-visible:ring-offset-app inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
-    >
-      <Icon className="size-4" aria-hidden />
-      {action.label}
-      {action.shortcut ? (
-        <span className="ml-0.5 font-mono text-[11px] opacity-70">{action.shortcut}</span>
-      ) : null}
-    </button>
-  );
-}
-
-function CommandButton() {
-  const { toggle } = useCommandPalette();
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-label="Open command palette"
-      className="border-border bg-panel text-subtle hover:border-border-strong hover:text-muted flex h-8 items-center gap-2 rounded-md border px-2.5 text-sm transition-colors"
-    >
-      <span className="hidden lg:inline">Search…</span>
-      <span className="flex items-center gap-0.5">
-        <Kbd>⌘</Kbd>
-        <Kbd>K</Kbd>
-      </span>
-    </button>
   );
 }
 

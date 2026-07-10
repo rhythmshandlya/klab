@@ -89,6 +89,21 @@ const BROKEN_STATE_READY: Record<string, (s: ClusterSnapshot) => boolean> = {
   "healthy-app-broken-sidecar": (s) => anyRestarts(s, { app: "checkout" }),
   "graceful-shutdown-502s": (s) =>
     s.pods.some((pod) => pod.metadata?.name === "edge-api-old" && pod.metadata.deletionTimestamp),
+  "recreate-strategy-outage": (s) =>
+    s.deployments.some(
+      (d) => d.metadata?.name === "checkout" && (d.status?.readyReplicas ?? 0) === 0,
+    ),
+  "rollout-cannot-fit-maxsurge": (s) =>
+    s.pods.some(
+      (pod) => pod.metadata?.labels?.app === "analytics" && pod.status?.phase === "Pending",
+    ),
+  "immutable-deployment-selector": (s) =>
+    readyPods(s, { app: "search" }) >= 2 &&
+    (
+      s.endpointSlices.find(
+        (es) => es.metadata?.labels?.["kubernetes.io/service-name"] === "search-svc",
+      )?.endpoints ?? []
+    ).length === 0,
   "zombie-replicaset": (s) =>
     readyPods(s, { app: "web", track: "stable" }) >= 2 &&
     readyPods(s, { app: "web", track: "legacy" }) >= 1,

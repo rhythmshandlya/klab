@@ -18,13 +18,16 @@ import { configDrift } from "./config-drift";
 import { dnsResolutionFailure } from "./dns-resolution-failure";
 import { gracefulShutdown502s } from "./graceful-shutdown-502s";
 import { healthyAppBrokenSidecar } from "./healthy-app-broken-sidecar";
+import { immutableDeploymentSelector } from "./immutable-deployment-selector";
 import { livenessProbeDeathSpiral } from "./liveness-probe-death-spiral";
 import { namespaceConfusion } from "./namespace-confusion";
 import { podCrashloopMystery } from "./pod-crashloop-mystery";
 import { portRoutingBug } from "./port-routing-bug";
 import { privateRegistryPullSecret } from "./private-registry-pull-secret";
 import { probeHitsWrongPort } from "./probe-hits-wrong-port";
+import { recreateStrategyOutage } from "./recreate-strategy-outage";
 import { rollingUpdateGoneWrong } from "./rolling-update-gone-wrong";
+import { rolloutCannotFitMaxsurge } from "./rollout-cannot-fit-maxsurge";
 import { serviceHasNoEndpoints } from "./service-has-no-endpoints";
 import { serviceSelectorMismatch } from "./service-selector-mismatch";
 import { slowStartWithoutStartupProbe } from "./slow-start-without-startup-probe";
@@ -45,6 +48,8 @@ export const LEVELS: readonly ProblemLevel[] = [
   podCrashloopMystery,
   privateRegistryPullSecret,
   rollingUpdateGoneWrong,
+  recreateStrategyOutage,
+  immutableDeploymentSelector,
   dnsResolutionFailure,
   slowStartWithoutStartupProbe,
   probeHitsWrongPort,
@@ -53,6 +58,7 @@ export const LEVELS: readonly ProblemLevel[] = [
   brokenServiceChain,
   healthyAppBrokenSidecar,
   gracefulShutdown502s,
+  rolloutCannotFitMaxsurge,
   zombieReplicaset,
 ].map(parseLevel);
 

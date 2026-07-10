@@ -1,6 +1,6 @@
 # Problems Audit And Completion Plan
 
-Status: PR 1-7 complete on main; catalog foundations and problems 14-18 implemented
+Status: PR 1-7 complete on main; catalog foundations and problems 14-21 implemented
 Audit date: 2026-07-10
 Scope: /problems, /problems/[levelId], the problem content contract, simulator, progress, authoring workflow, and test coverage
 
@@ -12,12 +12,12 @@ and effort estimates are intentionally kept together here.
 
 ## 1. Executive Verdict
 
-The feature now has a trustworthy core platform and 18 high-confidence levels,
+The feature now has a trustworthy core platform and 21 high-confidence levels,
 but it is not yet the complete 66-problem troubleshooting and architecture product.
 
 | Area | Current state | Completion verdict |
 | --- | --- | --- |
-| Catalog | 18 playable levels: 5 beginner, 7 intermediate, 6 advanced | 18 of the approved 66 total levels are authored (27%); 48 remain |
+| Catalog | 21 playable levels: 5 beginner, 9 intermediate, 7 advanced | 21 of the approved 66 total levels are authored (32%); 45 remain |
 | /problems | URL-backed search/filter/sort, mobile filter dialog, paths, prerequisite status, and 20/page pagination are implemented | Catalog-scale browser verification and non-empty Incident/Final Boss views remain |
 | /problems/[levelId] | Multi-file workspace, read-only references, two engines, terminal, logs, events, probes, topology, evidence, hints, constraints, and validation | Core workflow is complete for current capabilities; additional resource capability packs remain |
 | Existing level correctness | All 18 start broken and accept the canonical solution; every level rejects three generic bypass classes | Current catalog, first IMG/LIFE batch, and first sourced incident are complete |
@@ -81,11 +81,11 @@ original regression probes that the dedicated level suite now protects.
 | --- | --- |
 | `pnpm test:levels` | Pass: 8 files, 44 tests across all 18 levels |
 | Content and bypass audit | Pass: version/path/capability graph plus canonical solution and three bypass classes for every level |
-| `pnpm typecheck` | Pass after adding challenge mode, Architect difficulty, paths, and lifecycle content |
-| `pnpm test` | Pass: 24 files, 106 tests |
+| `pnpm typecheck` | Pass (clean checkout on main; concurrent docs mission-schema errors were fixed in a follow-up commit) |
+| `pnpm test` | Pass: 26 files, 116 tests |
 | `pnpm test:api` | Pass: 3 files, 13 tests |
 | `pnpm lint` | Pass with zero warnings |
-| `pnpm build` | Last committed slice pass: 67 static pages including 17 routes; rerun pending for problem 18 |
+| `pnpm build` | Pass: 68 static pages including all 18 problem routes (plus one concurrent docs mission route) |
 | Chrome DevTools desktop | Pass: 17 rows, prerequisite lock labels, URL-backed search |
 | Chrome DevTools mobile 390x844 | Pass: active-filter count, focus-trapped filter dialog, path/difficulty restoration from URL |
 | Lifecycle engine | Pass: command override, native startupProbe, wrong probe port, and multi-container sidecar red-to-green solves |
@@ -625,9 +625,9 @@ exact reproduction.
 | 16 | Probe Hits The Wrong Port | Intermediate | Management port vs traffic port | BASE, IMG | Current; native engine solve passes |
 | 17 | Healthy App, Broken Sidecar | Advanced | Multi-container readiness and logs | LIFE, IMG | Current; container-aware logs/describe and native solve pass |
 | 18 | Graceful Shutdown 502s | Advanced | preStop and termination grace | LIFE, NET | Current; Ravelin-inspired, sampled scripted solve passes |
-| 19 | Rollout Cannot Fit maxSurge | Advanced | Capacity-aware rolling updates | SCHED | New |
-| 20 | Recreate Strategy Outage | Intermediate | Deployment strategy availability | BASE, LIFE | New |
-| 21 | Immutable Deployment Selector | Intermediate | API validation and safe migration | BASE | New |
+| 19 | Rollout Cannot Fit maxSurge | Advanced | Capacity-aware rolling updates | SCHED | Current; scripted surge-capacity scenario |
+| 20 | Recreate Strategy Outage | Intermediate | Deployment strategy availability | BASE, LIFE | Current; scripted recreate-outage scenario |
+| 21 | Immutable Deployment Selector | Intermediate | API validation and safe migration | BASE | Current; scripted immutable-selector scenario |
 | 22 | DaemonSet Missing A Toleration | Intermediate | DaemonSet placement on tainted nodes | WORK, SCHED | New |
 | 23 | Job Restart Storm | Advanced | Job backoff vs Pod restartPolicy | WORK, SCHED | New; incident Universe |
 | 24 | Overlapping CronJobs | Intermediate | concurrencyPolicy and deadlines | WORK | New |
@@ -1144,7 +1144,7 @@ starter catalog rather than a complete Kubernetes incident lab library.
 
 ## 18. Agent Handoff And Exhaustive Remaining Work Ledger
 
-Last updated: 2026-07-10 after problem 18. This section is the resume point for the
+Last updated: 2026-07-11 after problem 21. This section is the resume point for the
 next agent. Earlier sections retain the rationale, audits, target catalog, Architect
 briefs, source register, estimates, and acceptance contracts; do not create a second
 Problems backlog elsewhere.
@@ -1153,11 +1153,19 @@ Problems backlog elsewhere.
 
 - Workspace: `C:\Users\armaa\Documents\klab`
 - Required branch: `main`
-- Problems catalog/lifecycle commit: `542d305 feat: scale problem catalog and add lifecycle challenges`
-- First sourced incident commit: `eee3466 feat: add sampled graceful shutdown incident`
-- Concurrent Docs commits `591c83b`, `21fb22d`, and `e1a1430` are intentional;
-  do not revert or rewrite them. Preserve any later Docs commits unless they make
-  the Problems task genuinely impossible.
+- Problems 14-18 catalog/lifecycle commits: `542d305`, then `eee3466` (problem 18)
+- Problems 19-21 rollout batch is implemented but not yet committed by this agent.
+  The three new scripted scenarios live in `scripted-scenarios.ts`; the three level
+  files are `recreate-strategy-outage.ts`, `rollout-cannot-fit-maxsurge.ts`, and
+  `immutable-deployment-selector.ts`; solutions and broken-state predicates are added.
+- A concurrent Docs agent is actively committing to `main` (mission/curriculum work).
+  During this session it added `1927620`, `5ef53d1`, and more. Its mission files
+  introduced typecheck and lint regressions that it then fixed itself (`5ef53d1`).
+  At handoff its latest files still carry lint errors (unused imports, unescaped
+  entities, setState-in-effect in mission React/docs files) — these are NOT Problems
+  code. Re-run `pnpm typecheck`/`pnpm lint` before committing; if the Docs agent has
+  not cleaned up, do not block the Problems commit on Docs lint unless it fails the
+  Problems files. Problems files lint clean.
 - The previous agent did not spawn subagents. Multiple workspace processes may still
   move branches, so run `git branch --show-current`, `git log -5 --oneline`, and
   `git status --short` before every commit.
@@ -1166,22 +1174,32 @@ Problems backlog elsewhere.
 
 ### Implemented and trusted at handoff
 
-- Problems 1-18 are published and schema-valid: 5 beginner, 7 intermediate, and
-  6 advanced. All have canonical solutions, prerequisite metadata, paths,
+- Problems 1-21 are published and schema-valid: 5 beginner, 9 intermediate, and
+  7 advanced. All have canonical solutions, prerequisite metadata, paths,
   capability declarations, Kubernetes 1.34-1.36 metadata, constraints, evidence,
   hints, prevention guidance, and next-problem links.
-- Problems 1-18 pass the catalog red-to-green engine harness and three generic
-  bypass classes. `pnpm test:levels` passes 8 files / 44 tests.
+- Problems 1-21 pass the catalog red-to-green engine harness and three generic
+  bypass classes. `pnpm test:levels` passes 8 files / 47 tests.
 - Problems 14-17 are native lifecycle scenarios: command override, startupProbe,
   wrong probe port, and multi-container sidecar. The sidecar uses port 9090 to avoid
   an invalid same-Pod port collision.
 - Problem 18 is Ravelin-inspired and explicitly labeled as an adaptation. It models
   a terminating endpoint that returns every third request as 502, then converges
   after a `preStop` sleep and sufficient termination grace.
+- Problems 19-21 are the rollout batch, all driven by new scripted scenarios in
+  `scripted-scenarios.ts` (do NOT add scenario branches to `problem-engine.ts`):
+  - 19 Rollout Cannot Fit maxSurge — capacity-aware rolling update; surge pods Pending
+    (Insufficient cpu) with maxUnavailable:0; fix is maxSurge:0, maxUnavailable:1.
+  - 20 Recreate Strategy Outage — Recreate kills all old pods before new are Ready;
+    fix is RollingUpdate with maxUnavailable:0.
+  - 21 Immutable Deployment Selector — teammate edited the immutable selector (API
+    rejects with a surfaced 422); fix is to revert the selector and add tier: api to
+    the pod template labels. The scripted apply returns the immutable-field error
+    when a selector change is attempted.
 - The scripted engine now uses `scripted-scenarios.ts`; do not put new scenario
   branches back into `problem-engine.ts`. Each scenario owns capabilities, boot,
   snapshot, apply transition, probes, and logs.
-- Network Probe supports one request or a bounded six-request sample. The new
+- Network Probe supports one request or a bounded six-request sample. The
   `http-sample-through-service` validator enforces intermittent availability.
 - Logs UI reads through `ProblemEngine.getLogs`, so native and scripted logs use one
   visible/evidence-capable path. Pod describe now shows every container, command,
@@ -1195,16 +1213,20 @@ Problems backlog elsewhere.
 
 ### Verification already completed
 
-- `pnpm typecheck`: pass after problem 18 and the scripted registry refactor.
-- `pnpm lint`: pass after problem 18.
-- `pnpm test:levels`: pass, 8 files / 44 tests across all 18 levels.
-- Focused incident/content tests: pass, including deterministic 200/200/502 traffic,
-  fixed all-200 traffic, source metadata, manifest bypasses, reset, and scripted logs.
-- Network sample and validator component/unit tests: pass, 2 files / 4 tests.
-- Before problem 18, `pnpm test` passed 24 files / 106 tests, `pnpm test:api`
-  passed 3 files / 13 tests, and `pnpm build` generated 67 static pages.
-- Chrome DevTools verified the 17-level desktop catalog, URL search, prerequisite
-  rows, and the 390x844 mobile filter dialog before problem 18.
+- `pnpm typecheck`: pass after problems 19-21 and the scripted rollout scenarios.
+- Problems files `pnpm lint`: clean. (Catalog-wide `pnpm lint` currently surfaces
+  errors in concurrent Docs/mission files only — unused imports, unescaped entities,
+  setState-in-effect — none in Problems code.)
+- `pnpm test:levels`: pass, 8 files / 47 tests across all 21 levels.
+- Focused rollout tests: pass — recreate outage red→green, maxSurge capacity
+  red→green, immutable-selector red→green, plus three generic bypass classes each
+  (rename, extra resource, first-assertion mutation) via the catalog audit.
+- `pnpm test`: pass, 34 files / 169 tests (includes concurrent Docs mission tests).
+- `pnpm test:api`: pass, 3 files / 13 tests (verified at the 18-level checkpoint).
+- `pnpm build`: pass, 72 static pages including all 21 problem routes.
+- Chrome DevTools was unavailable to this agent (no callable browser connector),
+  so browser QA for problems 19-21 is NOT yet done. The resume checklist below
+  includes the required browser checks.
 
 ### Immediate resume checklist
 
@@ -1296,7 +1318,8 @@ canonical solution, broken-state predicate, three bypass rejections, command/evi
 reachability, engine solve test, route smoke, and capability-pack E2E.
 
 1. BASE/LIFE/SCHED rollout batch: 19 Rollout Cannot Fit maxSurge; 20 Recreate
-   Strategy Outage; 21 Immutable Deployment Selector.
+   Strategy Outage; 21 Immutable Deployment Selector. **Complete** (scripted
+   scenarios, red→green + three bypass classes each verified).
 2. WORK/SCHED batch: 22 DaemonSet Missing A Toleration; 23 Job Restart Storm
    (Universe-inspired); 24 Overlapping CronJobs.
 3. CFG/AUTH batch: 25 ConfigMap Key Typo; 26 ConfigMap Changed, Pods Did Not;
@@ -1401,9 +1424,10 @@ reachability, engine solve test, route smoke, and capability-pack E2E.
 
 ### Recommended next implementation order
 
-1. Finish problem 18 browser/full-suite verification.
-2. Implement and publish problems 19-21; this also forces pagination to become
-   visible at 21 entries and supplies the first catalog-scale page test.
+1. Browser-verify problems 18-21 (Chrome DevTools was unavailable to this agent).
+   The catalog now has 21 entries, so pagination (20/page) is live: confirm page 2
+   holds the 21st row, and check invalid/out-of-range URL pages at 360/768/1280/wide.
+2. Commit the problems 19-21 slice once browser QA is done (or note the gap).
 3. Implement WORK (22-24), then CFG (25-29), because both unlock substantial
    troubleshooting and Architect coverage without depending on storage/CNI.
 4. Implement NET (30-37) and SCHED (38-45), then STORE (46-49), AUTH (50-53), and
