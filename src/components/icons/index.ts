@@ -43,6 +43,7 @@ import {
   SlidersHorizontal,
   Terminal,
   Trophy,
+  Users,
   XCircle,
   X,
   Zap,
@@ -87,6 +88,7 @@ export const icons = {
   arrowRight: ArrowRight,
   filter: SlidersHorizontal,
   challenge: Zap,
+  community: Users,
   close: X,
   menu: Menu,
 } as const;

@@ -719,7 +719,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
             title="Your Progress"
             icon={<icons.trophy className="text-green size-4" aria-hidden />}
             action={
-              <Link href="/progress" className="text-blue text-xs hover:underline">
+              <Link href="/community" className="text-blue text-xs hover:underline">
                 View all
               </Link>
             }
