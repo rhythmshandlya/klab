@@ -50,7 +50,11 @@ interface LevelState {
 }
 
 function filesFromLevel(level: ProblemLevel): Record<string, string> {
-  return Object.fromEntries(level.files.map((file) => [file.path, file.initialValue]));
+  return Object.fromEntries(
+    level.files
+      .filter((file) => file.access !== "hidden")
+      .map((file) => [file.path, file.initialValue]),
+  );
 }
 
 export const useLevelStore = create<LevelState>((set, get) => ({
@@ -71,7 +75,10 @@ export const useLevelStore = create<LevelState>((set, get) => ({
     set({
       level,
       files: filesFromLevel(level),
-      activeFilePath: level.files[0]?.path ?? "",
+      activeFilePath:
+        level.files.find((file) => file.access === "editable")?.path ??
+        level.files.find((file) => file.access !== "hidden")?.path ??
+        "",
       collectedEvidence: [],
       revealedHintIds: [],
       validation: null,
@@ -88,7 +95,12 @@ export const useLevelStore = create<LevelState>((set, get) => ({
     if (level) set({ files: filesFromLevel(level), validation: null, solved: false });
   },
 
-  setFile: (path, content) => set((state) => ({ files: { ...state.files, [path]: content } })),
+  setFile: (path, content) =>
+    set((state) => {
+      const file = state.level?.files.find((candidate) => candidate.path === path);
+      if (!file || file.access !== "editable") return state;
+      return { files: { ...state.files, [path]: content } };
+    }),
 
   setActiveFile: (path) => set({ activeFilePath: path }),
 

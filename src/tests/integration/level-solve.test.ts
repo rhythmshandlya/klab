@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { getLevelBySlug } from "@/content/levels";
 import { isPodReady, podPhase } from "@/lib/kube/kubectl/format";
+import { applyProblemBoot } from "@/lib/kube/problem-boot";
 import { KubeSimulator } from "@/lib/kube/simulator";
-import { runValidators } from "@/lib/kube/validators";
+import { runLevelValidation } from "@/lib/kube/validators";
 
 async function waitFor(
   predicate: () => boolean,
@@ -16,10 +17,6 @@ async function waitFor(
     await new Promise((r) => setTimeout(r, stepMs));
   }
   return predicate();
-}
-
-function joinDocs(docs: string[]): string {
-  return docs.filter((d) => d.trim() !== "").join("\n---\n");
 }
 
 describe("Broken Readiness Probe — full solve path", () => {
@@ -38,25 +35,30 @@ describe("Broken Readiness Probe — full solve path", () => {
     expect((await sim.boot()).ok).toBe(true);
 
     // Apply the initial (broken) state: Service + Deployment with readinessProbe /readyz.
-    const broken = joinDocs([...level.initialManifests, ...level.files.map((f) => f.initialValue)]);
-    expect((await sim.applyYaml(broken)).ok).toBe(true);
+    expect((await applyProblemBoot(sim, level)).ok).toBe(true);
 
     // A pod comes up Running but never Ready → the Service gets no endpoints.
     await waitFor(() =>
       sim!.getSnapshot().pods.some((p) => podPhase(p) === "Running" && !isPodReady(p)),
     );
-    expect((await runValidators(level.validators, { simulator: sim })).passed).toBe(false);
+    const brokenFiles = Object.fromEntries(
+      level.files
+        .filter((file) => file.access !== "hidden")
+        .map((file) => [file.path, file.initialValue]),
+    );
+    expect((await runLevelValidation(level, brokenFiles, { simulator: sim })).passed).toBe(false);
 
     // Fix: point the readiness probe at /healthz (what the app actually serves).
     const fixedFile = level.files[0]!.initialValue.replace("/readyz", "/healthz");
-    expect((await sim.applyYaml(joinDocs([...level.initialManifests, fixedFile]))).ok).toBe(true);
+    expect((await sim.applyYaml(fixedFile)).ok).toBe(true);
 
     // Once a pod passes readiness, the Service gets an endpoint and every validator passes.
-    let report = await runValidators(level.validators, { simulator: sim });
+    const fixedFiles = { ...brokenFiles, [level.files[0]!.path]: fixedFile };
+    let report = await runLevelValidation(level, fixedFiles, { simulator: sim });
     const start = Date.now();
     while (!report.passed && Date.now() - start < 45000) {
       await new Promise((r) => setTimeout(r, 500));
-      report = await runValidators(level.validators, { simulator: sim });
+      report = await runLevelValidation(level, fixedFiles, { simulator: sim });
     }
 
     if (!report.passed) {

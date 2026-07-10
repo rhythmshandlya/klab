@@ -53,14 +53,31 @@ export function IncidentBrief() {
 
         <Section label="Editable files">
           <ul className="space-y-1">
-            {level.files.map((f) => (
-              <li key={f.path} className="text-blue flex items-center gap-2 text-sm">
-                <File className="size-3.5" aria-hidden />
-                <span className="font-mono text-xs">{f.path}</span>
-              </li>
-            ))}
+            {level.files
+              .filter((file) => file.access === "editable")
+              .map((f) => (
+                <li key={f.path} className="text-blue flex items-center gap-2 text-sm">
+                  <File className="size-3.5" aria-hidden />
+                  <span className="font-mono text-xs">{f.path}</span>
+                </li>
+              ))}
           </ul>
         </Section>
+
+        {level.files.some((file) => file.access === "readonly") ? (
+          <Section label="Reference files">
+            <ul className="space-y-1">
+              {level.files
+                .filter((file) => file.access === "readonly")
+                .map((file) => (
+                  <li key={file.path} className="text-muted flex items-center gap-2 text-sm">
+                    <icons.lock className="text-subtle size-3.5" aria-hidden />
+                    <span className="font-mono text-xs">{file.path}</span>
+                  </li>
+                ))}
+            </ul>
+          </Section>
+        ) : null}
       </PanelBody>
     </Panel>
   );

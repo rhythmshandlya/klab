@@ -1,10 +1,16 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { getLevelBySlug } from "@/content/levels";
 import type { Progress } from "@/lib/storage/local-progress";
 
 import type { ProgressDb } from "./progress-repo";
-import { bookmarks, hintReveals, progressAttempted, progressSolved } from "./schema";
+import {
+  bookmarks,
+  hintReveals,
+  progressAttempted,
+  progressCompletedLessons,
+  progressSolved,
+} from "./schema";
 
 /**
  * Merge a guest's localStorage Progress into a signed-in account. Idempotent by
@@ -20,25 +26,31 @@ export async function mergeGuestProgress(
   userId: string,
   guest: Progress,
 ): Promise<void> {
-  // Import hint penalties first as a synthetic reveal so per-slug totals survive; MAX
-  // (not sum) so a re-import can't inflate them.
-  for (const [slug, penalty] of Object.entries(guest.hintPenalties)) {
-    if (penalty > 0) {
+  // Import grow-only hint facts first. The (user, level, hint) primary key makes a
+  // repeated guest merge idempotent without collapsing distinct reveals.
+  for (const [slug, reveals] of Object.entries(guest.hintReveals)) {
+    const level = getLevelBySlug(slug);
+    if (!level) continue;
+    for (const hintId of Object.keys(reveals)) {
+      const hint = level.hints.find(({ id }) => id === hintId);
+      if (!hint) continue;
       await db
         .insert(hintReveals)
-        .values({ userId, levelSlug: slug, hintId: "__imported__", penalty })
-        .onConflictDoUpdate({
-          target: [hintReveals.userId, hintReveals.levelSlug, hintReveals.hintId],
-          set: { penalty: sql`greatest(${hintReveals.penalty}, ${penalty})` },
-        });
+        .values({ userId, levelSlug: slug, hintId, penalty: hint.xpPenalty })
+        .onConflictDoNothing();
     }
   }
 
-  const day = guest.lastSolvedDay ?? "1970-01-01";
+  const day = validDay(guest.lastSolvedDay) ? guest.lastSolvedDay : utcDay();
   for (const slug of guest.solvedLevelSlugs) {
-    const gross = getLevelBySlug(slug)?.xp ?? 0;
-    const penalty = guest.hintPenalties[slug] ?? 0;
-    const awardedXp = Math.max(0, gross - penalty);
+    const level = getLevelBySlug(slug);
+    if (!level) continue;
+    const penaltyRows = await db
+      .select({ penalty: hintReveals.penalty })
+      .from(hintReveals)
+      .where(and(eq(hintReveals.userId, userId), eq(hintReveals.levelSlug, slug)));
+    const penalty = penaltyRows.reduce((sum, row) => sum + row.penalty, 0);
+    const awardedXp = Math.max(0, level.xp - penalty);
     await db
       .insert(progressSolved)
       .values({ userId, levelSlug: slug, awardedXp, solvedDay: day })
@@ -49,9 +61,30 @@ export async function mergeGuestProgress(
   }
 
   for (const slug of guest.attemptedLevelSlugs) {
+    if (!getLevelBySlug(slug)) continue;
     await db.insert(progressAttempted).values({ userId, levelSlug: slug }).onConflictDoNothing();
   }
   for (const slug of guest.savedProblemSlugs) {
+    if (!getLevelBySlug(slug)) continue;
     await db.insert(bookmarks).values({ userId, levelSlug: slug }).onConflictDoNothing();
   }
+  for (const slug of guest.completedLessonSlugs) {
+    await db
+      .insert(progressCompletedLessons)
+      .values({ userId, lessonSlug: slug })
+      .onConflictDoNothing();
+  }
+}
+
+function validDay(value: string | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year!, month! - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month! - 1 && date.getUTCDate() === day
+  );
+}
+
+function utcDay(): string {
+  return new Date().toISOString().slice(0, 10);
 }

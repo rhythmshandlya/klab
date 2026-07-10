@@ -1,8 +1,9 @@
-import type { LevelValidatorDefinition } from "@/lib/domain/types";
+import type { LevelValidatorDefinition, ProblemLevel } from "@/lib/domain/types";
 import { assertNever } from "@/lib/utils/exhaustive";
 
 import { isPodReady, podPhase, podRestarts, readyEndpointCount } from "./kubectl/format";
-import type { ClusterSnapshot, KubeSimulator } from "./simulator";
+import { evaluateLevelConstraints } from "./manifest-constraints";
+import type { ClusterSnapshot, ProbeResult } from "./simulator";
 
 /**
  * Validators check real cluster *behavior*, not YAML text. Each is a pure-ish async
@@ -26,7 +27,12 @@ export interface ValidationReport {
 }
 
 export interface ValidatorContext {
-  simulator: KubeSimulator;
+  simulator: ValidationRuntime;
+}
+
+export interface ValidationRuntime {
+  getSnapshot(): ClusterSnapshot;
+  probe(url: string): Promise<ProbeResult>;
 }
 
 export async function runValidators(
@@ -35,6 +41,18 @@ export async function runValidators(
 ): Promise<ValidationReport> {
   const results = await Promise.all(validators.map((validator) => runValidator(validator, ctx)));
   return { passed: results.every((r) => r.passed), results };
+}
+
+/** Combine live-cluster checks with the authored constraints for a formal submission. */
+export async function runLevelValidation(
+  level: ProblemLevel,
+  currentFiles: Readonly<Record<string, string>>,
+  ctx: ValidatorContext,
+): Promise<ValidationReport> {
+  const runtime = await runValidators(level.validators, ctx);
+  const constraints = evaluateLevelConstraints(level, currentFiles);
+  const results = [...runtime.results, ...constraints];
+  return { passed: results.every((result) => result.passed), results };
 }
 
 export async function runValidator(
@@ -55,7 +73,7 @@ export async function runValidator(
 async function evaluate(
   validator: LevelValidatorDefinition,
   snapshot: ClusterSnapshot,
-  simulator: KubeSimulator,
+  simulator: ValidationRuntime,
 ): Promise<{ passed: boolean; detail: string }> {
   switch (validator.kind) {
     case "deployment-ready": {

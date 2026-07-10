@@ -114,6 +114,19 @@ export const progressAttempted = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.levelSlug] })],
 );
 
+/** One row per (user, completed docs lesson). Grow-only; drives docs progress + checkmarks. */
+export const progressCompletedLessons = pgTable(
+  "progress_completed_lessons",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    lessonSlug: text("lesson_slug").notNull(),
+    completedAt: timestamp("completed_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.lessonSlug] })],
+);
+
 /** Bookmarked problems (the catalog "Saved" tab). Absolute membership, not a toggle. */
 export const bookmarks = pgTable(
   "bookmarks",
@@ -145,7 +158,7 @@ export const hintReveals = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.levelSlug, t.hintId] })],
 );
 
-/** Append-only per-attempt history — powers real success rates & avg solve time. */
+/** Append-only browser-validated telemetry for qualified success/time aggregates. */
 export const submissions = pgTable(
   "submissions",
   {
@@ -212,6 +225,7 @@ export const schema = {
   verification,
   progressSolved,
   progressAttempted,
+  progressCompletedLessons,
   bookmarks,
   hintReveals,
   submissions,

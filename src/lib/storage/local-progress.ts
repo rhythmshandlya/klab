@@ -16,13 +16,15 @@ const progressSchema = z.object({
   xp: z.number().int().nonnegative(),
   streakDays: z.number().int().nonnegative(),
   solvedLevelSlugs: z.array(z.string()),
-  /** XP penalty already spent per level (from revealed hints), keyed by slug. */
-  hintPenalties: z.record(z.string(), z.number()),
+  /** Grow-only hint facts keyed by level slug and hint id; penalties derive from these facts. */
+  hintReveals: z.record(z.string(), z.record(z.string(), z.number())).default({}),
   // Later additions use .default() so progress blobs written before them still parse.
   /** Levels the user has started investigating (first command/apply), solved or not. */
   attemptedLevelSlugs: z.array(z.string()).default([]),
   /** Bookmarked problems (the catalog's "Saved" tab). */
   savedProblemSlugs: z.array(z.string()).default([]),
+  /** Docs lessons the user has marked complete, keyed by joined slug (e.g. "networking/services"). */
+  completedLessonSlugs: z.array(z.string()).default([]),
   /** Local calendar day (YYYY-MM-DD) of the most recent solve, for the day streak. */
   lastSolvedDay: z.string().optional(),
 });
@@ -34,9 +36,10 @@ export const EMPTY_PROGRESS: Progress = {
   xp: 0,
   streakDays: 0,
   solvedLevelSlugs: [],
-  hintPenalties: {},
+  hintReveals: {},
   attemptedLevelSlugs: [],
   savedProblemSlugs: [],
+  completedLessonSlugs: [],
 };
 
 /** Read + validate the Progress blob at a specific localStorage key (identity-scoped). */
@@ -123,7 +126,7 @@ function previousDay(day: string): string {
 /** Record a solved level, award XP (net of hint penalties), and advance the day streak. */
 export function recordSolved(progress: Progress, slug: string, levelXp: number): Progress {
   if (progress.solvedLevelSlugs.includes(slug)) return progress;
-  const penalty = progress.hintPenalties[slug] ?? 0;
+  const penalty = hintPenaltyFor(progress, slug);
   const awarded = Math.max(0, levelXp - penalty);
   const today = localDay();
   const streakDays =
@@ -147,6 +150,12 @@ export function recordAttempted(progress: Progress, slug: string): Progress {
   return { ...progress, attemptedLevelSlugs: [...progress.attemptedLevelSlugs, slug] };
 }
 
+/** Mark a docs lesson complete (grow-only, keyed by joined slug). Idempotent. */
+export function recordLessonCompleted(progress: Progress, slug: string): Progress {
+  if (progress.completedLessonSlugs.includes(slug)) return progress;
+  return { ...progress, completedLessonSlugs: [...progress.completedLessonSlugs, slug] };
+}
+
 /** Toggle a problem bookmark (the catalog's "Saved" tab). */
 export function toggleSaved(progress: Progress, slug: string): Progress {
   const saved = progress.savedProblemSlugs.includes(slug)
@@ -155,12 +164,23 @@ export function toggleSaved(progress: Progress, slug: string): Progress {
   return { ...progress, savedProblemSlugs: saved };
 }
 
-export function recordHintPenalty(progress: Progress, slug: string, penalty: number): Progress {
+export function hintPenaltyFor(progress: Progress, slug: string): number {
+  return Object.values(progress.hintReveals[slug] ?? {}).reduce((sum, penalty) => sum + penalty, 0);
+}
+
+export function recordHintPenalty(
+  progress: Progress,
+  slug: string,
+  hintId: string,
+  penalty: number,
+): Progress {
+  const current = progress.hintReveals[slug] ?? {};
+  if (Object.hasOwn(current, hintId)) return progress;
   return {
     ...progress,
-    hintPenalties: {
-      ...progress.hintPenalties,
-      [slug]: (progress.hintPenalties[slug] ?? 0) + penalty,
+    hintReveals: {
+      ...progress.hintReveals,
+      [slug]: { ...current, [hintId]: penalty },
     },
   };
 }

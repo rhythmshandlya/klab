@@ -10,14 +10,14 @@ export const metadata: Metadata = { title: "Problems" };
 // Revalidate the (public, aggregate) stats hourly; the catalog itself is static code.
 export const revalidate = 3600;
 
-/** Show real numbers only once a problem has enough attempts; otherwise keep the author's estimate. */
+/** Show aggregate telemetry only after enough client-validated attempts. */
 const MIN_SAMPLE = 20;
 
 /**
  * Server component. The catalog is static code; when a database is configured we
- * overlay REAL success rate + avg solve time (from the submissions history) onto each
- * entry, falling back to the authored estimate below a minimum sample or when there's
- * no DB (guest/static build). The read is wrapped so a DB error never breaks the page.
+ * overlay client-validated success rate + average solve time from submission telemetry.
+ * These are explicitly labeled in the UI; browser-side validation is not presented as
+ * server-verified truth. Below the sample floor, authored estimates remain visible.
  */
 export default async function ProblemsPage() {
   const catalog = await buildCatalog();
@@ -37,6 +37,8 @@ async function buildCatalog(): Promise<LevelSummary[]> {
         estimatedMinutes: stat.avgSolveMs
           ? Math.max(1, Math.round(stat.avgSolveMs / 60000))
           : level.estimatedMinutes,
+        statsSource: "client-validated",
+        statsSampleSize: stat.sampleSize,
       };
     });
   } catch {

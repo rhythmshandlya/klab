@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { LevelValidatorDefinition } from "@/lib/domain/types";
+import type { ProblemLevel } from "@/lib/domain/types";
 import {
   KubeSimulator,
+  type AppliedResourceRef,
   type ClusterSnapshot,
   type ProbeResult,
   type SimulatorStatus,
 } from "@/lib/kube/simulator";
-import { runValidators, type ValidationReport } from "@/lib/kube/validators";
+import { applyProblemBoot, type ProblemBootSpec } from "@/lib/kube/problem-boot";
+import { runLevelValidation, type ValidationReport } from "@/lib/kube/validators";
 import type { Result } from "@/lib/utils/result";
 
 const EMPTY: ClusterSnapshot = {
@@ -31,17 +33,13 @@ function joinDocs(docs: string[]): string {
  * Minimal boot payload the hook needs. Both `ProblemLevel` and `PlaygroundTemplate`
  * satisfy it, so the same hook powers Problems and Playground.
  */
-export interface SimulatorBootSpec {
-  initialManifests: string[];
-  files: ReadonlyArray<{ initialValue: string }>;
-}
+export type SimulatorBootSpec = ProblemBootSpec;
 
 function applyInitial(
   sim: KubeSimulator,
   spec: SimulatorBootSpec,
-): Promise<Result<unknown, string>> {
-  const docs = [...spec.initialManifests, ...spec.files.map((f) => f.initialValue)];
-  return sim.applyYaml(joinDocs(docs));
+): Promise<Result<AppliedResourceRef[], string>> {
+  return applyProblemBoot(sim, spec);
 }
 
 export interface UseSimulator {
@@ -50,10 +48,13 @@ export interface UseSimulator {
   error: string | null;
   snapshot: ClusterSnapshot;
   simulator: KubeSimulator;
-  applyFiles: (files: Record<string, string>) => Promise<Result<unknown, string>>;
+  applyFiles: (files: Record<string, string>) => Promise<Result<AppliedResourceRef[], string>>;
   reset: () => Promise<void>;
   probe: (url: string) => Promise<ProbeResult>;
-  validate: (validators: readonly LevelValidatorDefinition[]) => Promise<ValidationReport>;
+  validate: (
+    level: ProblemLevel,
+    files: Readonly<Record<string, string>>,
+  ) => Promise<ValidationReport>;
 }
 
 /**
@@ -86,6 +87,7 @@ export function useSimulator(level: SimulatorBootSpec | null): UseSimulator {
     });
 
     void (async () => {
+      setError(null);
       const booted = await simulator.boot();
       if (cancelled) return;
       if (!booted.ok) {
@@ -93,9 +95,15 @@ export function useSimulator(level: SimulatorBootSpec | null): UseSimulator {
         setError(booted.error);
         return;
       }
-      setStatus("ready");
       const applied = await applyInitial(simulator, lvl);
-      if (!cancelled && !applied.ok) setError(applied.error);
+      if (cancelled) return;
+      if (!applied.ok) {
+        setStatus("error");
+        setError(applied.error);
+        return;
+      }
+      // "Ready" means both the control plane and the authored incident state are ready.
+      setStatus("ready");
     })();
 
     return () => {
@@ -110,7 +118,7 @@ export function useSimulator(level: SimulatorBootSpec | null): UseSimulator {
   const applyFiles = useCallback(
     async (files: Record<string, string>) => {
       if (!level) return { ok: false as const, error: "Simulator not ready." };
-      return simulator.applyYaml(joinDocs([...level.initialManifests, ...Object.values(files)]));
+      return simulator.applyYaml(joinDocs(Object.values(files)));
     },
     [simulator, level],
   );
@@ -118,21 +126,27 @@ export function useSimulator(level: SimulatorBootSpec | null): UseSimulator {
   const reset = useCallback(async () => {
     if (!level) return;
     setStatus("booting");
+    setError(null);
     const result = await simulator.reset();
     if (!result.ok) {
       setStatus("error");
       setError(result.error);
       return;
     }
-    setStatus("ready");
     const applied = await applyInitial(simulator, level);
-    if (!applied.ok) setError(applied.error);
+    if (!applied.ok) {
+      setStatus("error");
+      setError(applied.error);
+      return;
+    }
+    setStatus("ready");
   }, [simulator, level]);
 
   const probe = useCallback((url: string) => simulator.probe(url), [simulator]);
 
   const validate = useCallback(
-    (validators: readonly LevelValidatorDefinition[]) => runValidators(validators, { simulator }),
+    (problem: ProblemLevel, files: Readonly<Record<string, string>>) =>
+      runLevelValidation(problem, files, { simulator }),
     [simulator],
   );
 

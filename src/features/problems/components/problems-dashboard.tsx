@@ -454,7 +454,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                   <Th className="w-28">Difficulty</Th>
                   <Th className="hidden w-44 lg:table-cell">Topics</Th>
                   <Th className="w-16">XP</Th>
-                  <Th className="hidden w-32 md:table-cell">Success</Th>
+                  <Th className="hidden w-36 md:table-cell">Success</Th>
                   <Th className="hidden w-20 md:table-cell">Est.</Th>
                   <Th className="w-10 pr-3">
                     <span className="sr-only">Save</span>
@@ -757,6 +757,10 @@ function ProblemRow({
   const meta = DIFFICULTY_META[level.difficulty];
   const locked = status === "locked";
   const remaining = Math.max(0, ADVANCED_UNLOCK_SOLVES - solvedCount);
+  const statsLabel =
+    level.statsSource === "client-validated"
+      ? `Client-validated telemetry, n=${level.statsSampleSize ?? 0}`
+      : "Authored estimate";
 
   const title = (
     <>
@@ -812,26 +816,37 @@ function ProblemRow({
         </span>
       </td>
       <td className="hidden px-3 py-3 align-middle md:table-cell">
-        <span className="flex items-center gap-2">
-          <span className="tabnums text-muted w-8 text-xs">{level.successRate}%</span>
-          <span className="bg-panel-elevated h-1 w-14 overflow-hidden rounded-full">
-            <span
-              className={cn(
-                "block h-full rounded-full",
-                level.successRate >= 60
-                  ? "bg-green"
-                  : level.successRate >= 45
-                    ? "bg-amber"
-                    : "bg-red",
-              )}
-              style={{ width: `${level.successRate}%` }}
-            />
+        <span className="flex flex-col gap-1" title={statsLabel}>
+          <span className="flex items-center gap-2">
+            <span className="tabnums text-muted w-9 text-xs">
+              {level.statsSource === "authored-estimate" ? "~" : ""}
+              {level.successRate}%
+            </span>
+            <span className="bg-panel-elevated h-1 w-14 overflow-hidden rounded-full">
+              <span
+                className={cn(
+                  "block h-full rounded-full",
+                  level.successRate >= 60
+                    ? "bg-green"
+                    : level.successRate >= 45
+                      ? "bg-amber"
+                      : "bg-red",
+                )}
+                style={{ width: `${level.successRate}%` }}
+              />
+            </span>
+          </span>
+          <span className="text-subtle text-[10px] leading-none">
+            {level.statsSource === "client-validated"
+              ? `client n=${level.statsSampleSize ?? 0}`
+              : "estimate"}
           </span>
         </span>
       </td>
       <td className="hidden px-3 py-3 align-middle md:table-cell">
         <span className="text-muted flex items-center gap-1 text-xs">
           <icons.clock className="size-3.5" aria-hidden />
+          {level.statsSource === "authored-estimate" ? "~" : ""}
           {level.estimatedMinutes}m
         </span>
       </td>

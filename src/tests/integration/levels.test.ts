@@ -4,8 +4,9 @@ import { LEVELS } from "@/content/levels";
 import { LEVEL_SOLUTIONS } from "@/content/levels/solutions";
 import type { ProblemLevel } from "@/lib/domain/types";
 import { podRestarts } from "@/lib/kube/kubectl/format";
-import { KubeSimulator, type ClusterSnapshot } from "@/lib/kube/simulator";
-import { runValidators, type ValidationReport } from "@/lib/kube/validators";
+import { createProblemEngine, type ProblemEngine } from "@/lib/kube/problem-engine";
+import type { ClusterSnapshot } from "@/lib/kube/simulator";
+import type { ValidationReport } from "@/lib/kube/validators";
 
 /**
  * Solvability proof for EVERY level in the catalog: boot a real Webernetes cluster,
@@ -15,10 +16,6 @@ import { runValidators, type ValidationReport } from "@/lib/kube/validators";
  */
 
 const PER_LEVEL_TIMEOUT = 120_000;
-
-function joinDocs(docs: string[]): string {
-  return docs.filter((d) => d.trim() !== "").join("\n---\n");
-}
 
 async function waitFor(
   predicate: () => boolean,
@@ -50,9 +47,14 @@ function existingPods(snapshot: ClusterSnapshot, labels: Record<string, string>)
 function anyRestarts(snapshot: ClusterSnapshot, labels: Record<string, string>): boolean {
   return snapshot.pods.some(
     (p) =>
-      Object.entries(labels).every(([k, v]) => p.metadata?.labels?.[k] === v) &&
-      podRestarts(p) > 0,
+      Object.entries(labels).every(([k, v]) => p.metadata?.labels?.[k] === v) && podRestarts(p) > 0,
   );
+}
+
+function podsUsingImage(snapshot: ClusterSnapshot, image: string): number {
+  return snapshot.pods.filter((pod) =>
+    (pod.spec?.containers ?? []).some((container) => container.image === image),
+  ).length;
 }
 
 /**
@@ -65,10 +67,15 @@ const BROKEN_STATE_READY: Record<string, (s: ClusterSnapshot) => boolean> = {
   "port-routing-bug": (s) => readyPods(s, { app: "web-app" }) >= 2,
   "broken-readiness-probe": (s) => existingPods(s, { app: "web-app" }) >= 1,
   "namespace-confusion": (s) => readyPods(s, { app: "storefront" }) >= 1,
-  "service-has-no-endpoints": (s) =>
-    s.deployments.some((d) => d.metadata?.name === "web-app"),
+  "service-has-no-endpoints": (s) => s.deployments.some((d) => d.metadata?.name === "web-app"),
   "pod-crashloop-mystery": (s) => anyRestarts(s, { app: "queue-worker" }),
-  "rolling-update-gone-wrong": (s) => existingPods(s, { app: "web-app" }) >= 2,
+  "private-registry-pull-secret": (s) =>
+    s.pods.some(
+      (pod) => pod.metadata?.labels?.app === "private-api" && pod.status?.phase === "Pending",
+    ),
+  "rolling-update-gone-wrong": (s) =>
+    s.replicaSets.filter((replicaSet) => replicaSet.metadata?.name?.startsWith("web-app-"))
+      .length >= 2 && podsUsingImage(s, "klab/web-app:2.0.0") >= 1,
   "dns-resolution-failure": (s) => readyPods(s, { app: "orders-api" }) >= 1,
   "liveness-probe-death-spiral": (s) => anyRestarts(s, { app: "web-app" }),
   "config-drift": (s) => existingPods(s, { app: "web-app" }) >= 2,
@@ -81,8 +88,12 @@ const BROKEN_STATE_READY: Record<string, (s: ClusterSnapshot) => boolean> = {
     readyPods(s, { app: "web", track: "legacy" }) >= 1,
 };
 
-function brokenFiles(level: ProblemLevel): string[] {
-  return level.files.map((f) => f.initialValue);
+function workspaceFiles(level: ProblemLevel): Record<string, string> {
+  return Object.fromEntries(
+    level.files
+      .filter((file) => file.access !== "hidden")
+      .map((file) => [file.path, file.initialValue]),
+  );
 }
 
 function describeReport(report: ValidationReport): string {
@@ -92,11 +103,11 @@ function describeReport(report: ValidationReport): string {
 }
 
 describe("level solvability (real Webernetes boot per level)", () => {
-  let sim: KubeSimulator | undefined;
+  let engine: ProblemEngine | undefined;
 
   afterEach(async () => {
-    await sim?.close();
-    sim = undefined;
+    await engine?.close();
+    engine = undefined;
   });
 
   for (const level of LEVELS) {
@@ -113,42 +124,33 @@ describe("level solvability (real Webernetes boot per level)", () => {
           `level ${level.slug} is missing a broken-state predicate in this test`,
         ).toBeDefined();
 
-        sim = new KubeSimulator();
-        const booted = await sim.boot();
+        engine = createProblemEngine(level.engine);
+        const booted = await engine.boot(level);
         expect(booted.ok, booted.ok ? "" : (booted as { error: string }).error).toBe(true);
 
-        // Broken starting state: exactly what the workspace applies on level load.
-        const appliedBroken = await sim.applyYaml(
-          joinDocs([...level.initialManifests, ...brokenFiles(level)]),
-        );
-        expect(
-          appliedBroken.ok,
-          appliedBroken.ok ? "" : `broken apply failed: ${(appliedBroken as { error: string }).error}`,
-        ).toBe(true);
-
-        const materialized = await waitFor(() => brokenReady!(sim!.getSnapshot()), 60_000);
+        const materialized = await waitFor(() => brokenReady!(engine!.getSnapshot()), 60_000);
         expect(materialized, `broken state never materialized for ${level.slug}`).toBe(true);
 
-        const brokenReport = await runValidators(level.validators, { simulator: sim });
+        const currentFiles = workspaceFiles(level);
+        const brokenReport = await engine.validate(level, currentFiles);
         expect(
           brokenReport.passed,
           `broken state unexpectedly PASSED for ${level.slug}:\n${describeReport(brokenReport)}`,
         ).toBe(false);
 
-        // Canonical fix (same path a learner takes: re-apply initial manifests + edited files).
-        const appliedFix = await sim.applyYaml(
-          joinDocs([...level.initialManifests, ...Object.values(solution!.files)]),
-        );
+        // Canonical fix follows the learner path: only changed editable files are re-applied.
+        const appliedFix = await engine.applyFiles(solution!.files);
         expect(
           appliedFix.ok,
           appliedFix.ok ? "" : `fix apply failed: ${(appliedFix as { error: string }).error}`,
         ).toBe(true);
 
         const deadline = Date.now() + 60_000;
-        let finalReport = await runValidators(level.validators, { simulator: sim });
+        const solvedFiles = { ...currentFiles, ...solution!.files };
+        let finalReport = await engine.validate(level, solvedFiles);
         while (!finalReport.passed && Date.now() < deadline) {
           await new Promise((resolve) => setTimeout(resolve, 500));
-          finalReport = await runValidators(level.validators, { simulator: sim });
+          finalReport = await engine.validate(level, solvedFiles);
         }
         expect(
           finalReport.passed,

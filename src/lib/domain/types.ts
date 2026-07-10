@@ -68,22 +68,87 @@ export interface EditableFile {
   initialValue: string;
 }
 
-export interface ReadonlyFile {
-  path: string;
-  language: EditableFileLanguage;
-  value: string;
+export type ProblemFileAccess = "editable" | "readonly" | "hidden";
+
+/** A scenario file and its complete workspace/runtime behavior. */
+export interface ProblemFile extends EditableFile {
+  access: ProblemFileAccess;
+  /** Apply this manifest while constructing/resetting the incident state. */
+  applyAtBoot: boolean;
 }
 
-/** A hard rule the learner must respect while solving (e.g. "only edit deployment.yaml"). */
-export interface LevelConstraint {
+export interface ManifestResourceSelector {
+  kind: string;
+  name: string;
+  namespace?: string;
+}
+
+export type ManifestAssertion =
+  | { path: string; operator: "present" }
+  | { path: string; operator: "absent" }
+  | {
+      path: string;
+      operator: "equals" | "not-equals" | "gte" | "lte" | "matches";
+      value: string | number | boolean;
+    };
+
+/** A hard rule that is both displayed and evaluated during every validation. */
+export type LevelConstraint = {
   id: string;
   label: string;
+} & (
+  | { kind: "editable-files"; paths: string[] }
+  | {
+      kind: "manifest";
+      file: string;
+      resource: ManifestResourceSelector;
+      /** Reject extra documents smuggled into a single-resource learner file. */
+      exclusive: boolean;
+      assertions: ManifestAssertion[];
+    }
+);
+
+export interface QuickCommandTarget {
+  kind: "pod";
+  namespace: string;
+  selector: Record<string, string>;
+  prefer: "not-ready" | "highest-restarts" | "first";
+}
+
+export interface QuickCommand {
+  id: string;
+  command: string;
+  target?: QuickCommandTarget;
+}
+
+export type ProblemEngineSpec = { kind: "webernetes" } | { kind: "scripted"; scenarioId: string };
+
+export type ProblemBootWait =
+  | {
+      kind: "pods-ready";
+      namespace: string;
+      selector: Record<string, string>;
+      minReady: number;
+      timeoutMs: number;
+    }
+  | {
+      kind: "pod-image-present";
+      namespace: string;
+      image: string;
+      minCount: number;
+      timeoutMs: number;
+    };
+
+export interface ProblemBootStep {
+  id: string;
+  filePaths: string[];
+  waitFor?: ProblemBootWait;
 }
 
 export type EvidenceRuleId = string;
 
 export type EvidenceSource =
-  "terminal" | "events" | "network" | "topology" | "object-explorer" | "validator";
+  "terminal" | "logs" | "events" | "network" | "topology" | "object-explorer" | "validator";
 
 /** A fact the learner can surface through investigation. Starts uncollected. */
 export interface EvidenceItem {
@@ -101,8 +166,18 @@ export interface EvidenceItem {
  */
 export type EvidenceTrigger =
   | { type: "command"; commandMatches: string; outputMatches?: string }
-  | { type: "probe"; pathMatches: string; status: number }
-  | { type: "event-reason"; reason: string };
+  | {
+      type: "probe";
+      hostMatches: string;
+      pathMatches: string;
+      status: number;
+      bodyMatches?: string;
+    }
+  | { type: "event-reason"; reason: string; messageMatches?: string }
+  | { type: "log"; messageMatches: string; podMatches?: string; namespace?: string }
+  | { type: "object-view"; kind: string; nameMatches: string; namespace?: string }
+  | { type: "topology-view"; kind: string; nameMatches: string; namespace?: string }
+  | { type: "validator"; validatorId: string; passed: boolean };
 
 export interface EvidenceRule {
   id: EvidenceRuleId;
@@ -210,18 +285,12 @@ export interface ProblemLevel {
   blurb: string;
   story: string;
   objective: string;
+  engine: ProblemEngineSpec;
   constraints: LevelConstraint[];
-  files: EditableFile[];
-  readonlyFiles: ReadonlyFile[];
-  /** Extra manifests applied at boot that the learner cannot see/edit (e.g. the Service). */
-  initialManifests: string[];
-  registeredImages: SimulatedImageDefinition[];
-  allowedCommands: string[];
-  /**
-   * Concrete starter commands rendered as one-click chips above the terminal.
-   * `<pod>` is substituted with a live pod name at click time.
-   */
-  quickCommands: string[];
+  files: ProblemFile[];
+  /** Ordered incident construction; omitted when all applyAtBoot files form one step. */
+  bootSequence?: ProblemBootStep[];
+  quickCommands: QuickCommand[];
   /** Preset URLs for the network-probe panel (level-specific service names). */
   probeTargets: string[];
   validators: LevelValidatorDefinition[];
@@ -309,6 +378,41 @@ export type DocsBlock =
       caption?: string;
       left: { title: string; code: string };
       right: { title: string; code: string };
+    }
+  | {
+      type: "annotatedCode";
+      language: EditableFileLanguage;
+      title?: string;
+      caption?: string;
+      lines: { code: string; note?: string }[];
+    }
+  | {
+      type: "buildUp";
+      language: EditableFileLanguage;
+      title?: string;
+      stages: { label: string; note: string; code: string }[];
+    }
+  | {
+      type: "spotTheBug";
+      language: EditableFileLanguage;
+      title?: string;
+      prompt: string;
+      code: string;
+      answer: string;
+    }
+  | {
+      type: "challenge";
+      language: EditableFileLanguage;
+      title?: string;
+      prompt: string;
+      hint?: string;
+      solution: string;
+    }
+  | {
+      type: "decisionTable";
+      title?: string;
+      columns: string[];
+      rows: { label: string; cells: string[] }[];
     }
   | { type: "lab"; labId: string };
 

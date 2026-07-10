@@ -1,6 +1,7 @@
 "use client";
 
 import type { CoreV1Event } from "@ngrok/webernetes";
+import { useEffect, useMemo, useRef } from "react";
 
 import { icons } from "@/components/icons";
 import { eventAge } from "@/lib/kube/kubectl/format";
@@ -16,15 +17,30 @@ function timeOf(event: CoreV1Event): number {
 export function EventsTimeline({
   events,
   namespace = "default",
+  onInspect,
 }: {
   events: CoreV1Event[];
   namespace?: string;
+  onInspect?: (events: readonly CoreV1Event[]) => void;
 }) {
   const Warning = icons.warning;
   const Normal = icons.events;
-  const filtered = [...events]
-    .filter((e) => (e.metadata?.namespace ?? "default") === namespace)
-    .sort((a, b) => timeOf(b) - timeOf(a));
+  const filtered = useMemo(
+    () =>
+      [...events]
+        .filter((e) => (e.metadata?.namespace ?? "default") === namespace)
+        .sort((a, b) => timeOf(b) - timeOf(a)),
+    [events, namespace],
+  );
+  const inspectedKey = filtered
+    .map((event) => `${event.metadata?.uid ?? ""}:${event.reason ?? ""}:${event.message ?? ""}`)
+    .join("\n");
+  const lastInspectedRef = useRef("");
+  useEffect(() => {
+    if (!onInspect || inspectedKey === lastInspectedRef.current) return;
+    lastInspectedRef.current = inspectedKey;
+    onInspect(filtered);
+  }, [filtered, inspectedKey, onInspect]);
 
   if (filtered.length === 0) {
     return <p className="text-subtle p-3 text-sm">No events yet.</p>;

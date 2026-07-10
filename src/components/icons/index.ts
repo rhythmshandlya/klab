@@ -29,6 +29,7 @@ import {
   GitCompare,
   GraduationCap,
   Lock,
+  Menu,
   Network,
   Play,
   RotateCcw,
@@ -41,6 +42,7 @@ import {
   Terminal,
   Trophy,
   XCircle,
+  X,
   Zap,
 } from "lucide-react";
 
@@ -81,6 +83,8 @@ export const icons = {
   arrowRight: ArrowRight,
   filter: SlidersHorizontal,
   challenge: Zap,
+  close: X,
+  menu: Menu,
 } as const;
 
 export type IconName = keyof typeof icons;

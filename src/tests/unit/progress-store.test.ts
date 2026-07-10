@@ -14,9 +14,10 @@ const SNAPSHOT: Progress = {
   xp: 250,
   streakDays: 2,
   solvedLevelSlugs: ["a", "b"],
-  hintPenalties: {},
+  hintReveals: {},
   attemptedLevelSlugs: ["a", "b"],
   savedProblemSlugs: [],
+  completedLessonSlugs: [],
   lastSolvedDay: "2026-07-09",
 };
 
@@ -57,9 +58,19 @@ describe("progress-store — guest", () => {
 
     const p = getProgress();
     expect(p.attemptedLevelSlugs).toEqual(["x"]);
-    expect(p.hintPenalties).toEqual({ x: 15 });
+    expect(p.hintReveals).toEqual({ x: { h1: 15 } });
     expect(p.solvedLevelSlugs).toEqual(["x"]);
     expect(p.xp).toBe(85); // 100 − 15, netted by recordSolved
+  });
+
+  it("does not charge twice when the same hint intent is replayed", () => {
+    const reveal = { kind: "revealHint", slug: "x", hintId: "h1", penalty: 15 } as const;
+    mutateProgress(reveal);
+    mutateProgress(reveal);
+
+    expect(getProgress().hintReveals).toEqual({ x: { h1: 15 } });
+    mutateProgress({ kind: "solved", slug: "x", xp: 100, day: "2026-07-09" });
+    expect(getProgress().xp).toBe(85);
   });
 });
 

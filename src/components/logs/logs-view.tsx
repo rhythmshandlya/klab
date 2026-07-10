@@ -29,7 +29,13 @@ function formatTime(timestampMs: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export function LogsView({ snapshot }: { snapshot: ClusterSnapshot }) {
+export function LogsView({
+  snapshot,
+  onInspect,
+}: {
+  snapshot: ClusterSnapshot;
+  onInspect?: (lines: readonly LogLine[]) => void;
+}) {
   const [filter, setFilter] = useState<LineFilter>("all");
   const [podFilter, setPodFilter] = useState<string>("all");
   // Re-render when new log lines land (the sink is imperative, outside React).
@@ -61,6 +67,16 @@ export function LogsView({ snapshot }: { snapshot: ClusterSnapshot }) {
     if (filter === "errors") return ERROR_RE.test(line.message);
     return true;
   });
+
+  const inspectedKey = lines
+    .map((line) => `${line.timestampMs}:${line.namespace}:${line.pod}:${line.message}`)
+    .join("\n");
+  const lastInspectedRef = useRef("");
+  useEffect(() => {
+    if (!onInspect || inspectedKey === lastInspectedRef.current) return;
+    lastInspectedRef.current = inspectedKey;
+    onInspect(lines);
+  }, [inspectedKey, lines, onInspect]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

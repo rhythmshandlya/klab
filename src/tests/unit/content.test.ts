@@ -39,7 +39,12 @@ describe("level content", () => {
     for (const level of LEVELS) {
       const solution = LEVEL_SOLUTIONS[level.slug];
       expect(solution, `${level.slug} solution`).toBeDefined();
-      const editablePaths = new Set(level.files.map((f) => f.path));
+      const editablePaths = new Set(
+        level.files.filter((file) => file.access === "editable").map((file) => file.path),
+      );
+      expect(Object.keys(solution!.files).sort(), `${level.slug} solution file set`).toEqual(
+        [...editablePaths].sort(),
+      );
       for (const path of Object.keys(solution!.files)) {
         expect(editablePaths.has(path), `${level.slug}: ${path} is editable`).toBe(true);
       }
@@ -67,6 +72,73 @@ describe("level content", () => {
           expect(ruleIds.has(ruleId)).toBe(true);
         }
       }
+    }
+  });
+
+  it("enforces the replacement workspace, constraint, command, and evidence contracts", () => {
+    const sourceTrigger = {
+      terminal: "command",
+      logs: "log",
+      events: "event-reason",
+      network: "probe",
+      topology: "topology-view",
+      "object-explorer": "object-view",
+      validator: "validator",
+    } as const;
+    const catalogSources = new Set<string>();
+
+    for (const level of LEVELS) {
+      expect(level.engine.kind, `${level.slug} engine`).toBeDefined();
+      const paths = level.files.map((file) => file.path);
+      expect(new Set(paths).size, `${level.slug} duplicate file path`).toBe(paths.length);
+      expect(
+        level.files.some((file) => file.access === "editable"),
+        `${level.slug} editable file`,
+      ).toBe(true);
+
+      const editablePaths = level.files
+        .filter((file) => file.access === "editable")
+        .map((file) => file.path)
+        .sort();
+      const accessRules = level.constraints.filter(
+        (constraint) => constraint.kind === "editable-files",
+      );
+      expect(accessRules.length, `${level.slug} editable-files constraint`).toBe(1);
+      expect(
+        accessRules[0]?.kind === "editable-files" ? [...accessRules[0].paths].sort() : [],
+      ).toEqual(editablePaths);
+      for (const constraint of level.constraints) {
+        if (constraint.kind === "manifest") {
+          expect(paths, `${level.slug}/${constraint.id} file`).toContain(constraint.file);
+        }
+      }
+
+      const commandIds = level.quickCommands.map((command) => command.id);
+      expect(new Set(commandIds).size, `${level.slug} duplicate quick command id`).toBe(
+        commandIds.length,
+      );
+      for (const command of level.quickCommands) {
+        if (command.command.includes("<pod>")) {
+          expect(command.target, `${level.slug}/${command.id} target`).toBeDefined();
+          expect(Object.keys(command.target?.selector ?? {}).length).toBeGreaterThan(0);
+        }
+      }
+
+      const ruleIds = level.evidenceRules.map((rule) => rule.id);
+      expect(new Set(ruleIds).size, `${level.slug} duplicate evidence rule id`).toBe(
+        ruleIds.length,
+      );
+      for (const rule of level.evidenceRules) {
+        catalogSources.add(rule.source);
+        expect(
+          rule.trigger.type,
+          `${level.slug}/${rule.id}: ${rule.source} must use its structured trigger`,
+        ).toBe(sourceTrigger[rule.source]);
+      }
+    }
+
+    for (const source of ["terminal", "logs", "events", "network", "topology", "object-explorer"]) {
+      expect(catalogSources.has(source), `${source} evidence coverage`).toBe(true);
     }
   });
 

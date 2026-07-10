@@ -4,16 +4,28 @@ import { useMemo, useState } from "react";
 
 import { icons } from "@/components/icons";
 import type { DocsBlock } from "@/lib/domain/types";
+import { mutateProgress } from "@/lib/storage/progress-store";
 import { cn } from "@/lib/utils/cn";
 
 type QuizBlock = Extract<DocsBlock, { type: "quiz" }>;
 
-export function DocsQuiz({ quiz }: { quiz: QuizBlock }) {
+/**
+ * Checkpoint quiz. Answering correctly marks the lesson complete (grow-only, idempotent)
+ * so engaged reading feeds the same progress the explicit Mark-complete control does.
+ */
+export function DocsQuiz({ quiz, lessonSlug }: { quiz: QuizBlock; lessonSlug?: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = useMemo(
     () => quiz.options.find((option) => option.id === selectedId),
     [quiz.options, selectedId],
   );
+
+  const choose = (id: string) => {
+    setSelectedId(id);
+    if (lessonSlug && quiz.options.find((o) => o.id === id)?.correct) {
+      mutateProgress({ kind: "completedLesson", slug: lessonSlug });
+    }
+  };
 
   return (
     <div className="border-border bg-panel overflow-hidden rounded-lg border">
@@ -40,7 +52,7 @@ export function DocsQuiz({ quiz }: { quiz: QuizBlock }) {
               key={option.id}
               type="button"
               aria-pressed={isSelected}
-              onClick={() => setSelectedId(option.id)}
+              onClick={() => choose(option.id)}
               className={cn(
                 "flex min-h-11 items-start gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors",
                 tone,

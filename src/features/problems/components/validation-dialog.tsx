@@ -78,6 +78,23 @@ export function ValidationDialog({
               <Explain label="Root cause" body={level.postSolveExplanation.rootCause} />
               <Explain label="Why it failed" body={level.postSolveExplanation.whyItFailed} />
               <Explain label="What fixed it" body={level.postSolveExplanation.whatFixedIt} />
+              {level.postSolveExplanation.relatedConcepts.length > 0 ? (
+                <div>
+                  <p className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
+                    Related concepts
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {level.postSolveExplanation.relatedConcepts.map((concept) => (
+                      <span
+                        key={concept}
+                        className="border-border bg-panel-elevated text-muted rounded-md border px-2 py-0.5 text-xs"
+                      >
+                        {concept.replaceAll("-", " ")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {level.postSolveExplanation.docsHref ? (
                 <Link
                   href={level.postSolveExplanation.docsHref}

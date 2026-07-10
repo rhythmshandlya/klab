@@ -14,6 +14,36 @@ export interface LevelSolution {
 }
 
 export const LEVEL_SOLUTIONS: Record<string, LevelSolution> = {
+  "private-registry-pull-secret": {
+    fix: "Attach registry-credentials through imagePullSecrets",
+    files: {
+      "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: private-api
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: private-api
+  template:
+    metadata:
+      labels:
+        app: private-api
+    spec:
+      imagePullSecrets:
+        - name: registry-credentials
+      containers:
+        - name: api
+          image: registry.example/private/api:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+`,
+    },
+  },
+
   "service-selector-mismatch": {
     fix: "Service selector app: web → app: web-app",
     files: {

@@ -6,8 +6,11 @@ import { DOCS_NAV, lessonHref } from "@/content/docs";
 import type { DocsLesson } from "@/lib/domain/types";
 
 import { DocsContent } from "./docs-content";
+import { DocsMobileNav } from "./docs-mobile-nav";
 import { DocsSidebar } from "./docs-sidebar";
 import { DocsToc } from "./docs-toc";
+import { LessonComplete } from "./lesson-complete";
+import { OpenInPlayground } from "./open-in-playground";
 
 const ORDERED = DOCS_NAV.flatMap((s) => s.lessons);
 
@@ -25,6 +28,10 @@ export function DocsPage({ lesson }: { lesson: DocsLesson }) {
       </aside>
 
       <main className="min-w-0 flex-1 px-5 py-5 lg:px-6">
+        <div className="mb-4 lg:hidden">
+          <DocsMobileNav sectionLabel={lesson.section} />
+        </div>
+
         <div className="text-subtle flex items-center gap-2 text-xs">
           <Link href="/docs" className="hover:text-foreground transition-colors">
             Docs
@@ -55,17 +62,15 @@ export function DocsPage({ lesson }: { lesson: DocsLesson }) {
             </div>
           </div>
 
-          <Link
-            href="/playground"
-            className="border-blue/40 bg-blue/10 text-foreground hover:bg-blue/15 inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors"
-          >
-            <icons.playground className="text-blue size-4" aria-hidden />
-            Open in Playground
-          </Link>
+          <OpenInPlayground lesson={lesson} />
         </div>
 
         <div className="mt-8">
           <DocsContent lesson={lesson} />
+        </div>
+
+        <div className="mt-10">
+          <LessonComplete lesson={lesson} next={next} />
         </div>
 
         <nav className="border-border mt-12 flex items-center justify-between gap-4 border-t pt-6">

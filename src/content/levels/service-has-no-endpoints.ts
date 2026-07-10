@@ -66,32 +66,53 @@ export const serviceHasNoEndpoints = {
   story:
     "web-svc has served nothing but 503s all weekend. The dashboards show no crashing pods, no failing probes, no warning events — nothing is red. That's because there is nothing. Friday's incident response 'temporarily' scaled the fleet down, and Friday's on-call is on a beach.",
   objective: "Get web-svc serving again (HTTP 200 with ready endpoints).",
+  engine: { kind: "webernetes" },
   constraints: [
-    { id: "edit-deploy-only", label: "Only edit deployment.yaml" },
-    { id: "two-replicas", label: "Restore at least 2 replicas" },
-  ],
-  files: [{ path: "deployment.yaml", language: "yaml", initialValue: DEPLOYMENT_YAML }],
-  readonlyFiles: [{ path: "service.yaml", language: "yaml", value: SERVICE_YAML }],
-  initialManifests: [SERVICE_YAML],
-  registeredImages: [
     {
-      ref: "klab/web-app:1.0.0",
-      description: "Web server — /healthz 200, / 200.",
+      id: "edit-deploy-only",
+      label: "Only edit deployment.yaml",
+      kind: "editable-files",
+      paths: ["deployment.yaml"],
+    },
+    {
+      id: "two-replicas",
+      label: "Restore at least two replicas without replacing or bypassing the workload",
+      kind: "manifest",
+      file: "deployment.yaml",
+      resource: { kind: "Deployment", name: "web-app" },
+      exclusive: true,
+      assertions: [
+        { path: "spec.replicas", operator: "gte", value: 2 },
+        {
+          path: "spec.template.spec.containers.0.image",
+          operator: "equals",
+          value: "klab/web-app:1.0.0",
+        },
+        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
+      ],
     },
   ],
-  allowedCommands: [
-    "kubectl get pods",
-    "kubectl get deployments",
-    "kubectl describe deployment web-app",
-    "kubectl get endpoints web-svc",
-    "kubectl get events",
-    "curl <url>",
+  files: [
+    {
+      path: "deployment.yaml",
+      language: "yaml",
+      initialValue: DEPLOYMENT_YAML,
+      access: "editable",
+      applyAtBoot: true,
+    },
+    {
+      path: "service.yaml",
+      language: "yaml",
+      initialValue: SERVICE_YAML,
+      access: "readonly",
+      applyAtBoot: true,
+    },
   ],
   quickCommands: [
-    "kubectl get pods",
-    "kubectl get deployments",
-    "kubectl get endpoints web-svc",
-    "kubectl describe deployment web-app",
+    { id: "command-1", command: "kubectl get pods" },
+    { id: "command-2", command: "kubectl get deployments" },
+    { id: "command-3", command: "kubectl get endpoints web-svc" },
+    { id: "command-4", command: "kubectl describe deployment web-app" },
   ],
   probeTargets: ["http://web-svc/", "http://web-svc/healthz"],
   validators: [
@@ -185,7 +206,7 @@ export const serviceHasNoEndpoints = {
       label: "Requests to web-svc go nowhere",
       hiddenLabel: "Service reachability tested",
       source: "network",
-      trigger: { type: "probe", pathMatches: "^/$", status: 0 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "^/$", status: 0 },
     },
     {
       id: "r-dead-503",
@@ -193,7 +214,7 @@ export const serviceHasNoEndpoints = {
       label: "Requests to web-svc go nowhere",
       hiddenLabel: "Service reachability tested",
       source: "network",
-      trigger: { type: "probe", pathMatches: "^/$", status: 503 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "^/$", status: 503 },
     },
   ],
   postSolveExplanation: {

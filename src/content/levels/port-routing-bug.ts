@@ -67,32 +67,52 @@ export const portRoutingBug = {
   story:
     "After a config cleanup PR, web-svc went dark. The strange part: the pods are Ready, and the Service even lists endpoints. Requests just… never come back. The wiring looks fine until the very last hop.",
   objective: "Make requests through web-svc reach the app again (HTTP 200).",
+  engine: { kind: "webernetes" },
   constraints: [
-    { id: "edit-svc-only", label: "Only edit service.yaml — the Deployment is correct" },
-    { id: "keep-port-80", label: "The Service must keep listening on port 80" },
-  ],
-  files: [{ path: "service.yaml", language: "yaml", initialValue: SERVICE_YAML }],
-  readonlyFiles: [{ path: "deployment.yaml", language: "yaml", value: DEPLOYMENT_YAML }],
-  initialManifests: [DEPLOYMENT_YAML],
-  registeredImages: [
     {
-      ref: "klab/web-app:1.0.0",
-      description: "Web server listening on 8080 — /healthz 200, / 200.",
+      id: "edit-svc-only",
+      label: "Only edit service.yaml — the Deployment is correct",
+      kind: "editable-files",
+      paths: ["service.yaml"],
+    },
+    {
+      id: "keep-port-80",
+      label: "Keep web-svc on port 80 and selecting the existing web-app pods",
+      kind: "manifest",
+      file: "service.yaml",
+      resource: { kind: "Service", name: "web-svc" },
+      exclusive: true,
+      assertions: [
+        { path: "spec.ports.0.port", operator: "equals", value: 80 },
+        { path: "spec.selector.app", operator: "equals", value: "web-app" },
+      ],
     },
   ],
-  allowedCommands: [
-    "kubectl get pods",
-    "kubectl get endpoints web-svc",
-    "kubectl describe svc web-svc",
-    "kubectl describe pod <name>",
-    "kubectl logs <pod>",
-    "curl <url>",
+  files: [
+    {
+      path: "service.yaml",
+      language: "yaml",
+      initialValue: SERVICE_YAML,
+      access: "editable",
+      applyAtBoot: true,
+    },
+    {
+      path: "deployment.yaml",
+      language: "yaml",
+      initialValue: DEPLOYMENT_YAML,
+      access: "readonly",
+      applyAtBoot: true,
+    },
   ],
   quickCommands: [
-    "kubectl get pods",
-    "kubectl get endpoints web-svc",
-    "kubectl describe svc web-svc",
-    "kubectl logs <pod>",
+    { id: "command-1", command: "kubectl get pods" },
+    { id: "command-2", command: "kubectl get endpoints web-svc" },
+    { id: "command-3", command: "kubectl describe svc web-svc" },
+    {
+      id: "command-4",
+      command: "kubectl logs <pod>",
+      target: { kind: "pod", namespace: "default", selector: { app: "web-app" }, prefer: "first" },
+    },
   ],
   probeTargets: ["http://web-svc/", "http://web-svc/healthz"],
   validators: [
@@ -189,8 +209,8 @@ export const portRoutingBug = {
       evidenceId: "listen-8080",
       label: "The app logs say it listens on :8080",
       hiddenLabel: "App logs read",
-      source: "terminal",
-      trigger: { type: "command", commandMatches: "logs", outputMatches: "listening on :8080" },
+      source: "logs",
+      trigger: { type: "log", podMatches: "^web-app-", messageMatches: "listening on :8080" },
     },
     {
       id: "r-refused",
@@ -198,7 +218,7 @@ export const portRoutingBug = {
       label: "Requests through web-svc are refused",
       hiddenLabel: "Service reachability tested",
       source: "network",
-      trigger: { type: "probe", pathMatches: "^/$", status: 0 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "^/$", status: 0 },
     },
     {
       id: "r-refused-503",
@@ -206,7 +226,7 @@ export const portRoutingBug = {
       label: "Requests through web-svc are refused",
       hiddenLabel: "Service reachability tested",
       source: "network",
-      trigger: { type: "probe", pathMatches: "^/$", status: 503 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "^/$", status: 503 },
     },
   ],
   postSolveExplanation: {

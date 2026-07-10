@@ -9,7 +9,7 @@ test("solve the Broken Readiness Probe incident end-to-end", async ({ page }) =>
   await page.goto("/problems/broken-readiness-probe");
 
   await test.step("cluster boots", async () => {
-    await expect(page.getByText("Simulator ready", { exact: true })).toBeVisible({
+    await expect(page.getByText("Scenario ready", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
   });

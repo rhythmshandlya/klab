@@ -14,7 +14,7 @@ const GUEST: Progress = {
   streakDays: 1,
   lastSolvedDay: "2026-07-08",
   solvedLevelSlugs: ["broken-readiness-probe"],
-  hintPenalties: { "broken-readiness-probe": 15 },
+  hintReveals: { "broken-readiness-probe": { "hint-1": 9_999 } },
   attemptedLevelSlugs: ["service-selector-mismatch"],
   savedProblemSlugs: ["port-routing-bug"],
 };
@@ -30,8 +30,8 @@ describe("mergeGuestProgress over pglite", () => {
       expect(p.solvedLevelSlugs).toEqual(["broken-readiness-probe"]);
       expect(p.attemptedLevelSlugs).toEqual(["service-selector-mismatch"]);
       expect(p.savedProblemSlugs).toEqual(["port-routing-bug"]);
-      expect(p.hintPenalties).toEqual({ "broken-readiness-probe": 15 });
-      expect(p.xp).toBe(85); // gross 100 − 15 penalty, reconstructed from the catalog
+      expect(p.hintReveals).toEqual({ "broken-readiness-probe": { "hint-1": 15 } });
+      expect(p.xp).toBe(85); // Catalog XP and hint penalty replace forged guest values.
     } finally {
       await client.close();
     }
@@ -46,7 +46,7 @@ describe("mergeGuestProgress over pglite", () => {
       const p = await readProgress(db, uid);
 
       expect(p.solvedLevelSlugs).toEqual(["broken-readiness-probe"]);
-      expect(p.hintPenalties).toEqual({ "broken-readiness-probe": 15 }); // NOT 30
+      expect(p.hintReveals).toEqual({ "broken-readiness-probe": { "hint-1": 15 } });
       expect(p.xp).toBe(85); // NOT doubled
     } finally {
       await client.close();

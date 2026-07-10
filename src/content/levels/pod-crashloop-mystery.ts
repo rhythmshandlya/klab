@@ -66,31 +66,71 @@ export const podCrashloopMystery = {
   story:
     "The queue-worker fleet was migrated to the new cluster this morning. Since then the job queue has only grown: the workers start, die within seconds, and the kubelet dutifully restarts them into the same wall. Jobs are piling up — find out what the workers are missing.",
   objective: "Get the queue-worker pods Running, Ready, and staying up.",
+  engine: { kind: "webernetes" },
   constraints: [
-    { id: "edit-deploy-only", label: "Only edit deployment.yaml" },
-    { id: "keep-image", label: "Keep the klab/worker:1.0.0 image" },
-  ],
-  files: [{ path: "deployment.yaml", language: "yaml", initialValue: DEPLOYMENT_YAML }],
-  readonlyFiles: [{ path: "service.yaml", language: "yaml", value: SERVICE_YAML }],
-  initialManifests: [SERVICE_YAML],
-  registeredImages: [
     {
-      ref: "klab/worker:1.0.0",
-      description: "Queue worker — requires DATABASE_URL, exits immediately without it.",
+      id: "edit-deploy-only",
+      label: "Only edit deployment.yaml",
+      kind: "editable-files",
+      paths: ["deployment.yaml"],
+    },
+    {
+      id: "keep-image",
+      label: "Keep the worker image and workload identity; restore its required configuration",
+      kind: "manifest",
+      file: "deployment.yaml",
+      resource: { kind: "Deployment", name: "queue-worker" },
+      exclusive: true,
+      assertions: [
+        {
+          path: "spec.template.spec.containers.0.image",
+          operator: "equals",
+          value: "klab/worker:1.0.0",
+        },
+        { path: "spec.template.metadata.labels.app", operator: "equals", value: "queue-worker" },
+        { path: "spec.replicas", operator: "gte", value: 2 },
+      ],
     },
   ],
-  allowedCommands: [
-    "kubectl get pods",
-    "kubectl logs <pod>",
-    "kubectl describe pod <name>",
-    "kubectl get events",
-    "kubectl get events --sort-by=.lastTimestamp",
+  files: [
+    {
+      path: "deployment.yaml",
+      language: "yaml",
+      initialValue: DEPLOYMENT_YAML,
+      access: "editable",
+      applyAtBoot: true,
+    },
+    {
+      path: "service.yaml",
+      language: "yaml",
+      initialValue: SERVICE_YAML,
+      access: "readonly",
+      applyAtBoot: true,
+    },
   ],
   quickCommands: [
-    "kubectl get pods",
-    "kubectl logs <pod>",
-    "kubectl describe pod <pod>",
-    "kubectl get events",
+    { id: "command-1", command: "kubectl get pods" },
+    {
+      id: "command-2",
+      command: "kubectl logs <pod>",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "queue-worker" },
+        prefer: "highest-restarts",
+      },
+    },
+    {
+      id: "command-3",
+      command: "kubectl describe pod <pod>",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "queue-worker" },
+        prefer: "highest-restarts",
+      },
+    },
+    { id: "command-4", command: "kubectl get events" },
   ],
   probeTargets: ["http://worker-svc/healthz", "http://worker-svc/"],
   validators: [
@@ -179,8 +219,12 @@ export const podCrashloopMystery = {
       evidenceId: "fatal-log",
       label: "Logs: FATAL — DATABASE_URL is not set",
       hiddenLabel: "Container logs read",
-      source: "terminal",
-      trigger: { type: "command", commandMatches: "logs", outputMatches: "DATABASE_URL is not set" },
+      source: "logs",
+      trigger: {
+        type: "log",
+        podMatches: "^queue-worker-",
+        messageMatches: "DATABASE_URL is not set",
+      },
     },
     {
       id: "r-backoff-event",

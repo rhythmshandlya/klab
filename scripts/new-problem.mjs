@@ -179,5 +179,7 @@ console.log(`   …and add \`${camel},\` to the LEVELS array.\n`);
 console.log(`2. Add the canonical solution to src/content/levels/solutions.ts under key "${slug}"`);
 console.log(`   (the edited files that make the validators pass — for this template, service.yaml`);
 console.log(`    with selector app: web-app).\n`);
-console.log(`3. Prove it: \`pnpm test:api\` (the levels harness asserts broken→fails, fix→passes).\n`);
-console.log(`4. Fill in the TODOs (story, hints, evidence, postSolveExplanation) and \`pnpm lint\`.\n`);
+console.log(`3. Prove it: \`pnpm test:levels\` (content audit + broken→fails + fix→passes).\n`);
+console.log(
+  `4. Fill in the TODOs (story, hints, evidence, postSolveExplanation) and \`pnpm lint\`.\n`,
+);

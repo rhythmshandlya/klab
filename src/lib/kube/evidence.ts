@@ -11,8 +11,51 @@ import { assertNever } from "@/lib/utils/exhaustive";
 
 export type InvestigationSignal =
   | { type: "command"; command: string; output: string }
-  | { type: "probe"; path: string; status: number }
-  | { type: "event-reason"; reason: string };
+  | {
+      type: "probe";
+      method: "GET";
+      url: string;
+      host: string;
+      port: number | null;
+      path: string;
+      status: number;
+      body: string;
+    }
+  | { type: "event-reason"; reason: string; message: string; namespace: string }
+  | { type: "log"; namespace: string; pod: string; message: string }
+  | { type: "object-view"; kind: string; name: string; namespace: string }
+  | { type: "topology-view"; kind: string; name: string; namespace: string }
+  | { type: "validator"; validatorId: string; passed: boolean; detail: string };
+
+export function createProbeSignal(
+  url: string,
+  result: { status: number; body: string },
+): Extract<InvestigationSignal, { type: "probe" }> {
+  try {
+    const parsed = new URL(url);
+    return {
+      type: "probe",
+      method: "GET",
+      url,
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80,
+      path: `${parsed.pathname}${parsed.search}`,
+      status: result.status,
+      body: result.body,
+    };
+  } catch {
+    return {
+      type: "probe",
+      method: "GET",
+      url,
+      host: "",
+      port: null,
+      path: url,
+      status: result.status,
+      body: result.body,
+    };
+  }
+}
 
 function safeRegex(pattern: string): RegExp | null {
   try {
@@ -34,12 +77,55 @@ function triggerMatchesSignal(trigger: EvidenceTrigger, signal: InvestigationSig
     }
     case "probe": {
       if (signal.type !== "probe") return false;
+      const hostRe = safeRegex(trigger.hostMatches);
       const pathRe = safeRegex(trigger.pathMatches);
-      return pathRe !== null && pathRe.test(signal.path) && trigger.status === signal.status;
+      const bodyRe = trigger.bodyMatches ? safeRegex(trigger.bodyMatches) : null;
+      return (
+        hostRe !== null &&
+        hostRe.test(signal.host) &&
+        pathRe !== null &&
+        pathRe.test(signal.path) &&
+        trigger.status === signal.status &&
+        (trigger.bodyMatches === undefined || (bodyRe !== null && bodyRe.test(signal.body)))
+      );
     }
     case "event-reason": {
       if (signal.type !== "event-reason") return false;
-      return trigger.reason.toLowerCase() === signal.reason.toLowerCase();
+      const messageRe = trigger.messageMatches ? safeRegex(trigger.messageMatches) : null;
+      return (
+        trigger.reason.toLowerCase() === signal.reason.toLowerCase() &&
+        (trigger.messageMatches === undefined ||
+          (messageRe !== null && messageRe.test(signal.message)))
+      );
+    }
+    case "log": {
+      if (signal.type !== "log") return false;
+      const messageRe = safeRegex(trigger.messageMatches);
+      const podRe = trigger.podMatches ? safeRegex(trigger.podMatches) : null;
+      return (
+        messageRe !== null &&
+        messageRe.test(signal.message) &&
+        (trigger.namespace === undefined || trigger.namespace === signal.namespace) &&
+        (trigger.podMatches === undefined || (podRe !== null && podRe.test(signal.pod)))
+      );
+    }
+    case "object-view":
+    case "topology-view": {
+      if (signal.type !== trigger.type) return false;
+      const nameRe = safeRegex(trigger.nameMatches);
+      return (
+        trigger.kind.toLowerCase() === signal.kind.toLowerCase() &&
+        nameRe !== null &&
+        nameRe.test(signal.name) &&
+        (trigger.namespace === undefined || trigger.namespace === signal.namespace)
+      );
+    }
+    case "validator": {
+      return (
+        signal.type === "validator" &&
+        trigger.validatorId === signal.validatorId &&
+        trigger.passed === signal.passed
+      );
     }
     default:
       return assertNever(trigger);

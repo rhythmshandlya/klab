@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { icons } from "@/components/icons";
+import { DOCS_LESSONS, lessonHref } from "@/content/docs";
 import type { DocsLesson } from "@/lib/domain/types";
 import { cn } from "@/lib/utils/cn";
 
@@ -15,7 +16,15 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
     () => lesson.content.find((b) => b.type === "takeaways")?.items ?? [],
     [lesson.content],
   );
+  const related = useMemo(() => {
+    const key = lesson.slug.join("/");
+    const concepts = new Set(lesson.concepts);
+    return DOCS_LESSONS.filter(
+      (l) => l.slug.join("/") !== key && l.concepts.some((c) => concepts.has(c)),
+    ).slice(0, 4);
+  }, [lesson]);
   const [activeId, setActiveId] = useState(headings[0]?.id ?? "");
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
   useEffect(() => {
     if (headings.length === 0) return;
@@ -80,17 +89,18 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
         </RailSection>
       ) : null}
 
-      {lesson.concepts.length > 0 ? (
-        <RailSection title="Related topics">
+      {related.length > 0 ? (
+        <RailSection title="Related lessons">
           <div className="grid gap-2">
-            {lesson.concepts.slice(0, 5).map((concept) => (
-              <div
-                key={concept}
-                className="border-border bg-panel hover:bg-panel-hover text-foreground flex items-center justify-between rounded-md border px-3 py-2 transition-colors"
+            {related.map((l) => (
+              <Link
+                key={l.slug.join("/")}
+                href={lessonHref(l)}
+                className="border-border bg-panel hover:bg-panel-hover hover:border-border-strong text-foreground flex items-center justify-between gap-2 rounded-md border px-3 py-2 transition-colors"
               >
-                <span>{concept}</span>
-                <icons.arrowRight className="text-subtle size-3.5" aria-hidden />
-              </div>
+                <span className="min-w-0 truncate">{l.title}</span>
+                <icons.arrowRight className="text-subtle size-3.5 shrink-0" aria-hidden />
+              </Link>
             ))}
           </div>
         </RailSection>
@@ -140,23 +150,33 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
       ) : null}
 
       <div className="border-border flex items-center justify-between border-t pt-5">
-        <span className="text-subtle text-xs">Was this helpful?</span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label="Mark helpful"
-            className="border-border bg-panel hover:bg-panel-hover text-muted hover:text-foreground rounded-md border p-2 transition-colors"
-          >
-            <icons.success className="size-4" aria-hidden />
-          </button>
-          <button
-            type="button"
-            aria-label="Needs improvement"
-            className="border-border bg-panel hover:bg-panel-hover text-muted hover:text-foreground rounded-md border p-2 transition-colors"
-          >
-            <icons.warning className="size-4" aria-hidden />
-          </button>
-        </div>
+        {feedback ? (
+          <span className="text-subtle text-xs">
+            {feedback === "up" ? "Thanks for the feedback!" : "Thanks — we'll keep improving this."}
+          </span>
+        ) : (
+          <>
+            <span className="text-subtle text-xs">Was this helpful?</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Mark helpful"
+                onClick={() => setFeedback("up")}
+                className="border-border bg-panel hover:bg-panel-hover hover:text-green text-muted rounded-md border p-2 transition-colors"
+              >
+                <icons.success className="size-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                aria-label="Needs improvement"
+                onClick={() => setFeedback("down")}
+                className="border-border bg-panel hover:bg-panel-hover hover:text-amber text-muted rounded-md border p-2 transition-colors"
+              >
+                <icons.warning className="size-4" aria-hidden />
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

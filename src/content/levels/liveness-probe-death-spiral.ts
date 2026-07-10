@@ -75,32 +75,71 @@ export const livenessProbeDeathSpiral = {
   story:
     "web-svc is flapping: up for a few seconds, dead, up again. The app team insists nothing is wrong with the app — and weirdly, they're right. Meanwhile the pods' restart counters are climbing like a countdown. Something in the cluster is killing healthy containers, on schedule.",
   objective: "Stop the restart spiral and keep web-svc stably serving HTTP 200.",
+  engine: { kind: "webernetes" },
   constraints: [
-    { id: "edit-deploy-only", label: "Only edit deployment.yaml" },
-    { id: "keep-liveness", label: "Keep a liveness probe — don't just delete it" },
-  ],
-  files: [{ path: "deployment.yaml", language: "yaml", initialValue: DEPLOYMENT_YAML }],
-  readonlyFiles: [{ path: "service.yaml", language: "yaml", value: SERVICE_YAML }],
-  initialManifests: [SERVICE_YAML],
-  registeredImages: [
     {
-      ref: "klab/web-app:1.0.0",
-      description: "Web server — answers /healthz with 200 and /readyz with 404.",
+      id: "edit-deploy-only",
+      label: "Only edit deployment.yaml",
+      kind: "editable-files",
+      paths: ["deployment.yaml"],
+    },
+    {
+      id: "keep-liveness",
+      label: "Keep both probes and the web-app image; repair the liveness check",
+      kind: "manifest",
+      file: "deployment.yaml",
+      resource: { kind: "Deployment", name: "web-app" },
+      exclusive: true,
+      assertions: [
+        {
+          path: "spec.template.spec.containers.0.image",
+          operator: "equals",
+          value: "klab/web-app:1.0.0",
+        },
+        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
+        { path: "spec.template.spec.containers.0.livenessProbe", operator: "present" },
+      ],
     },
   ],
-  allowedCommands: [
-    "kubectl get pods",
-    "kubectl describe pod <name>",
-    "kubectl get events",
-    "kubectl get events --sort-by=.lastTimestamp",
-    "kubectl logs <pod>",
-    "curl <url>",
+  files: [
+    {
+      path: "deployment.yaml",
+      language: "yaml",
+      initialValue: DEPLOYMENT_YAML,
+      access: "editable",
+      applyAtBoot: true,
+    },
+    {
+      path: "service.yaml",
+      language: "yaml",
+      initialValue: SERVICE_YAML,
+      access: "readonly",
+      applyAtBoot: true,
+    },
   ],
   quickCommands: [
-    "kubectl get pods",
-    "kubectl describe pod <pod>",
-    "kubectl get events --sort-by=.lastTimestamp",
-    "kubectl logs <pod>",
+    { id: "command-1", command: "kubectl get pods" },
+    {
+      id: "command-2",
+      command: "kubectl describe pod <pod>",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "web-app" },
+        prefer: "highest-restarts",
+      },
+    },
+    { id: "command-3", command: "kubectl get events --sort-by=.lastTimestamp" },
+    {
+      id: "command-4",
+      command: "kubectl logs <pod>",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "web-app" },
+        prefer: "highest-restarts",
+      },
+    },
   ],
   probeTargets: ["http://web-svc/", "http://web-svc/healthz"],
   validators: [
@@ -186,7 +225,11 @@ export const livenessProbeDeathSpiral = {
       label: "Events: the kubelet is killing the container",
       hiddenLabel: "Recent events reviewed",
       source: "terminal",
-      trigger: { type: "command", commandMatches: "get events", outputMatches: "Killing|[Ll]iveness" },
+      trigger: {
+        type: "command",
+        commandMatches: "get events",
+        outputMatches: "Killing|[Ll]iveness",
+      },
     },
     {
       id: "r-liveness-target",
@@ -206,7 +249,7 @@ export const livenessProbeDeathSpiral = {
       label: "GET /readyz returns 404",
       hiddenLabel: "Probe endpoint tested",
       source: "network",
-      trigger: { type: "probe", pathMatches: "/readyz", status: 404 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/readyz", status: 404 },
     },
     {
       id: "r-healthz-200",
@@ -214,7 +257,7 @@ export const livenessProbeDeathSpiral = {
       label: "GET /healthz returns 200 — the app is fine",
       hiddenLabel: "Health endpoint tested",
       source: "network",
-      trigger: { type: "probe", pathMatches: "/healthz", status: 200 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/healthz", status: 200 },
     },
   ],
   postSolveExplanation: {

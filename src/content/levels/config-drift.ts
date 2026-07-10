@@ -73,35 +73,84 @@ export const configDrift = {
   story:
     "A 'standardization' PR from three weeks ago is finally rolling out, and web-app is down. The manifest looks textbook: probe on 8080, containerPort 8080, Service targeting 8080 — all beautifully consistent. The app disagrees with all of them, and it left you a note saying exactly where it went.",
   objective: "Bring the app, its probes, and the Service back into agreement (HTTP 200).",
+  engine: { kind: "webernetes" },
   constraints: [
-    { id: "edit-deploy-only", label: "Only edit deployment.yaml" },
+    {
+      id: "edit-deploy-only",
+      label: "Only edit deployment.yaml",
+      kind: "editable-files",
+      paths: ["deployment.yaml"],
+    },
     {
       id: "keep-ports",
-      label: "The probe, containerPort, and Service stay on 8080 — fix the drifted config",
+      label: "Keep the image, probe, and container port on the intended contract",
+      kind: "manifest",
+      file: "deployment.yaml",
+      resource: { kind: "Deployment", name: "web-app" },
+      exclusive: true,
+      assertions: [
+        {
+          path: "spec.template.spec.containers.0.image",
+          operator: "equals",
+          value: "klab/web-app:1.0.0",
+        },
+        {
+          path: "spec.template.spec.containers.0.ports.0.containerPort",
+          operator: "equals",
+          value: 8080,
+        },
+        {
+          path: "spec.template.spec.containers.0.readinessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        {
+          path: "spec.template.spec.containers.0.readinessProbe.httpGet.port",
+          operator: "equals",
+          value: 8080,
+        },
+      ],
     },
   ],
-  files: [{ path: "deployment.yaml", language: "yaml", initialValue: DEPLOYMENT_YAML }],
-  readonlyFiles: [{ path: "service.yaml", language: "yaml", value: SERVICE_YAML }],
-  initialManifests: [SERVICE_YAML],
-  registeredImages: [
+  files: [
     {
-      ref: "klab/web-app:1.0.0",
-      description: "Web server — listens on $PORT (default 8080), /healthz 200.",
+      path: "deployment.yaml",
+      language: "yaml",
+      initialValue: DEPLOYMENT_YAML,
+      access: "editable",
+      applyAtBoot: true,
     },
-  ],
-  allowedCommands: [
-    "kubectl get pods",
-    "kubectl describe pod <name>",
-    "kubectl logs <pod>",
-    "kubectl get endpoints web-svc",
-    "kubectl get events",
-    "curl <url>",
+    {
+      path: "service.yaml",
+      language: "yaml",
+      initialValue: SERVICE_YAML,
+      access: "readonly",
+      applyAtBoot: true,
+    },
   ],
   quickCommands: [
-    "kubectl get pods",
-    "kubectl logs <pod>",
-    "kubectl describe pod <pod>",
-    "kubectl get endpoints web-svc",
+    { id: "command-1", command: "kubectl get pods" },
+    {
+      id: "command-2",
+      command: "kubectl logs <pod>",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "web-app" },
+        prefer: "not-ready",
+      },
+    },
+    {
+      id: "command-3",
+      command: "kubectl describe pod <pod>",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "web-app" },
+        prefer: "not-ready",
+      },
+    },
+    { id: "command-4", command: "kubectl get endpoints web-svc" },
   ],
   probeTargets: ["http://web-svc/", "http://web-svc/healthz"],
   validators: [
@@ -155,7 +204,7 @@ export const configDrift = {
     {
       id: "hint-3",
       title: "Undo the drift",
-      body: "PORT=9090 overrides the app's default of 8080, while probes and the Service still point at 8080. Remove the PORT env (or set it to \"8080\") in deployment.yaml and Apply.",
+      body: 'PORT=9090 overrides the app\'s default of 8080, while probes and the Service still point at 8080. Remove the PORT env (or set it to "8080") in deployment.yaml and Apply.',
       xpPenalty: 80,
       unlockAfter: ["r-port-env"],
     },
@@ -174,8 +223,8 @@ export const configDrift = {
       evidenceId: "listen-9090",
       label: "The app logs: listening on :9090",
       hiddenLabel: "App logs read",
-      source: "terminal",
-      trigger: { type: "command", commandMatches: "logs", outputMatches: "listening on :9090" },
+      source: "logs",
+      trigger: { type: "log", podMatches: "^web-app-", messageMatches: "listening on :9090" },
     },
     {
       id: "r-probe-8080",

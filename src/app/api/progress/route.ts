@@ -1,9 +1,9 @@
 import { getAuth } from "@/lib/auth/server";
 import { getDb, hasDb } from "@/lib/db";
-import { applyIntents, readProgress } from "@/lib/db/progress-repo";
+import { applyIntents, InvalidProgressIntentError, readProgress } from "@/lib/db/progress-repo";
 import { isAuthConfigured } from "@/lib/env";
 import { allowRequest } from "@/lib/rate-limit";
-import { parseIntents } from "@/lib/storage/progress-intent";
+import { parseIntents, type ProgressIntent } from "@/lib/storage/progress-intent";
 
 /**
  * Signed-in progress sync. GET returns the server-derived Progress snapshot; POST
@@ -39,8 +39,20 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "rate limited" }, { status: 429 });
   }
   const body: unknown = await request.json().catch(() => null);
-  const intents = parseIntents(body);
+  let intents: ProgressIntent[];
+  try {
+    intents = parseIntents(body);
+  } catch {
+    return Response.json({ error: "invalid progress intents" }, { status: 400 });
+  }
   const db = getDb();
-  await applyIntents(db, userId, intents);
+  try {
+    await applyIntents(db, userId, intents);
+  } catch (error) {
+    if (error instanceof InvalidProgressIntentError) {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
+  }
   return Response.json(await readProgress(db, userId));
 }

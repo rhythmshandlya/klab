@@ -57,7 +57,7 @@ passes the harness) and prints the two lines to register it in `index.ts` + `sol
 Edit the story/hints/evidence/validators, then **prove it**:
 
 ```bash
-pnpm test:api   # the levels harness asserts: broken state FAILS validation, canonical fix PASSES
+pnpm test:levels # content audit + broken state FAILS, canonical fix PASSES
 ```
 
 Every problem must red→green through that harness — CI runs it on your PR, so an

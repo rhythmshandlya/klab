@@ -9,6 +9,7 @@ import { livenessProbeDeathSpiral } from "./liveness-probe-death-spiral";
 import { namespaceConfusion } from "./namespace-confusion";
 import { podCrashloopMystery } from "./pod-crashloop-mystery";
 import { portRoutingBug } from "./port-routing-bug";
+import { privateRegistryPullSecret } from "./private-registry-pull-secret";
 import { rollingUpdateGoneWrong } from "./rolling-update-gone-wrong";
 import { serviceHasNoEndpoints } from "./service-has-no-endpoints";
 import { serviceSelectorMismatch } from "./service-selector-mismatch";
@@ -26,6 +27,7 @@ export const LEVELS: readonly ProblemLevel[] = [
   namespaceConfusion,
   serviceHasNoEndpoints,
   podCrashloopMystery,
+  privateRegistryPullSecret,
   rollingUpdateGoneWrong,
   dnsResolutionFailure,
   livenessProbeDeathSpiral,
@@ -47,6 +49,8 @@ export interface LevelSummary {
   xp: number;
   estimatedMinutes: number;
   successRate: number;
+  statsSource: "authored-estimate" | "client-validated";
+  statsSampleSize?: number;
   concepts: KubernetesConcept[];
   blurb: string;
 }
@@ -60,6 +64,7 @@ export const LEVEL_CATALOG: readonly LevelSummary[] = LEVELS.map((level) => ({
   xp: level.xp,
   estimatedMinutes: level.estimatedMinutes,
   successRate: level.successRate,
+  statsSource: "authored-estimate",
   concepts: level.concepts,
   blurb: level.blurb,
 }));

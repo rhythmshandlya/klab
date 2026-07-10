@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCommand, tokenize } from "@/lib/kube/command-runner";
+import { parseCommand, runCommandLine, tokenize } from "@/lib/kube/command-runner";
+import type { ClusterSnapshot, KubeSimulator } from "@/lib/kube/simulator";
 
 describe("tokenize", () => {
   it("splits on whitespace and respects quotes", () => {
@@ -79,5 +80,52 @@ describe("parseCommand", () => {
   it("flags an unknown top-level command", () => {
     const result = parseCommand("sudo rm -rf /");
     expect(result).toMatchObject({ kind: "unsupported" });
+  });
+});
+
+function dnsSimulator(): KubeSimulator {
+  const snapshot: ClusterSnapshot = {
+    pods: [],
+    services: [
+      {
+        metadata: { name: "checkout-svc", namespace: "shop" },
+        spec: { clusterIP: "10.96.0.42" },
+      },
+      {
+        metadata: { name: "web-svc", namespace: "default" },
+        spec: { clusterIP: "10.96.0.10" },
+      },
+    ],
+    deployments: [],
+    replicaSets: [],
+    endpointSlices: [],
+    namespaces: [],
+    nodes: [],
+    events: [],
+  } as ClusterSnapshot;
+  return { getSnapshot: () => snapshot } as unknown as KubeSimulator;
+}
+
+describe("Service DNS", () => {
+  const run = (name: string, namespace = "default") =>
+    runCommandLine(`dig ${name}`, {
+      simulator: dnsSimulator(),
+      namespace,
+      files: {},
+    });
+
+  it("resolves an unqualified Service only in the caller's namespace", async () => {
+    expect((await run("web-svc")).output).toContain("web-svc.default.svc.cluster.local");
+    expect((await run("checkout-svc")).output).toContain("NXDOMAIN");
+    expect((await run("checkout-svc", "shop")).output).toContain(
+      "checkout-svc.shop.svc.cluster.local",
+    );
+  });
+
+  it("resolves qualified names and rejects a wrong namespace or suffix", async () => {
+    expect((await run("checkout-svc.shop")).output).toContain("10.96.0.42");
+    expect((await run("checkout-svc.shop.svc.cluster.local.")).output).toContain("10.96.0.42");
+    expect((await run("checkout-svc.default")).output).toContain("NXDOMAIN");
+    expect((await run("checkout-svc.shop.example.local")).output).toContain("NXDOMAIN");
   });
 });

@@ -25,7 +25,7 @@ export function FailingChecks({
   if (!level) return null;
 
   const failing = checks ? checks.results.filter((r) => !r.passed).length : null;
-  const total = level.validators.length;
+  const total = checks?.results.length ?? level.validators.length + level.constraints.length;
 
   return (
     <Panel>
@@ -82,9 +82,27 @@ export function FailingChecks({
         ) : (
           <>
             {level.validators.map((validator) => (
-              <div key={validator.id} className="text-subtle flex items-center gap-2.5 px-1 py-1 text-sm">
-                <span className="border-border-strong size-4 shrink-0 rounded-full border" aria-hidden />
+              <div
+                key={validator.id}
+                className="text-subtle flex items-center gap-2.5 px-1 py-1 text-sm"
+              >
+                <span
+                  className="border-border-strong size-4 shrink-0 rounded-full border"
+                  aria-hidden
+                />
                 {validator.title}
+              </div>
+            ))}
+            {level.constraints.map((constraint) => (
+              <div
+                key={`constraint:${constraint.id}`}
+                className="text-subtle flex items-center gap-2.5 px-1 py-1 text-sm"
+              >
+                <span
+                  className="border-border-strong size-4 shrink-0 rounded-full border"
+                  aria-hidden
+                />
+                {constraint.label}
               </div>
             ))}
             <p className="text-subtle px-1 pt-1 text-xs">Checks run once the cluster is up.</p>

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // AI-assisted problem generation. Drafts a candidate level with Claude, writes it to
 // scripts/candidates/ for HUMAN REVIEW — it never lands in src/ unreviewed, and the
-// solvability harness (pnpm test:api) is the gate before it ships.
+// solvability harness (pnpm test:levels) is the gate before it ships.
 //
 //   ANTHROPIC_API_KEY=sk-ant-... node scripts/generate-problems.mjs "a level about a Service targeting the wrong port"
 //
@@ -76,6 +76,8 @@ writeFileSync(solutionPath, jsonBlock + "\n", "utf8");
 console.error(`\n✓ Wrote candidate:\n  ${levelPath}\n  ${solutionPath}\n`);
 console.error("Review it, then to ship:");
 console.error(`  1. Move ${slug}.ts into src/content/levels/ and register it in index.ts.`);
-console.error(`  2. Add the solution's files under key "${slug}" in src/content/levels/solutions.ts.`);
-console.error("  3. pnpm lint && pnpm test:api  (the harness proves broken→fails, fix→passes).");
+console.error(
+  `  2. Add the solution's files under key "${slug}" in src/content/levels/solutions.ts.`,
+);
+console.error("  3. pnpm lint && pnpm test:levels  (content audit + broken→fails + fix→passes).");
 console.error("  4. Open a PR. CI re-runs the harness on every contribution.");

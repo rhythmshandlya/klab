@@ -1,7 +1,7 @@
 import type { CoreV1Event, V1Container, V1Pod, V1Service } from "@ngrok/webernetes";
 
 import { stringifyManifest } from "./manifest-parser";
-import type { InvestigationSignal } from "./evidence";
+import { createProbeSignal, type InvestigationSignal } from "./evidence";
 import {
   deploymentReadyReplicas,
   eventAge,
@@ -12,7 +12,9 @@ import {
   podRestarts,
   servicePortsSummary,
 } from "./kubectl/format";
-import type { ClusterSnapshot, KubeSimulator } from "./simulator";
+import type { AppliedResourceRef, ClusterSnapshot, ProbeResult } from "./simulator";
+import type { LogLine } from "./images/log-sink";
+import type { Result } from "@/lib/utils/result";
 
 /**
  * A small, deliberately limited kubectl-like command runner. It does not aim to be a
@@ -21,8 +23,16 @@ import type { ClusterSnapshot, KubeSimulator } from "./simulator";
  * helpful, educational output (never throws), per the product UX rules.
  */
 
+export interface CommandRuntime {
+  getSnapshot(): ClusterSnapshot;
+  probe(url: string): Promise<ProbeResult>;
+  getLogs(namespace: string, pod: string, container?: string): LogLine[];
+  applyYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
+  deleteYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
+}
+
 export interface TerminalContext {
-  simulator: KubeSimulator;
+  simulator: CommandRuntime;
   /** Default namespace when a command omits `-n`. */
   namespace: string;
   /** Current editor file contents, keyed by path, for `kubectl apply -f <file>`. */
@@ -299,8 +309,7 @@ export async function executeCommand(
 
 async function runCurl(url: string, ctx: TerminalContext): Promise<CommandResult> {
   const result = await ctx.simulator.probe(url);
-  const path = safePath(url);
-  const signals: InvestigationSignal[] = [{ type: "probe", path, status: result.status }];
+  const signals: InvestigationSignal[] = [createProbeSignal(url, result)];
   if (result.status === 0) {
     return {
       output: `curl: could not connect to ${url}${result.reason ? `\n${result.reason}` : ""}`,
@@ -318,8 +327,12 @@ async function runCurl(url: string, ctx: TerminalContext): Promise<CommandResult
 
 function runDig(name: string, ctx: TerminalContext): CommandResult {
   const snapshot = ctx.simulator.getSnapshot();
+  const query = parseServiceDnsName(name, ctx.namespace);
   const service = snapshot.services.find(
-    (s) => s.metadata?.name === name || s.metadata?.name === name.split(".")[0],
+    (s) =>
+      query !== null &&
+      s.metadata?.name === query.service &&
+      (s.metadata?.namespace ?? "default") === query.namespace,
   );
   if (!service?.spec?.clusterIP) {
     return {
@@ -335,6 +348,24 @@ function runDig(name: string, ctx: TerminalContext): CommandResult {
     `${fqdn}\t30\tIN\tA\t${service.spec.clusterIP}`,
   ].join("\n");
   return { output, isError: false, signals: [{ type: "command", command: `dig ${name}`, output }] };
+}
+
+/** Resolve the Service DNS forms Kubernetes exposes inside a Pod search domain. */
+function parseServiceDnsName(
+  rawName: string,
+  defaultNamespace: string,
+): { service: string; namespace: string } | null {
+  const parts = rawName.replace(/\.$/, "").split(".");
+  if (parts.length === 1 && parts[0]) {
+    return { service: parts[0], namespace: defaultNamespace };
+  }
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    return { service: parts[0], namespace: parts[1] };
+  }
+  const validSuffix =
+    parts[2] === "svc" &&
+    (parts.length === 3 || (parts.length === 5 && parts[3] === "cluster" && parts[4] === "local"));
+  return validSuffix && parts[0] && parts[1] ? { service: parts[0], namespace: parts[1] } : null;
 }
 
 function runGet(
@@ -677,7 +708,14 @@ function buildGetSignals(
   if (command.resource === "events") {
     for (const event of snapshot.events) {
       if ((event.metadata?.namespace ?? "default") !== namespace) continue;
-      if (event.reason) signals.push({ type: "event-reason", reason: event.reason });
+      if (event.reason) {
+        signals.push({
+          type: "event-reason",
+          reason: event.reason,
+          message: event.message ?? "",
+          namespace,
+        });
+      }
     }
   }
   return signals;
@@ -758,15 +796,6 @@ function formatSelector(labels: Record<string, string> | undefined): string {
 
 function notFound(resource: string, name: string, namespace: string): string {
   return `Error from server (NotFound): ${resource} "${name}" not found in namespace "${namespace}".`;
-}
-
-function safePath(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    const match = /^[a-z]+:\/\/[^/]+(\/.*)?$/i.exec(url);
-    return match?.[1] ?? url;
-  }
 }
 
 const HELP_TEXT = [

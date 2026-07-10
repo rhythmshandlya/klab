@@ -5,6 +5,8 @@ import type { DocsBlock, DocsLesson } from "@/lib/domain/types";
 import { assertNever } from "@/lib/utils/exhaustive";
 import { cn } from "@/lib/utils/cn";
 
+import { ChallengeBlock, SpotTheBugBlock } from "./docs-reveal-blocks";
+import { CopyButton } from "./copy-button";
 import { DocsQuiz } from "./docs-quiz";
 import { InteractiveLab } from "./interactive-lab";
 
@@ -81,11 +83,21 @@ function Block({ block, lesson }: { block: DocsBlock; lesson: DocsLesson }) {
     case "demo":
       return <GuidedDemo block={block} />;
     case "quiz":
-      return <DocsQuiz quiz={block} />;
+      return <DocsQuiz quiz={block} lessonSlug={lesson.slug.join("/")} />;
     case "steps":
       return <StepsBlock block={block} />;
     case "takeaways":
       return <TakeawaysBlock items={block.items} />;
+    case "annotatedCode":
+      return <AnnotatedCode block={block} />;
+    case "buildUp":
+      return <BuildUp block={block} />;
+    case "decisionTable":
+      return <DecisionTable block={block} />;
+    case "spotTheBug":
+      return <SpotTheBugBlock block={block} />;
+    case "challenge":
+      return <ChallengeBlock block={block} />;
     case "lab": {
       const lab = lesson.labs.find((l) => l.id === block.labId);
       if (!lab) return null;
@@ -363,6 +375,117 @@ function TakeawaysBlock({ items }: { items: string[] }) {
   );
 }
 
+type AnnotatedCodeBlock = Extract<DocsBlock, { type: "annotatedCode" }>;
+
+/** Full code with per-line teaching annotations pinned beside each line. */
+function AnnotatedCode({ block }: { block: AnnotatedCodeBlock }) {
+  return (
+    <figure className="border-border bg-panel overflow-hidden rounded-md border">
+      {block.title ? (
+        <figcaption className="border-border text-subtle border-b px-4 py-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
+          {block.title}
+        </figcaption>
+      ) : null}
+      <div className="bg-code/40 divide-y divide-border/50">
+        {block.lines.map((line, i) => (
+          <div
+            key={i}
+            className={cn(
+              "flex flex-col gap-0.5 px-4 py-0.5 md:flex-row md:items-start md:gap-4",
+              line.note ? "border-l-2 border-blue/40 md:border-l-2" : "border-l-2 border-transparent",
+            )}
+          >
+            <pre className="text-muted flex-1 overflow-x-auto font-mono text-xs leading-relaxed">
+              {line.code || " "}
+            </pre>
+            {line.note ? (
+              <p className="text-blue/90 text-[11px] leading-relaxed md:w-60 md:shrink-0 md:pt-0.5">
+                ← {line.note}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {block.caption ? (
+        <p className="border-border text-subtle border-t px-4 py-2 text-center text-xs">
+          {block.caption}
+        </p>
+      ) : null}
+    </figure>
+  );
+}
+
+type BuildUpBlock = Extract<DocsBlock, { type: "buildUp" }>;
+
+/** Progressive construction: minimal manifest grows one stage at a time, each explained. */
+function BuildUp({ block }: { block: BuildUpBlock }) {
+  return (
+    <div className="space-y-3">
+      {block.title ? (
+        <p className="text-foreground text-sm font-semibold">{block.title}</p>
+      ) : null}
+      <ol className="space-y-3">
+        {block.stages.map((stage, i) => (
+          <li key={stage.label} className="border-border bg-panel overflow-hidden rounded-md border">
+            <div className="border-border flex items-center gap-2 border-b px-3 py-2">
+              <span className="text-blue font-mono text-xs">{String(i + 1).padStart(2, "0")}</span>
+              <span className="text-foreground text-sm font-semibold">{stage.label}</span>
+            </div>
+            <div className="px-3 py-3">
+              <p className="text-muted mb-2 text-xs leading-relaxed">{stage.note}</p>
+              <CodeCard title={stage.label} code={stage.code} />
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+type DecisionTableBlock = Extract<DocsBlock, { type: "decisionTable" }>;
+
+/** Comparison matrix for recurring "when do I use X vs Y" decisions. */
+function DecisionTable({ block }: { block: DecisionTableBlock }) {
+  return (
+    <figure className="border-border bg-panel overflow-hidden rounded-md border">
+      {block.title ? (
+        <figcaption className="border-border text-subtle border-b px-4 py-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
+          {block.title}
+        </figcaption>
+      ) : null}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead>
+            <tr className="border-border border-b">
+              <th className="text-subtle px-3 py-2 font-semibold tracking-[0.08em] uppercase" />
+              {block.columns.map((c) => (
+                <th
+                  key={c}
+                  className="text-subtle px-3 py-2 font-semibold tracking-[0.08em] uppercase"
+                >
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row) => (
+              <tr key={row.label} className="border-border/60 border-b last:border-0">
+                <td className="text-foreground px-3 py-2 font-medium">{row.label}</td>
+                {row.cells.map((cell, i) => (
+                  <td key={i} className="text-muted px-3 py-2 leading-relaxed">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </figure>
+  );
+}
+
 function DiagramShell({
   title,
   caption,
@@ -420,9 +543,10 @@ function LoopArrows() {
 function CodeCard({ title, code, className }: { title: string; code: string; className?: string }) {
   return (
     <div className={cn("border-border bg-code/90 overflow-hidden rounded-md border", className)}>
-      <p className="border-border text-subtle border-b px-3 py-1.5 font-mono text-[11px]">
-        {title}
-      </p>
+      <div className="border-border flex items-center justify-between border-b pr-1.5">
+        <p className="text-subtle px-3 py-1.5 font-mono text-[11px]">{title}</p>
+        <CopyButton text={code} />
+      </div>
       <pre className="text-muted overflow-x-auto p-3 font-mono text-xs leading-relaxed">{code}</pre>
     </div>
   );
@@ -430,9 +554,12 @@ function CodeCard({ title, code, className }: { title: string; code: string; cla
 
 function CodePanel({ code }: { code: string }) {
   return (
-    <pre className="border-border bg-code text-muted overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed">
-      {code}
-    </pre>
+    <div className="border-border bg-code group relative overflow-hidden rounded-md border">
+      <div className="absolute top-1.5 right-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        <CopyButton text={code} className="bg-code/80 backdrop-blur" />
+      </div>
+      <pre className="text-muted overflow-x-auto p-3 font-mono text-xs leading-relaxed">{code}</pre>
+    </div>
   );
 }
 

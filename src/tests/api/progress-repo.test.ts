@@ -37,12 +37,22 @@ describe("deriveStreak", () => {
 });
 
 describe("progress-repo over pglite", () => {
+  const LEVEL = "broken-readiness-probe";
   const INTENTS: ProgressIntent[] = [
-    { kind: "attempted", slug: "a" },
-    { kind: "revealHint", slug: "a", hintId: "h1", penalty: 15 },
-    { kind: "solved", slug: "a", xp: 100, day: "2026-07-08" },
-    { kind: "setSaved", slug: "b", saved: true },
-    { kind: "submission", slug: "a", passed: true, checksTotal: 3, checksPassed: 3, durationMs: 42000 },
+    { kind: "attempted", slug: LEVEL },
+    { kind: "revealHint", slug: LEVEL, hintId: "hint-1", penalty: 9_999 },
+    { kind: "solved", slug: LEVEL, xp: 9_999, day: "2026-07-08" },
+    { kind: "setSaved", slug: "port-routing-bug", saved: true },
+    { kind: "completedLesson", slug: "networking/services" },
+    {
+      kind: "submission",
+      slug: LEVEL,
+      passed: true,
+      checksTotal: 3,
+      checksPassed: 3,
+      durationMs: 42_000,
+      clientMutationId: "submission-test-00000001",
+    },
   ];
 
   it("applies intents and projects the derived Progress snapshot", async () => {
@@ -52,11 +62,12 @@ describe("progress-repo over pglite", () => {
       await applyIntents(db, uid, INTENTS);
       const p = await readProgress(db, uid);
 
-      expect(p.solvedLevelSlugs).toEqual(["a"]);
-      expect(p.attemptedLevelSlugs).toEqual(["a"]);
-      expect(p.savedProblemSlugs).toEqual(["b"]);
-      expect(p.hintPenalties).toEqual({ a: 15 });
-      expect(p.xp).toBe(85); // gross 100 − 15 penalty, netted server-side
+      expect(p.solvedLevelSlugs).toEqual([LEVEL]);
+      expect(p.attemptedLevelSlugs).toEqual([LEVEL]);
+      expect(p.savedProblemSlugs).toEqual(["port-routing-bug"]);
+      expect(p.completedLessonSlugs).toEqual(["networking/services"]);
+      expect(p.hintReveals).toEqual({ [LEVEL]: { "hint-1": 15 } });
+      expect(p.xp).toBe(85); // Catalog values win over the forged client values.
       expect(p.streakDays).toBe(1);
       expect(p.lastSolvedDay).toBe("2026-07-08");
     } finally {
@@ -72,10 +83,11 @@ describe("progress-repo over pglite", () => {
       await applyIntents(db, uid, INTENTS);
       const p = await readProgress(db, uid);
 
-      expect(p.solvedLevelSlugs).toEqual(["a"]);
-      expect(p.hintPenalties).toEqual({ a: 15 }); // NOT 30
+      expect(p.solvedLevelSlugs).toEqual([LEVEL]);
+      expect(p.hintReveals).toEqual({ [LEVEL]: { "hint-1": 15 } });
       expect(p.xp).toBe(85); // NOT doubled
-      expect(p.savedProblemSlugs).toEqual(["b"]);
+      expect(p.savedProblemSlugs).toEqual(["port-routing-bug"]);
+      expect(p.completedLessonSlugs).toEqual(["networking/services"]); // NOT duplicated
     } finally {
       await client.close();
     }
@@ -85,8 +97,8 @@ describe("progress-repo over pglite", () => {
     const { db, client } = await createTestDb();
     try {
       const uid = await seedUser(db);
-      await applyIntents(db, uid, [{ kind: "setSaved", slug: "b", saved: true }]);
-      await applyIntents(db, uid, [{ kind: "setSaved", slug: "b", saved: false }]);
+      await applyIntents(db, uid, [{ kind: "setSaved", slug: "port-routing-bug", saved: true }]);
+      await applyIntents(db, uid, [{ kind: "setSaved", slug: "port-routing-bug", saved: false }]);
       const p = await readProgress(db, uid);
       expect(p.savedProblemSlugs).toEqual([]);
     } finally {
@@ -99,13 +111,34 @@ describe("progress-repo over pglite", () => {
     try {
       const a = await seedUser(db, "userA");
       const b = await seedUser(db, "userB");
-      await applyIntents(db, a, [{ kind: "solved", slug: "a", xp: 100, day: "2026-07-08" }]);
-      await applyIntents(db, b, [{ kind: "solved", slug: "z", xp: 200, day: "2026-07-08" }]);
+      await applyIntents(db, a, [
+        { kind: "solved", slug: "broken-readiness-probe", xp: 1, day: "2026-07-08" },
+      ]);
+      await applyIntents(db, b, [
+        { kind: "solved", slug: "rolling-update-gone-wrong", xp: 1, day: "2026-07-08" },
+      ]);
 
-      expect((await readProgress(db, a)).solvedLevelSlugs).toEqual(["a"]);
+      expect((await readProgress(db, a)).solvedLevelSlugs).toEqual(["broken-readiness-probe"]);
       expect((await readProgress(db, a)).xp).toBe(100);
-      expect((await readProgress(db, b)).solvedLevelSlugs).toEqual(["z"]);
-      expect((await readProgress(db, b)).xp).toBe(200);
+      expect((await readProgress(db, b)).solvedLevelSlugs).toEqual(["rolling-update-gone-wrong"]);
+      expect((await readProgress(db, b)).xp).toBe(150);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("rejects unknown catalog facts before applying any part of a batch", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      const uid = await seedUser(db);
+      await expect(
+        applyIntents(db, uid, [
+          { kind: "attempted", slug: LEVEL },
+          { kind: "revealHint", slug: LEVEL, hintId: "not-a-hint", penalty: 0 },
+        ]),
+      ).rejects.toThrow("Unknown hint");
+
+      expect((await readProgress(db, uid)).attemptedLevelSlugs).toEqual([]);
     } finally {
       await client.close();
     }

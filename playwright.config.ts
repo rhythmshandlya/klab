@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+
 /**
  * Playwright E2E config. Tests live in `src/tests/e2e`. Reuses a running dev server
  * if one is up, otherwise starts `pnpm dev`. Generous timeouts because tests boot a
@@ -15,7 +17,7 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: externalBaseURL ?? "http://localhost:3000",
     trace: "on-first-retry",
   },
   projects: [
@@ -36,11 +38,13 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    // Test the production build: dev-only React StrictMode double-mounts the editor.
-    command: "pnpm build && pnpm start",
-    url: "http://localhost:3000",
-    reuseExistingServer: false,
-    timeout: 240_000,
-  },
+  webServer: externalBaseURL
+    ? undefined
+    : {
+        // Test the production build: dev-only React StrictMode double-mounts the editor.
+        command: "pnpm build && pnpm start",
+        url: "http://localhost:3000",
+        reuseExistingServer: false,
+        timeout: 240_000,
+      },
 });

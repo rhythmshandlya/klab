@@ -69,19 +69,112 @@ export const editableFileSchema = z.object({
   initialValue: z.string(),
 });
 
-export const readonlyFileSchema = z.object({
-  path: z.string().min(1),
-  language: fileLanguageSchema,
-  value: z.string(),
+const problemFileSchema = editableFileSchema.extend({
+  access: z.enum(["editable", "readonly", "hidden"]),
+  applyAtBoot: z.boolean(),
 });
 
-const constraintSchema = z.object({
+const manifestValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+const manifestAssertionSchema = z.discriminatedUnion("operator", [
+  z.object({ path: z.string().min(1), operator: z.literal("present") }),
+  z.object({ path: z.string().min(1), operator: z.literal("absent") }),
+  z.object({
+    path: z.string().min(1),
+    operator: z.literal("equals"),
+    value: manifestValueSchema,
+  }),
+  z.object({
+    path: z.string().min(1),
+    operator: z.literal("not-equals"),
+    value: manifestValueSchema,
+  }),
+  z.object({ path: z.string().min(1), operator: z.literal("gte"), value: manifestValueSchema }),
+  z.object({ path: z.string().min(1), operator: z.literal("lte"), value: manifestValueSchema }),
+  z.object({
+    path: z.string().min(1),
+    operator: z.literal("matches"),
+    value: manifestValueSchema,
+  }),
+]);
+
+const constraintSharedSchema = {
   id: z.string().min(1),
   label: z.string().min(1),
+};
+const constraintSchema = z.discriminatedUnion("kind", [
+  z.object({
+    ...constraintSharedSchema,
+    kind: z.literal("editable-files"),
+    paths: z.array(z.string().min(1)).min(1),
+  }),
+  z.object({
+    ...constraintSharedSchema,
+    kind: z.literal("manifest"),
+    file: z.string().min(1),
+    resource: z.object({
+      kind: z.string().min(1),
+      name: z.string().min(1),
+      namespace: z.string().min(1).optional(),
+    }),
+    exclusive: z.boolean(),
+    assertions: z.array(manifestAssertionSchema).min(1),
+  }),
+]);
+
+const quickCommandSchema = z
+  .object({
+    id: z.string().min(1),
+    command: z.string().min(1),
+    target: z
+      .object({
+        kind: z.literal("pod"),
+        namespace: z.string().min(1),
+        selector: z.record(z.string(), z.string()),
+        prefer: z.enum(["not-ready", "highest-restarts", "first"]),
+      })
+      .optional(),
+  })
+  .superRefine((quickCommand, ctx) => {
+    if (quickCommand.command.includes("<pod>") && !quickCommand.target) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["target"],
+        message: "Commands containing <pod> require an explicit target selector.",
+      });
+    }
+  });
+
+const problemEngineSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("webernetes") }),
+  z.object({ kind: z.literal("scripted"), scenarioId: z.string().min(1) }),
+]);
+
+const problemBootWaitSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("pods-ready"),
+    namespace: z.string().min(1),
+    selector: z.record(z.string(), z.string()),
+    minReady: z.number().int().positive(),
+    timeoutMs: z.number().int().positive(),
+  }),
+  z.object({
+    kind: z.literal("pod-image-present"),
+    namespace: z.string().min(1),
+    image: z.string().min(1),
+    minCount: z.number().int().positive(),
+    timeoutMs: z.number().int().positive(),
+  }),
+]);
+
+const problemBootStepSchema = z.object({
+  id: z.string().min(1),
+  filePaths: z.array(z.string().min(1)).min(1),
+  waitFor: problemBootWaitSchema.optional(),
 });
 
 const evidenceSourceSchema = z.enum([
   "terminal",
+  "logs",
   "events",
   "network",
   "topology",
@@ -97,12 +190,38 @@ const evidenceTriggerSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("probe"),
+    hostMatches: z.string().min(1),
     pathMatches: z.string().min(1),
     status: z.number().int(),
+    bodyMatches: z.string().optional(),
   }),
   z.object({
     type: z.literal("event-reason"),
     reason: z.string().min(1),
+    messageMatches: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("log"),
+    messageMatches: z.string().min(1),
+    podMatches: z.string().optional(),
+    namespace: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("object-view"),
+    kind: z.string().min(1),
+    nameMatches: z.string().min(1),
+    namespace: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("topology-view"),
+    kind: z.string().min(1),
+    nameMatches: z.string().min(1),
+    namespace: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("validator"),
+    validatorId: z.string().min(1),
+    passed: z.boolean(),
   }),
 ]);
 
@@ -203,13 +322,11 @@ export const problemLevelSchema = z.object({
   blurb: z.string().min(1),
   story: z.string().min(1),
   objective: z.string().min(1),
+  engine: problemEngineSchema,
   constraints: z.array(constraintSchema),
-  files: z.array(editableFileSchema).min(1),
-  readonlyFiles: z.array(readonlyFileSchema),
-  initialManifests: z.array(z.string()),
-  registeredImages: z.array(simulatedImageSchema),
-  allowedCommands: z.array(z.string()),
-  quickCommands: z.array(z.string()),
+  files: z.array(problemFileSchema).min(1),
+  bootSequence: z.array(problemBootStepSchema).min(1).optional(),
+  quickCommands: z.array(quickCommandSchema),
   probeTargets: z.array(z.string()),
   validators: z.array(levelValidatorSchema).min(1),
   hints: z.array(hintSchema),
@@ -305,6 +422,43 @@ const docsBlockSchema = z.discriminatedUnion("type", [
     caption: z.string().optional(),
     left: z.object({ title: z.string(), code: z.string() }),
     right: z.object({ title: z.string(), code: z.string() }),
+  }),
+  z.object({
+    type: z.literal("annotatedCode"),
+    language: fileLanguageSchema,
+    title: z.string().optional(),
+    caption: z.string().optional(),
+    lines: z.array(z.object({ code: z.string(), note: z.string().optional() })),
+  }),
+  z.object({
+    type: z.literal("buildUp"),
+    language: fileLanguageSchema,
+    title: z.string().optional(),
+    stages: z.array(
+      z.object({ label: z.string().min(1), note: z.string().min(1), code: z.string().min(1) }),
+    ),
+  }),
+  z.object({
+    type: z.literal("spotTheBug"),
+    language: fileLanguageSchema,
+    title: z.string().optional(),
+    prompt: z.string().min(1),
+    code: z.string().min(1),
+    answer: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("challenge"),
+    language: fileLanguageSchema,
+    title: z.string().optional(),
+    prompt: z.string().min(1),
+    hint: z.string().optional(),
+    solution: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("decisionTable"),
+    title: z.string().optional(),
+    columns: z.array(z.string().min(1)).min(1),
+    rows: z.array(z.object({ label: z.string().min(1), cells: z.array(z.string()) })),
   }),
   z.object({ type: z.literal("lab"), labId: z.string().min(1) }),
 ]);

@@ -1,11 +1,20 @@
 import { and, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
+import { getLevelBySlug } from "@/content/levels";
+import type { ProblemLevel } from "@/lib/domain/types";
 import { assertNever } from "@/lib/utils/exhaustive";
 import { EMPTY_PROGRESS, type Progress } from "@/lib/storage/local-progress";
 import type { ProgressIntent } from "@/lib/storage/progress-intent";
 
-import { bookmarks, hintReveals, progressAttempted, progressSolved, submissions } from "./schema";
+import {
+  bookmarks,
+  hintReveals,
+  progressAttempted,
+  progressCompletedLessons,
+  progressSolved,
+  submissions,
+} from "./schema";
 import type { schema } from "./schema";
 
 /**
@@ -20,11 +29,20 @@ import type { schema } from "./schema";
  */
 export type ProgressDb = PgDatabase<PgQueryResultHKT, typeof schema>;
 
+export class InvalidProgressIntentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidProgressIntentError";
+  }
+}
+
 export async function applyIntents(
   db: ProgressDb,
   userId: string,
   intents: readonly ProgressIntent[],
 ): Promise<void> {
+  for (const intent of intents) validateCatalogIntent(intent);
+
   // Sequential (in client order) so a hint reveal is recorded before the solve that
   // nets it out, and so ordering-sensitive effects are deterministic.
   for (const intent of intents) {
@@ -35,6 +53,7 @@ export async function applyIntents(
 async function applyOne(db: ProgressDb, userId: string, intent: ProgressIntent): Promise<void> {
   switch (intent.kind) {
     case "solved": {
+      const level = requireLevel(intent.slug);
       // Net the gross xp against penalties already accrued for this slug, so the
       // server's Σ(awarded_xp) matches the client's running net total.
       const penaltyRows = await db
@@ -42,7 +61,7 @@ async function applyOne(db: ProgressDb, userId: string, intent: ProgressIntent):
         .from(hintReveals)
         .where(and(eq(hintReveals.userId, userId), eq(hintReveals.levelSlug, intent.slug)));
       const penalty = penaltyRows.reduce((sum, r) => sum + r.penalty, 0);
-      const awardedXp = Math.max(0, intent.xp - penalty);
+      const awardedXp = Math.max(0, level.xp - penalty);
       await db
         .insert(progressSolved)
         .values({ userId, levelSlug: intent.slug, awardedXp, solvedDay: intent.day })
@@ -55,29 +74,34 @@ async function applyOne(db: ProgressDb, userId: string, intent: ProgressIntent):
         .values({ userId, levelSlug: intent.slug })
         .onConflictDoNothing();
       return;
+    case "completedLesson":
+      await db
+        .insert(progressCompletedLessons)
+        .values({ userId, lessonSlug: intent.slug })
+        .onConflictDoNothing();
+      return;
     case "setSaved":
       if (intent.saved) {
-        await db
-          .insert(bookmarks)
-          .values({ userId, levelSlug: intent.slug })
-          .onConflictDoNothing();
+        await db.insert(bookmarks).values({ userId, levelSlug: intent.slug }).onConflictDoNothing();
       } else {
         await db
           .delete(bookmarks)
           .where(and(eq(bookmarks.userId, userId), eq(bookmarks.levelSlug, intent.slug)));
       }
       return;
-    case "revealHint":
+    case "revealHint": {
+      const hint = requireLevel(intent.slug).hints.find(({ id }) => id === intent.hintId)!;
       await db
         .insert(hintReveals)
         .values({
           userId,
           levelSlug: intent.slug,
           hintId: intent.hintId,
-          penalty: intent.penalty,
+          penalty: hint.xpPenalty,
         })
         .onConflictDoNothing();
       return;
+    }
     case "submission":
       await db
         .insert(submissions)
@@ -90,7 +114,7 @@ async function applyOne(db: ProgressDb, userId: string, intent: ProgressIntent):
           durationMs: intent.durationMs ?? null,
           hintsRevealed: intent.hintsRevealed ?? null,
           results: intent.results ?? null,
-          clientMutationId: intent.clientMutationId ?? null,
+          clientMutationId: intent.clientMutationId,
         })
         .onConflictDoNothing();
       return;
@@ -99,26 +123,56 @@ async function applyOne(db: ProgressDb, userId: string, intent: ProgressIntent):
   }
 }
 
+function validateCatalogIntent(intent: ProgressIntent): void {
+  if (intent.kind === "completedLesson") return;
+  const level = requireLevel(intent.slug);
+  if (intent.kind === "revealHint" && !level.hints.some(({ id }) => id === intent.hintId)) {
+    throw new InvalidProgressIntentError(
+      `Unknown hint ${JSON.stringify(intent.hintId)} for level ${JSON.stringify(intent.slug)}`,
+    );
+  }
+}
+
+function requireLevel(slug: string): ProblemLevel {
+  const level = getLevelBySlug(slug);
+  if (!level) {
+    throw new InvalidProgressIntentError(`Unknown problem level ${JSON.stringify(slug)}`);
+  }
+  return level;
+}
+
 export async function readProgress(db: ProgressDb, userId: string): Promise<Progress> {
-  const [solved, attempted, saved, hints] = await Promise.all([
+  const [solved, attempted, completedLessons, saved, hints] = await Promise.all([
     db
-      .select({ slug: progressSolved.levelSlug, awardedXp: progressSolved.awardedXp, day: progressSolved.solvedDay })
+      .select({
+        slug: progressSolved.levelSlug,
+        awardedXp: progressSolved.awardedXp,
+        day: progressSolved.solvedDay,
+      })
       .from(progressSolved)
       .where(eq(progressSolved.userId, userId)),
     db
       .select({ slug: progressAttempted.levelSlug })
       .from(progressAttempted)
       .where(eq(progressAttempted.userId, userId)),
+    db
+      .select({ slug: progressCompletedLessons.lessonSlug })
+      .from(progressCompletedLessons)
+      .where(eq(progressCompletedLessons.userId, userId)),
     db.select({ slug: bookmarks.levelSlug }).from(bookmarks).where(eq(bookmarks.userId, userId)),
     db
-      .select({ slug: hintReveals.levelSlug, penalty: hintReveals.penalty })
+      .select({
+        slug: hintReveals.levelSlug,
+        hintId: hintReveals.hintId,
+        penalty: hintReveals.penalty,
+      })
       .from(hintReveals)
       .where(eq(hintReveals.userId, userId)),
   ]);
 
-  const hintPenalties: Record<string, number> = {};
+  const hintFacts: Record<string, Record<string, number>> = {};
   for (const row of hints) {
-    hintPenalties[row.slug] = (hintPenalties[row.slug] ?? 0) + row.penalty;
+    hintFacts[row.slug] = { ...hintFacts[row.slug], [row.hintId]: row.penalty };
   }
 
   const { streakDays, lastSolvedDay } = deriveStreak(solved.map((r) => r.day));
@@ -131,7 +185,8 @@ export async function readProgress(db: ProgressDb, userId: string): Promise<Prog
     solvedLevelSlugs: solved.map((r) => r.slug),
     attemptedLevelSlugs: attempted.map((r) => r.slug),
     savedProblemSlugs: saved.map((r) => r.slug),
-    hintPenalties,
+    completedLessonSlugs: completedLessons.map((r) => r.slug),
+    hintReveals: hintFacts,
   };
 }
 

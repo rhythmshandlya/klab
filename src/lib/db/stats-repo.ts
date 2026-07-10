@@ -4,12 +4,13 @@ import type { ProgressDb } from "./progress-repo";
 import { submissions } from "./schema";
 
 /**
- * Real per-problem aggregate stats, computed from the submissions history:
+ * Client-validated per-problem telemetry, computed from submission history:
  *  - successRate = distinct solvers / distinct attempters (0–1)
  *  - avgSolveMs  = average duration of passing submissions
  *  - sampleSize  = distinct attempters
  *
- * Below a small sample the UI keeps the authored estimate (see the /problems RSC).
+ * Browser validation is not a server-verifiable completion claim. The dashboard
+ * labels this source and keeps the authored estimate below a sample floor.
  * One GROUP BY over an indexed table; the page caches it with ISR.
  */
 
@@ -26,9 +27,7 @@ export async function readLevelStats(db: ProgressDb): Promise<Record<string, Lev
     .select({
       slug: submissions.levelSlug,
       attempters: countDistinct(submissions.userId),
-      solvers: countDistinct(
-        sql`case when ${submissions.passed} then ${submissions.userId} end`,
-      ),
+      solvers: countDistinct(sql`case when ${submissions.passed} then ${submissions.userId} end`),
       avgSolveMs: sql<
         string | null
       >`avg(${submissions.durationMs}) filter (where ${submissions.passed})`,

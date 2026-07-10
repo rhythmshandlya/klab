@@ -2,7 +2,13 @@ import { z } from "zod";
 
 import { assertNever } from "@/lib/utils/exhaustive";
 
-import { recordAttempted, recordHintPenalty, recordSolved, type Progress } from "./local-progress";
+import {
+  recordAttempted,
+  recordHintPenalty,
+  recordLessonCompleted,
+  recordSolved,
+  type Progress,
+} from "./local-progress";
 
 /**
  * A progress mutation expressed as a named, idempotent INTENT rather than a whole-blob
@@ -18,6 +24,7 @@ import { recordAttempted, recordHintPenalty, recordSolved, type Progress } from 
 export type ProgressIntent =
   | { kind: "solved"; slug: string; xp: number; day: string }
   | { kind: "attempted"; slug: string }
+  | { kind: "completedLesson"; slug: string }
   | { kind: "setSaved"; slug: string; saved: boolean }
   | { kind: "revealHint"; slug: string; hintId: string; penalty: number }
   | {
@@ -29,36 +36,83 @@ export type ProgressIntent =
       durationMs?: number;
       hintsRevealed?: number;
       results?: unknown;
-      clientMutationId?: string;
+      clientMutationId: string;
     };
 
-export const progressIntentSchema: z.ZodType<ProgressIntent> = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("solved"), slug: z.string().min(1), xp: z.number().int(), day: z.string().min(1) }),
-  z.object({ kind: z.literal("attempted"), slug: z.string().min(1) }),
-  z.object({ kind: z.literal("setSaved"), slug: z.string().min(1), saved: z.boolean() }),
-  z.object({
-    kind: z.literal("revealHint"),
-    slug: z.string().min(1),
-    hintId: z.string().min(1),
-    penalty: z.number().int().nonnegative(),
-  }),
-  z.object({
-    kind: z.literal("submission"),
-    slug: z.string().min(1),
-    passed: z.boolean(),
-    checksTotal: z.number().int().nonnegative(),
-    checksPassed: z.number().int().nonnegative(),
-    durationMs: z.number().int().nonnegative().optional(),
-    hintsRevealed: z.number().int().nonnegative().optional(),
-    results: z.unknown().optional(),
-    clientMutationId: z.string().min(1).optional(),
-  }),
-]);
+const slugSchema = z.string().trim().min(1).max(120);
+const solvedDaySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year!, month! - 1, day));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month! - 1 &&
+      date.getUTCDate() === day
+    );
+  }, "Invalid calendar date");
+
+const submissionIntentSchema = z.object({
+  kind: z.literal("submission"),
+  slug: slugSchema,
+  passed: z.boolean(),
+  checksTotal: z.number().int().min(1).max(500),
+  checksPassed: z.number().int().nonnegative().max(500),
+  durationMs: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(24 * 60 * 60 * 1000)
+    .optional(),
+  hintsRevealed: z.number().int().nonnegative().max(100).optional(),
+  results: z.unknown().optional(),
+  clientMutationId: z.string().trim().min(16).max(128),
+});
+
+export const progressIntentSchema: z.ZodType<ProgressIntent> = z
+  .discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("solved"),
+      slug: slugSchema,
+      xp: z.number().int().nonnegative().max(10_000),
+      day: solvedDaySchema,
+    }),
+    z.object({ kind: z.literal("attempted"), slug: slugSchema }),
+    z.object({ kind: z.literal("completedLesson"), slug: slugSchema }),
+    z.object({ kind: z.literal("setSaved"), slug: slugSchema, saved: z.boolean() }),
+    z.object({
+      kind: z.literal("revealHint"),
+      slug: slugSchema,
+      hintId: z.string().trim().min(1).max(120),
+      penalty: z.number().int().nonnegative().max(10_000),
+    }),
+    submissionIntentSchema,
+  ])
+  .superRefine((value, context) => {
+    if (value.kind === "submission" && value.checksPassed > value.checksTotal) {
+      context.addIssue({
+        code: "custom",
+        path: ["checksPassed"],
+        message: "checksPassed cannot exceed checksTotal",
+      });
+    }
+  });
 
 /** Validate a POST body `{ intents: [...] }` into a typed intent list. */
 export function parseIntents(body: unknown): ProgressIntent[] {
-  const parsed = z.object({ intents: z.array(progressIntentSchema).max(500) }).safeParse(body);
-  return parsed.success ? parsed.data.intents : [];
+  return z.object({ intents: z.array(progressIntentSchema).max(500) }).parse(body).intents;
+}
+
+let fallbackMutationSequence = 0;
+
+/** Create the ID once before queueing so retries reuse the same submission fact. */
+export function createClientMutationId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  fallbackMutationSequence += 1;
+  return `${Date.now().toString(36)}-${fallbackMutationSequence.toString(36).padStart(8, "0")}`;
 }
 
 /**
@@ -72,6 +126,8 @@ export function applyIntent(progress: Progress, intent: ProgressIntent): Progres
       return recordSolved(progress, intent.slug, intent.xp);
     case "attempted":
       return recordAttempted(progress, intent.slug);
+    case "completedLesson":
+      return recordLessonCompleted(progress, intent.slug);
     case "setSaved": {
       const has = progress.savedProblemSlugs.includes(intent.slug);
       if (intent.saved === has) return progress;
@@ -83,7 +139,7 @@ export function applyIntent(progress: Progress, intent: ProgressIntent): Progres
       };
     }
     case "revealHint":
-      return recordHintPenalty(progress, intent.slug, intent.penalty);
+      return recordHintPenalty(progress, intent.slug, intent.hintId, intent.penalty);
     case "submission":
       return progress;
     default:

@@ -39,4 +39,37 @@ describe("docs content", () => {
     expect(DOCS_NAV.length).toBeGreaterThan(0);
     expect(DOCS_NAV.every((s) => s.lessons.length > 0)).toBe(true);
   });
+
+  it("has unique heading ids within each lesson", () => {
+    for (const lesson of DOCS_LESSONS) {
+      const ids = lesson.content.flatMap((b) => (b.type === "heading" ? [b.id] : []));
+      expect(new Set(ids).size, `duplicate heading id in ${lesson.slug.join("/")}`).toBe(ids.length);
+    }
+  });
+
+  it("gives every quiz exactly one correct option", () => {
+    for (const lesson of DOCS_LESSONS) {
+      for (const block of lesson.content) {
+        if (block.type === "quiz") {
+          const correct = block.options.filter((o) => o.correct).length;
+          expect(correct, `${lesson.slug.join("/")} quiz ${block.id}`).toBe(1);
+        }
+      }
+    }
+  });
+
+  it("keeps decisionTable rows aligned with their columns", () => {
+    for (const lesson of DOCS_LESSONS) {
+      for (const block of lesson.content) {
+        if (block.type === "decisionTable") {
+          for (const row of block.rows) {
+            expect(
+              row.cells.length,
+              `${lesson.slug.join("/")} decisionTable row "${row.label}"`,
+            ).toBe(block.columns.length);
+          }
+        }
+      }
+    }
+  });
 });
