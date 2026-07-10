@@ -40,6 +40,10 @@ export function initialMissionIndex(missions: Mission[], slug?: string[]): numbe
  * for the pilot — the cluster ends up close to, but not always exactly, what a learner
  * who played the mission live would have produced. If a mission type later exposes a
  * "solved manifest" alongside `initialValue`, swap it in here.
+ *
+ * A failed `applyFiles` call is logged and skipped rather than aborting the whole
+ * replay — one bad manifest in an earlier mission shouldn't block the learner from
+ * reaching the mission they deep-linked into.
  */
 async function catchUpPriorMissions(
   sim: UseSimulator,
@@ -52,7 +56,12 @@ async function catchUpPriorMissions(
     for (const step of mission.steps) {
       if (step.kind !== "do") continue;
       const files = Object.fromEntries(step.files.map((file) => [file.path, file.initialValue]));
-      await sim.applyFiles(files);
+      const result = await sim.applyFiles(files);
+      if (!result.ok) {
+        console.warn(
+          `[catchUpPriorMissions] failed to replay mission "${mission.slug.join("/")}": ${result.error}`,
+        );
+      }
     }
   }
 }
@@ -70,6 +79,17 @@ function BootingPanel({ status }: { status: UseSimulator["status"] }) {
       />
       <p className={cn("text-sm font-medium", status === "error" ? "text-red" : "text-subtle")}>
         {label}
+      </p>
+    </div>
+  );
+}
+
+function CatchUpPanel() {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-3 px-5 py-24 text-center">
+      <span className="bg-amber size-2 animate-pulse rounded-full" aria-hidden />
+      <p className="text-subtle text-sm font-medium">
+        Rebuilding your cluster from earlier missions...
       </p>
     </div>
   );
@@ -136,6 +156,11 @@ export function SectionPlayer({
   const missions = useMemo(() => getMissionsBySection(section), [section]);
   const [index, setIndex] = useState(() => initialMissionIndex(missions, initialSlug));
   const [sectionComplete, setSectionComplete] = useState(false);
+  // True while a deep-link's prior-mission replay is still in flight, so we can keep
+  // rendering the booting-style panel instead of `MissionRunner` — otherwise the learner
+  // could click Apply on the deep-linked mission while catch-up writes are still landing,
+  // interleaving them with the replay.
+  const [catchingUp, setCatchingUp] = useState(() => index > 0);
 
   // Boot the section's cluster once from the first mission's seed manifests. Later
   // missions apply their own incremental manifests via `sim.applyFiles` on top of the
@@ -156,7 +181,7 @@ export function SectionPlayer({
     if (!sim.ready || caughtUpRef.current) return;
     caughtUpRef.current = true;
     if (index > 0) {
-      void catchUpPriorMissions(sim, missions, index);
+      void catchUpPriorMissions(sim, missions, index).then(() => setCatchingUp(false));
     }
   }, [sim, sim.ready, missions, index]);
 
@@ -164,6 +189,10 @@ export function SectionPlayer({
 
   if (!sim.ready) {
     return <BootingPanel status={sim.status} />;
+  }
+
+  if (catchingUp) {
+    return <CatchUpPanel />;
   }
 
   if (sectionComplete) {
