@@ -5,8 +5,16 @@ import { clusterArchitecture } from "./foundations/cluster-architecture";
 import { desiredVsActualState } from "./foundations/desired-vs-actual-state";
 import { apiObjects } from "./foundations/api-objects";
 import { labelsAnnotationsOwnership } from "./foundations/labels-annotations-ownership";
+import { declarativeWorkflow } from "./foundations/declarative-workflow";
 
-const RAW: Mission[] = [whatIsKubernetes, clusterArchitecture, desiredVsActualState, apiObjects, labelsAnnotationsOwnership];
+const RAW: Mission[] = [
+  whatIsKubernetes,
+  clusterArchitecture,
+  desiredVsActualState,
+  apiObjects,
+  labelsAnnotationsOwnership,
+  declarativeWorkflow,
+];
 
 export const MISSIONS: Mission[] = RAW.map((m) => {
   const parsed = parseMission(m);
