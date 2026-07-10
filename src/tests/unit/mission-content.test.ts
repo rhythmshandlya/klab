@@ -23,4 +23,19 @@ describe("mission content", () => {
     const kinds = new Set(["teach", "predict", "check", "do", "debrief"]);
     for (const m of MISSIONS) for (const s of m.steps) expect(kinds.has(s.kind)).toBe(true);
   });
+  it("has exactly six Foundations missions ordered 1..6", () => {
+    const f = getMissionsBySection("Foundations");
+    expect(f).toHaveLength(6);
+    expect(f.map((m) => m.order)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+  it("grows a persistent cluster: only mission 1 seeds, missions 2-6 inherit it", () => {
+    const f = getMissionsBySection("Foundations");
+    expect(f.map((m) => m.inheritsCluster)).toEqual([false, true, true, true, true, true]);
+  });
+  it("each Foundations mission advances the cluster with at least one do step", () => {
+    for (const m of getMissionsBySection("Foundations")) {
+      expect(m.steps.some((s) => s.kind === "do")).toBe(true);
+      expect(m.steps.at(-1)?.kind).toBe("debrief");
+    }
+  });
 });
