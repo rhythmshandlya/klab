@@ -1,5 +1,32 @@
 # Design: `/docs` as a mission-based, micro-step learning experience
 
+> ## REVISION — 2026-07-11: reading-first with embedded missions (supersedes §3/§5 delivery model)
+>
+> The gated one-idea-per-screen step player was built, played end-to-end, and **rejected by
+> the operator**: 30 words + one button per screen is information starvation for a
+> developer who reads at full speed, progressively-assembling diagrams read as broken UI at
+> early steps, and the full-screen takeover destroyed the skim/reference value of docs.
+> Lesson: Duolingo-style micro-steps only work when every step is a real *exercise*; ours
+> were page-turns.
+>
+> **Shipped architecture instead — "missions in between the reads":**
+> - Lessons render as the original **readable pages** (dense prose, diagrams, quizzes,
+>   spot-the-bug — never gated).
+> - Each Foundations lesson embeds a **mission card** (`DocsBlock` kind `mission`) between
+>   reading sections: cold-open goal + Start → **full-screen workspace dialog** with YAML
+>   editor, terminal, live topology, live metrics, and a goal check
+>   (`evaluateDoCheck`); passing shows the debrief + takeaways and completes the lesson.
+> - Mission cluster state accumulates via `accumulatedSeedManifests` (section seed + all
+>   prior missions' do-files), preserving the growing-cluster arc without a persistent
+>   mounted player.
+> - Flow-shaped concept diagrams in reading render on **React Flow** (real arrowheads,
+>   animated edges) via `DocsFlowDiagram`.
+> - The journey home for migrated sections stays, linking to readable lessons.
+> - Retired: `SectionPlayer`, `MissionRunner`, teach/predict/check/debrief step renderers,
+>   mission routing. Kept: mission content + schema (coldOpen/do/debrief drive the embeds),
+>   `DoStep` workspace, `MissionDiagram`, `evaluateDoCheck` (incl. exact
+>   `deployment-replicas` gate), journey home.
+
 **Date:** 2026-07-10
 **Status:** Approved (design), pending spec review
 **Scope:** All 37 lessons across all 6 sections migrated to the mission engine. The mission
