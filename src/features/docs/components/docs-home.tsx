@@ -6,17 +6,17 @@ import { useMemo, useState } from "react";
 import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { DOCS_LESSONS, DOCS_NAV, lessonHref } from "@/content/docs";
-import { isMissionSection } from "@/content/missions";
 import { useProgress } from "@/features/progress/use-progress";
 
 import { DocsMobileNav } from "./docs-mobile-nav";
 import { DocsSidebar } from "./docs-sidebar";
-import { JourneyHome } from "../mission/journey-home";
+import { LearningRoadmap } from "./learning-roadmap";
 
 const ORDERED = DOCS_NAV.flatMap((s) => s.lessons);
-// Migrated sections get an ordered mission path (JourneyHome) instead of the legacy
-// flat lesson checklist below.
-const LEGACY_NAV = DOCS_NAV.filter((section) => !isMissionSection(section.title));
+
+// Sold in the hero: the concrete skills the course leaves you with (the destination,
+// not the inventory of lessons).
+const OUTCOMES = ["Read any manifest", "Debug a crashing pod", "Ship a safe rollout"];
 
 /**
  * Docs landing page. Replaces the old redirect-to-first-lesson with a real course
@@ -72,10 +72,22 @@ export function DocsHome() {
               Learn Kubernetes by breaking it
             </h1>
             <p className="text-muted mt-3 max-w-2xl text-[15px] leading-relaxed">
-              {total} lessons across {DOCS_NAV.length} sections, each with annotated manifests,
-              build-it-up walkthroughs, spot-the-bug drills, live labs, and checkpoint quizzes. Read
-              a concept, then break and fix it in a real simulated cluster.
+              Read a concept, then break and fix it in a real simulated cluster running in your
+              browser. By the end you can debug a production incident with nothing but{" "}
+              <code className="text-foreground font-mono text-[13px]">kubectl</code>.
             </p>
+
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {OUTCOMES.map((outcome) => (
+                <span
+                  key={outcome}
+                  className="border-border bg-panel-elevated text-muted inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                >
+                  <icons.success className="text-green size-3.5" aria-hidden />
+                  {outcome}
+                </span>
+              ))}
+            </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {resume ? (
@@ -92,6 +104,13 @@ export function DocsHome() {
                   <icons.arrowRight className="size-4" aria-hidden />
                 </Link>
               ) : null}
+              <Link
+                href="/playground"
+                className="border-border text-muted hover:border-border-strong hover:text-foreground inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition-colors"
+              >
+                <icons.playground className="size-4" aria-hidden />
+                Open the sandbox
+              </Link>
               <span className="text-subtle text-sm">
                 {completedCount} of {total} complete
               </span>
@@ -134,63 +153,9 @@ export function DocsHome() {
         {q ? (
           <SearchResults results={results} completed={completed} query={query} />
         ) : (
-          <>
-            <div className="mt-6">
-              <JourneyHome />
-            </div>
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {LEGACY_NAV.map((section) => {
-                const done = section.lessons.filter((l) => completed.has(l.slug.join("/"))).length;
-                return (
-                  <section
-                    key={section.title}
-                    className="border-border bg-panel rounded-lg border p-5"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <h2 className="text-foreground text-sm font-semibold tracking-tight">
-                        {section.title}
-                      </h2>
-                      <span className="text-subtle text-xs">
-                        {done}/{section.lessons.length}
-                      </span>
-                    </div>
-                    <ul className="space-y-0.5">
-                      {section.lessons.map((lesson) => {
-                        const isDone = completed.has(lesson.slug.join("/"));
-                        return (
-                          <li key={lesson.slug.join("/")}>
-                            <Link
-                              href={lessonHref(lesson)}
-                              className="hover:bg-panel-hover group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
-                            >
-                              {isDone ? (
-                                <icons.success
-                                  className="text-green size-4 shrink-0"
-                                  aria-label="Completed"
-                                />
-                              ) : (
-                                <span
-                                  className="border-border size-4 shrink-0 rounded-full border"
-                                  aria-hidden
-                                />
-                              )}
-                              <span className="text-muted group-hover:text-foreground min-w-0 flex-1 truncate">
-                                {lesson.title}
-                              </span>
-                              <icons.arrowRight
-                                className="text-subtle size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                                aria-hidden
-                              />
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                );
-              })}
-            </div>
-          </>
+          <div className="mt-8">
+            <LearningRoadmap completed={completed} />
+          </div>
         )}
       </main>
     </div>
