@@ -233,15 +233,16 @@ const quiz = z.object({ question: z.string().min(1), options: z.array(quizOption
 const editableFile = z.object({
   path: z.string(),
   initialValue: z.string(),
-  language: z.string(),
+  language: z.enum(["yaml", "json", "typescript", "markdown"]),
 });
+const conceptDiagramVariant = z.enum(["control-loop", "cluster-architecture", "api-object", "workload-hierarchy", "service-routing"]);
 const diagramSpec = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("live") }),
-  z.object({ mode: z.literal("concept"), variant: z.string(), buildToStep: z.number().int() }),
-  z.object({ mode: z.literal("static"), variant: z.string() }),
+  z.object({ mode: z.literal("concept"), variant: conceptDiagramVariant, buildToStep: z.number().int() }),
+  z.object({ mode: z.literal("static"), variant: conceptDiagramVariant }),
 ]);
 const doCheck = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("pods-ready"), selector: z.record(z.string()), minReady: z.number().int().positive() }),
+  z.object({ kind: z.literal("pods-ready"), selector: z.record(z.string(), z.string()), minReady: z.number().int().positive() }),
   z.object({ kind: z.literal("deployment-available"), name: z.string(), minAvailable: z.number().int().positive() }),
   z.object({ kind: z.literal("service-has-endpoints"), name: z.string(), minEndpoints: z.number().int().positive() }),
 ]);
