@@ -46,7 +46,8 @@ describe("assertMissionInvariants", () => {
   });
   it("throws when step ids are not unique", () => {
     const bad = structuredClone(valid);
-    bad.steps[1].id = "t1";
+    const s = bad.steps[1];
+    if (s) s.id = "t1"; // noUncheckedIndexedAccess: narrow before mutating
     expect(() => assertMissionInvariants(bad)).toThrow(/unique/);
   });
 });
