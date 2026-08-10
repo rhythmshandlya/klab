@@ -91,6 +91,7 @@ jobs:
       name: production
       url: ${{ steps.deploy.outputs.url }}
     env:
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -125,4 +126,4 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test deployment
-        run: node scripts/smoke-deployment.mjs "${{ steps.deploy.outputs.url }}"
+        run: pnpm smoke:production "$PRODUCTION_URL"

@@ -104,8 +104,8 @@ Every pull request runs two secret-free jobs:
 
 After reviewed code reaches `main`, the same workflow waits for both jobs and asks Vercel to build
 the source remotely, where protected production values never leave Vercel. It then runs
-authorization and health smoke checks against the immutable deployment URL. Pull-request code
-never receives the Vercel production token.
+authorization and health smoke checks against the canonical public production URL. Pull-request
+code never receives the Vercel production token.
 
 Dependabot opens grouped weekly pnpm and GitHub Actions updates. GitHub Actions are pinned to full
 commit SHAs; retain that policy when adding a new action.

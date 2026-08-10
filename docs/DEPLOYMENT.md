@@ -78,8 +78,8 @@ gh pr merge --squash --delete-branch
 ```
 
 After the merge, GitHub Actions runs CI, starts a remote Vercel build (so sensitive values remain
-inside Vercel), creates a production deployment, and executes the smoke suite against its
-immutable URL. Monitor it with `gh run watch`.
+inside Vercel), creates a production deployment, and executes the smoke suite against the public
+production alias. Monitor it with `gh run watch`.
 
 For a deliberate local deployment or recovery operation:
 
