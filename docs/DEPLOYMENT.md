@@ -106,6 +106,10 @@ After deployment:
 If `/api/health` returns 503, do not promote the deployment. It intentionally reports degraded
 until the database is reachable and the complete auth configuration is active.
 
+If Vercel reports `TEAM_ACCESS_REQUIRED`, make sure the commit author email belongs to a verified
+member of the Vercel team. For this repository, keep the repo-local Git identity aligned with the
+Vercel account before creating the release commit.
+
 ## Rollback
 
 For an urgent application rollback, open the Vercel deployment history and promote the last
