@@ -78,7 +78,7 @@ src/
     design/tokens.ts   # single source of truth for colors/radii/shadows
     domain/            # types.ts + Zod schemas for all content
     kube/              # KubeSimulator, command-runner, validators, evidence, images/
-    storage/           # local progress + sandboxes + docs→playground handoff
+    storage/           # guest progress, account sync, and docs→playground handoff
   content/             # levels/, docs/, playground-templates/ (Zod-validated at load)
   tests/               # unit, component, integration (Vitest); e2e (Playwright)
 ```
@@ -159,7 +159,12 @@ CI (`.github/workflows/ci.yml`) runs lint → typecheck → test → test:api �
 push/PR, with a separate Playwright E2E job and a nightly job that applies the Drizzle
 migrations to a real Postgres to catch schema drift.
 
-## Backend & accounts (optional)
+## Backend & accounts
+
+Local development remains zero-config, but a production deployment should configure the
+complete account backend. This gives users synced progress, password recovery, profile
+management, and permanent account/data deletion. `GET /api/health` reports degraded until the
+database and at least one complete auth provider are available.
 
 klab is **guest-first**: with no environment variables set it runs as a zero-config static
 app — progress lives in `localStorage`, there are no accounts, and the production build is
@@ -167,10 +172,12 @@ byte-identical to a fully-configured one. Accounts and cloud-synced progress lig
 progressively as you provide the matching secrets; nothing here is required to run or
 contribute to klab.
 
-The design is **local-first, intent-synced, server-derived**: the client always writes to
-`localStorage` first, then (when signed in) pushes named idempotent *intents* to the server.
-XP, streaks, and hint penalties are **derived** from grow-only rows server-side, never stored
-as counters, so every sync is safe under retries, concurrent devices, and guest→account merge.
+The design is **guest-local, account-server-authoritative**. Guest progress and saved labs stay
+in `localStorage` until sign-in. A signed-in session claims that guest data once, removes the
+shared browser copy, and thereafter keeps progress in memory while immediately pushing named,
+idempotent *intents* to Postgres. Signed-in labs use `/api/labs` and are never persisted in
+browser storage. XP, streaks, and hint penalties are **derived** from grow-only rows server-side,
+never stored as counters, so retries, concurrent devices, and guest→account merge stay safe.
 See `src/lib/storage/*` (client), `src/lib/db/*` (Drizzle schema + repositories), and
 `src/lib/auth/*` (Better Auth).
 
@@ -193,12 +200,21 @@ Copy `.env.example` to `.env.local` and fill in as much as you want. Guards in
    - **Email (magic link + verification)** via [Resend](https://resend.com) — set `RESEND_API_KEY`
      and `EMAIL_FROM`.
 
-   Auth turns on once you have the database **and** a secret **and** at least one of the above.
+   Auth turns on once you have the database, a 32+ character secret, the canonical
+   `BETTER_AUTH_URL`, and at least one complete provider. Email/password and magic-link routes
+   are only registered when Resend delivery is configured; password accounts require email
+   verification.
 4. **Rate limiting (optional)** — [Upstash](https://console.upstash.com) Redis:
    `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`. When unset, limiting is a no-op.
 
-Guest → account merge happens automatically on first sign-in (the client POSTs its local
-progress to `/api/merge`, which reconstructs per-level awarded XP from the code catalog).
+Guest → account merge happens automatically on first sign-in. Progress is posted to `/api/merge`
+and saved labs to `/api/labs`; both endpoints are session-owned and idempotent. Successful import
+claims and deletes the guest browser copy so it cannot leak into a later account.
+
+Signed-in users can manage their profile, community visibility, password, and permanent data
+deletion at `/account`. Community visibility is private by default. OAuth credentials are
+encrypted before database storage.
+See [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) for the production runbook.
 
 ## Roadmap / placeholders
 

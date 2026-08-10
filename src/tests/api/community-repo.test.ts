@@ -7,7 +7,8 @@ import {
   readRecentSolves,
   readUserRank,
 } from "@/lib/db/community-repo";
-import { progressSolved, submissions } from "@/lib/db/schema";
+import { progressSolved, submissions, user } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 import { createTestDb, seedUser, type TestDb } from "./pglite";
 
@@ -72,6 +73,24 @@ describe("community-repo over pglite", () => {
     }
   });
 
+  it("excludes private accounts from every public community surface", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      const visible = await seedUser(db, "visible");
+      const privateUser = await seedUser(db, "private");
+      await db.update(user).set({ publicProfile: false }).where(eq(user.id, privateUser));
+      await seedSolve(db, visible, "level-1", 10, new Date());
+      await seedSolve(db, privateUser, "level-2", 1_000, new Date());
+
+      expect((await readLeaderboard(db, 10)).map((entry) => entry.userId)).toEqual([visible]);
+      expect((await readRecentSolves(db, 10)).map((entry) => entry.levelSlug)).toEqual(["level-1"]);
+      expect(await readCommunityPulse(db)).toMatchObject({ players: 1 });
+      expect(await readUserRank(db, privateUser)).toBeNull();
+    } finally {
+      await client.close();
+    }
+  });
+
   it("lists recent solves newest first", async () => {
     const { db, client } = await createTestDb();
     try {
@@ -99,12 +118,52 @@ describe("community-repo over pglite", () => {
 
       await db.insert(submissions).values([
         // level-1: B (30s) beats A (60s); a faster FAILED run and an untimed pass are ignored.
-        { userId: a, levelSlug: "level-1", passed: true, checksTotal: 3, checksPassed: 3, durationMs: 60_000 },
-        { userId: b, levelSlug: "level-1", passed: true, checksTotal: 3, checksPassed: 3, durationMs: 30_000 },
-        { userId: a, levelSlug: "level-1", passed: false, checksTotal: 3, checksPassed: 1, durationMs: 5_000 },
-        { userId: a, levelSlug: "level-1", passed: true, checksTotal: 3, checksPassed: 3, durationMs: null },
+        {
+          userId: a,
+          levelSlug: "level-1",
+          passed: true,
+          checksTotal: 3,
+          checksPassed: 3,
+          durationMs: 60_000,
+          clientMutationId: "community-submission-0001",
+        },
+        {
+          userId: b,
+          levelSlug: "level-1",
+          passed: true,
+          checksTotal: 3,
+          checksPassed: 3,
+          durationMs: 30_000,
+          clientMutationId: "community-submission-0002",
+        },
+        {
+          userId: a,
+          levelSlug: "level-1",
+          passed: false,
+          checksTotal: 3,
+          checksPassed: 1,
+          durationMs: 5_000,
+          clientMutationId: "community-submission-0003",
+        },
+        {
+          userId: a,
+          levelSlug: "level-1",
+          passed: true,
+          checksTotal: 3,
+          checksPassed: 3,
+          durationMs: null,
+          clientMutationId: "community-submission-0004",
+        },
         // level-2: only an untimed pass → no record.
-        { userId: a, levelSlug: "level-2", passed: true, checksTotal: 3, checksPassed: 3, durationMs: null },
+        {
+          userId: a,
+          levelSlug: "level-2",
+          passed: true,
+          checksTotal: 3,
+          checksPassed: 3,
+          durationMs: null,
+          clientMutationId: "community-submission-0005",
+        },
       ]);
 
       const records = await readLevelRecords(db);

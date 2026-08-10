@@ -2,13 +2,18 @@
 
 ## Scope
 
-klab is a **client-only** learning app. It runs entirely in the browser: the "Kubernetes
-cluster" is simulated in-page via `@ngrok/webernetes`, container "images" are TypeScript
-fakes, and there is no backend, database, authentication, or network egress from the app
-itself. Progress is stored in the browser's `localStorage`/`sessionStorage`.
+The Kubernetes simulator still runs entirely in the browser: clusters and container images are
+TypeScript simulations and submitted manifests never reach a real Kubernetes cluster.
 
-Because there is no server component or user data collection, the attack surface is
-limited to the static site and its dependencies.
+Production accounts use Better Auth and Postgres. Session cookies are HTTP-only and secure;
+OAuth credentials are encrypted before database storage. Every user-data API derives ownership
+from the authenticated session. Signed-in progress and labs are server-authoritative, while guest
+progress and guest labs remain in browser storage until a successful one-time account claim.
+Sign-out and account deletion flush pending writes and clear account-scoped browser artifacts.
+
+Display names, avatars, XP, solves, and timing records appear in community views only after a user
+explicitly enables the public-profile setting. Database-backed account deletion cascades through
+sessions, progress, submissions, merge records, and saved labs.
 
 ## Reporting a Vulnerability
 

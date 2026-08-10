@@ -23,7 +23,13 @@ export async function createTestDb(): Promise<{ db: TestDb; client: PGlite }> {
 export async function seedUser(db: TestDb, id = "u1"): Promise<string> {
   await db
     .insert(user)
-    .values({ id, name: "Test User", email: `${id}@example.com`, emailVerified: false })
+    .values({
+      id,
+      name: "Test User",
+      email: `${id}@example.com`,
+      emailVerified: false,
+      publicProfile: true,
+    })
     .onConflictDoNothing();
   return id;
 }

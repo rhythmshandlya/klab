@@ -1,4 +1,4 @@
-import { isRateLimitConfigured } from "@/lib/env";
+import { getRateLimitConfig, isRateLimitConfigured } from "@/lib/env";
 
 /**
  * Best-effort rate limiting via Upstash Redis (sliding window). No-op — always allows —
@@ -18,8 +18,10 @@ async function buildLimiter(limit: number, windowSec: number): Promise<Limiter> 
     import("@upstash/ratelimit"),
     import("@upstash/redis"),
   ]);
+  const config = getRateLimitConfig();
+  if (!config) throw new Error("buildLimiter called without an Upstash connection.");
   return new Ratelimit({
-    redis: Redis.fromEnv(), // reads UPSTASH_REDIS_REST_URL / _TOKEN
+    redis: new Redis(config),
     limiter: Ratelimit.slidingWindow(limit, `${windowSec} s`),
     prefix: "klab:rl",
     analytics: false,

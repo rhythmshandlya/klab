@@ -1,15 +1,16 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { getLevelBySlug } from "@/content/levels";
-import type { Progress } from "@/lib/storage/local-progress";
+import { progressFingerprint, type Progress } from "@/lib/storage/local-progress";
 
-import type { ProgressDb } from "./progress-repo";
+import { isKnownCompletionSlug, type ProgressDb } from "./progress-repo";
 import {
   bookmarks,
   hintReveals,
   progressAttempted,
   progressCompletedLessons,
   progressSolved,
+  mergeLog,
 } from "./schema";
 
 /**
@@ -25,7 +26,15 @@ export async function mergeGuestProgress(
   db: ProgressDb,
   userId: string,
   guest: Progress,
-): Promise<void> {
+): Promise<{ fingerprint: string; merged: boolean }> {
+  const fingerprint = await progressFingerprint(guest);
+  const existing = await db
+    .select({ fingerprint: mergeLog.fingerprint })
+    .from(mergeLog)
+    .where(and(eq(mergeLog.userId, userId), eq(mergeLog.fingerprint, fingerprint)))
+    .limit(1);
+  if (existing.length > 0) return { fingerprint, merged: false };
+
   // Import grow-only hint facts first. The (user, level, hint) primary key makes a
   // repeated guest merge idempotent without collapsing distinct reveals.
   for (const [slug, reveals] of Object.entries(guest.hintReveals)) {
@@ -69,11 +78,17 @@ export async function mergeGuestProgress(
     await db.insert(bookmarks).values({ userId, levelSlug: slug }).onConflictDoNothing();
   }
   for (const slug of guest.completedLessonSlugs) {
+    if (!isKnownCompletionSlug(slug)) continue;
     await db
       .insert(progressCompletedLessons)
       .values({ userId, lessonSlug: slug })
       .onConflictDoNothing();
   }
+
+  // Neon HTTP has no interactive cross-statement transaction. Claim after all
+  // idempotent writes: a crash can replay safe upserts, but can never suppress facts.
+  await db.insert(mergeLog).values({ userId, fingerprint }).onConflictDoNothing();
+  return { fingerprint, merged: true };
 }
 
 function validDay(value: string | undefined): value is string {

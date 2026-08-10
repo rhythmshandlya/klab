@@ -1,4 +1,11 @@
+import { existsSync } from "node:fs";
+
 import { defineConfig } from "drizzle-kit";
+
+// drizzle-kit runs outside Next.js, so load the same layered .env files explicitly.
+for (const file of [".env.production.local", ".env.local", ".env"]) {
+  if (existsSync(file)) process.loadEnvFile(file);
+}
 
 /**
  * drizzle-kit config. `generate` (schema → SQL migration) works offline and needs no

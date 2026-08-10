@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { mergeGuestProgress } from "@/lib/db/merge-repo";
-import { readProgress } from "@/lib/db/progress-repo";
+import { applyIntents, readProgress } from "@/lib/db/progress-repo";
+import { mergeLog } from "@/lib/db/schema";
 import { EMPTY_PROGRESS, type Progress } from "@/lib/storage/local-progress";
 
 import { createTestDb, seedUser } from "./pglite";
@@ -48,6 +49,41 @@ describe("mergeGuestProgress over pglite", () => {
       expect(p.solvedLevelSlugs).toEqual(["broken-readiness-probe"]);
       expect(p.hintReveals).toEqual({ "broken-readiness-probe": { "hint-1": 15 } });
       expect(p.xp).toBe(85); // NOT doubled
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("logs the semantic fingerprint so an exact replay cannot resurrect a bookmark", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      const uid = await seedUser(db);
+      await mergeGuestProgress(db, uid, GUEST);
+      await applyIntents(db, uid, [{ kind: "setSaved", slug: "port-routing-bug", saved: false }]);
+      const replay = await mergeGuestProgress(db, uid, {
+        ...GUEST,
+        solvedLevelSlugs: ["broken-readiness-probe", "broken-readiness-probe"],
+        attemptedLevelSlugs: ["service-selector-mismatch", "service-selector-mismatch"],
+      });
+
+      expect(replay.merged).toBe(false);
+      expect((await readProgress(db, uid)).savedProblemSlugs).toEqual([]);
+      expect(await db.select().from(mergeLog)).toHaveLength(1);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("scopes an identical fingerprint independently to each user", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      const a = await seedUser(db, "userA");
+      const b = await seedUser(db, "userB");
+      const first = await mergeGuestProgress(db, a, GUEST);
+      const second = await mergeGuestProgress(db, b, GUEST);
+
+      expect(first.fingerprint).toBe(second.fingerprint);
+      expect(await db.select().from(mergeLog)).toHaveLength(2);
     } finally {
       await client.close();
     }

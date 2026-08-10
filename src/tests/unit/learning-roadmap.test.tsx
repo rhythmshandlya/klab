@@ -2,22 +2,24 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
-import { DOCS_NAV } from "@/content/docs";
+import { getCurriculumCatalog } from "@/content/curriculum/server";
 import { LearningRoadmap } from "@/features/docs/components/learning-roadmap";
+
+const CATALOG = getCurriculumCatalog();
 
 describe("LearningRoadmap", () => {
   it("renders every section as a stage, with Real Incidents in its own 'Apply it' band", () => {
-    render(<LearningRoadmap completed={new Set()} />);
+    render(<LearningRoadmap sections={CATALOG.sections} completed={new Set()} />);
 
-    for (const section of DOCS_NAV) {
+    for (const section of CATALOG.sections) {
       expect(screen.getByRole("heading", { name: section.title })).toBeInTheDocument();
     }
     expect(screen.getByText("Apply it")).toBeInTheDocument();
   });
 
   it("marks completed lessons and surfaces cross-links into other modes", () => {
-    const firstLesson = DOCS_NAV[0]!.lessons[0]!;
-    render(<LearningRoadmap completed={new Set([firstLesson.slug.join("/")])} />);
+    const firstLesson = CATALOG.sections[0]!.lessons[0]!;
+    render(<LearningRoadmap sections={CATALOG.sections} completed={new Set([firstLesson.key])} />);
 
     expect(screen.getAllByLabelText("Completed").length).toBeGreaterThan(0);
 
@@ -34,9 +36,9 @@ describe("LearningRoadmap", () => {
   });
 
   it("counts completion per section", () => {
-    const workloads = DOCS_NAV.find((s) => s.title === "Workloads");
+    const workloads = CATALOG.sections.find((section) => section.title === "Workloads");
     if (!workloads) return;
-    render(<LearningRoadmap completed={new Set()} />);
+    render(<LearningRoadmap sections={CATALOG.sections} completed={new Set()} />);
     const heading = screen.getByRole("heading", { name: "Workloads" });
     const stage = heading.closest("section");
     expect(stage).not.toBeNull();

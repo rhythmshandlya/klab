@@ -9,7 +9,7 @@ test("open a docs lesson and run its inline lab", async ({ page }) => {
 
   await test.step("lesson content renders", async () => {
     await expect(page.getByRole("heading", { name: "Readiness Probes", level: 1 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Readiness vs liveness" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Why probes exist" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Start lab" })).toBeVisible();
   });
 

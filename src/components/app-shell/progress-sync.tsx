@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { useLabsStore } from "@/features/playground/labs-store";
 import { useSession } from "@/lib/auth/client";
 import { bindSyncListeners, setIdentity } from "@/lib/storage/progress-store";
 
@@ -21,8 +22,16 @@ export function ProgressSync() {
 
   useEffect(() => {
     if (isPending) return;
-    void setIdentity(userId);
+    void Promise.all([setIdentity(userId), useLabsStore.getState().setIdentity(userId)]);
   }, [isPending, userId]);
 
+  return null;
+}
+
+/** Initializes guest-only data stores when accounts are disabled for a deployment. */
+export function GuestDataSync() {
+  useEffect(() => {
+    void useLabsStore.getState().setIdentity(null);
+  }, []);
   return null;
 }

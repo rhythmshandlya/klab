@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyIntents, deriveStreak, readProgress } from "@/lib/db/progress-repo";
+import { submissions } from "@/lib/db/schema";
 import type { ProgressIntent } from "@/lib/storage/progress-intent";
 
 import { createTestDb, seedUser } from "./pglite";
@@ -122,6 +123,30 @@ describe("progress-repo over pglite", () => {
       expect((await readProgress(db, a)).xp).toBe(100);
       expect((await readProgress(db, b)).solvedLevelSlugs).toEqual(["rolling-update-gone-wrong"]);
       expect((await readProgress(db, b)).xp).toBe(150);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("deduplicates submission retries per user rather than globally", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      const a = await seedUser(db, "userA");
+      const b = await seedUser(db, "userB");
+      const submission: ProgressIntent = {
+        kind: "submission",
+        slug: LEVEL,
+        passed: true,
+        checksTotal: 3,
+        checksPassed: 3,
+        clientMutationId: "shared-submission-000001",
+      };
+
+      await applyIntents(db, a, [submission]);
+      await applyIntents(db, a, [submission]);
+      await applyIntents(db, b, [submission]);
+
+      expect(await db.select().from(submissions)).toHaveLength(2);
     } finally {
       await client.close();
     }

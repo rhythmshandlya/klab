@@ -1,15 +1,24 @@
 "use client";
 
-import { anonymousClient, magicLinkClient } from "better-auth/client/plugins";
+import { magicLinkClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 /**
- * Better Auth React client. `baseURL` defaults to the current origin, so it talks to
- * our own `/api/auth/*` route handler. Plugins mirror the server (anonymous guest +
- * magic link). Guests never call this — it's only used once a user opts into signing in.
+ * Same-origin Better Auth client. Guest progress remains local and is merged after a
+ * real account signs in; it never creates disposable anonymous database users.
  */
 export const authClient = createAuthClient({
-  plugins: [anonymousClient(), magicLinkClient()],
+  plugins: [magicLinkClient()],
 });
 
-export const { useSession, signIn, signOut, signUp } = authClient;
+export const {
+  useSession,
+  signIn,
+  signOut,
+  signUp,
+  updateUser,
+  changePassword,
+  deleteUser,
+  requestPasswordReset,
+  resetPassword,
+} = authClient;

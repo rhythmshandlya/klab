@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 
 import { icons } from "@/components/icons";
-import type { DocsLesson } from "@/lib/domain/types";
 import { setPlaygroundHandoff } from "@/lib/storage/playground-handoff";
 
 const CLASS =
@@ -14,10 +13,8 @@ const CLASS =
  * stashed as a one-shot handoff so the playground opens pre-loaded with them; otherwise
  * it just opens an empty playground.
  */
-export function OpenInPlayground({ lesson }: { lesson: DocsLesson }) {
+export function OpenInPlayground({ files }: { files?: Record<string, string> }) {
   const router = useRouter();
-  const lab = lesson.labs[0];
-  const files = lab ? Object.fromEntries(lab.files.map((f) => [f.path, f.initialValue])) : null;
 
   const go = () => {
     if (files && Object.keys(files).length > 0) setPlaygroundHandoff(files);

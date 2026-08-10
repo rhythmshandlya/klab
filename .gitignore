@@ -43,3 +43,9 @@ yarn-error.log*
 
 # os
 Thumbs.db
+
+# local service and agent state
+.vercel
+.env*
+.agents/
+skills-lock.json

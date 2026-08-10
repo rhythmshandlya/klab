@@ -56,11 +56,14 @@ export async function readCommunityPulse(db: ProgressDb): Promise<CommunityPulse
   const rows = await db
     .select({
       players: sql<number>`count(distinct ${progressSolved.userId})`.mapWith(Number),
-      solvesThisWeek: sql<number>`count(*) filter (where ${progressSolved.solvedAt} > now() - interval '7 days')`.mapWith(
-        Number,
-      ),
+      solvesThisWeek:
+        sql<number>`count(*) filter (where ${progressSolved.solvedAt} > now() - interval '7 days')`.mapWith(
+          Number,
+        ),
     })
-    .from(progressSolved);
+    .from(progressSolved)
+    .innerJoin(user, eq(user.id, progressSolved.userId))
+    .where(eq(user.publicProfile, true));
   const row = rows[0];
   return { players: row?.players ?? 0, solvesThisWeek: row?.solvesThisWeek ?? 0 };
 }
@@ -82,6 +85,7 @@ export async function readLeaderboard(db: ProgressDb, limit: number): Promise<Le
     })
     .from(progressSolved)
     .innerJoin(user, eq(user.id, progressSolved.userId))
+    .where(eq(user.publicProfile, true))
     .groupBy(progressSolved.userId, user.name, user.image, user.isAnonymous)
     .orderBy(desc(xp), desc(solves), desc(lastSolvedAt))
     .limit(limit);
@@ -109,6 +113,7 @@ export async function readRecentSolves(db: ProgressDb, limit: number): Promise<R
     })
     .from(progressSolved)
     .innerJoin(user, eq(user.id, progressSolved.userId))
+    .where(eq(user.publicProfile, true))
     .orderBy(desc(progressSolved.solvedAt))
     .limit(limit);
 
@@ -137,7 +142,13 @@ export async function readLevelRecords(db: ProgressDb): Promise<LevelRecord[]> {
     })
     .from(submissions)
     .innerJoin(user, eq(user.id, submissions.userId))
-    .where(and(eq(submissions.passed, true), isNotNull(submissions.durationMs)))
+    .where(
+      and(
+        eq(user.publicProfile, true),
+        eq(submissions.passed, true),
+        isNotNull(submissions.durationMs),
+      ),
+    )
     .orderBy(submissions.levelSlug, submissions.durationMs, submissions.createdAt);
 
   return rows.map((row) => ({
@@ -162,6 +173,8 @@ export async function readUserRank(db: ProgressDb, userId: string): Promise<User
       xp: sum(progressSolved.awardedXp).mapWith(Number).as("xp"),
     })
     .from(progressSolved)
+    .innerJoin(user, eq(user.id, progressSolved.userId))
+    .where(eq(user.publicProfile, true))
     .groupBy(progressSolved.userId)
     .as("totals");
 

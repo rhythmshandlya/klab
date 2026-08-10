@@ -11,7 +11,7 @@ const STORAGE_KEY = "klab:progress:v1";
 /** Base localStorage key. The store derives identity-scoped keys (`…:u:<id>`) from it. */
 export const PROGRESS_STORAGE_KEY = STORAGE_KEY;
 
-const progressSchema = z.object({
+export const progressSchema = z.object({
   version: z.literal(1),
   xp: z.number().int().nonnegative(),
   streakDays: z.number().int().nonnegative(),
@@ -63,6 +63,11 @@ export function loadProgress(): Progress {
 export function coerceProgress(value: unknown): Progress {
   const parsed = progressSchema.safeParse(value);
   return parsed.success ? parsed.data : EMPTY_PROGRESS;
+}
+
+/** Strict validation for remote snapshots. Unlike `coerceProgress`, invalid data throws. */
+export function parseProgress(value: unknown): Progress {
+  return progressSchema.parse(value);
 }
 
 /** Dispatched on the window after progress is persisted, so live UI (nav, /progress) can refresh. */
@@ -124,15 +129,19 @@ function previousDay(day: string): string {
 }
 
 /** Record a solved level, award XP (net of hint penalties), and advance the day streak. */
-export function recordSolved(progress: Progress, slug: string, levelXp: number): Progress {
+export function recordSolved(
+  progress: Progress,
+  slug: string,
+  levelXp: number,
+  solvedDay = localDay(),
+): Progress {
   if (progress.solvedLevelSlugs.includes(slug)) return progress;
   const penalty = hintPenaltyFor(progress, slug);
   const awarded = Math.max(0, levelXp - penalty);
-  const today = localDay();
   const streakDays =
-    progress.lastSolvedDay === today
+    progress.lastSolvedDay === solvedDay
       ? progress.streakDays
-      : progress.lastSolvedDay === previousDay(today)
+      : progress.lastSolvedDay === previousDay(solvedDay)
         ? progress.streakDays + 1
         : 1;
   return {
@@ -140,8 +149,65 @@ export function recordSolved(progress: Progress, slug: string, levelXp: number):
     xp: progress.xp + awarded,
     solvedLevelSlugs: [...progress.solvedLevelSlugs, slug],
     streakDays,
-    lastSolvedDay: today,
+    lastSolvedDay: solvedDay,
   };
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort();
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalDay(value: string | undefined): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year!, month! - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month! - 1 &&
+    date.getUTCDate() === day
+    ? value
+    : null;
+}
+
+/**
+ * Canonical guest facts used for merge idempotency. Derived totals and client-provided
+ * penalties are deliberately excluded: the server reconstructs those from its catalog.
+ */
+export function canonicalProgressFacts(progress: Progress): string {
+  const hints = Object.entries(progress.hintReveals)
+    .flatMap(([slug, reveals]) => Object.keys(reveals).map((hintId) => [slug, hintId] as const))
+    .sort(([slugA, hintA], [slugB, hintB]) =>
+      slugA === slugB ? compareText(hintA, hintB) : compareText(slugA, slugB),
+    );
+
+  return JSON.stringify({
+    solved: uniqueSorted(progress.solvedLevelSlugs),
+    attempted: uniqueSorted(progress.attemptedLevelSlugs),
+    saved: uniqueSorted(progress.savedProblemSlugs),
+    completedLessons: uniqueSorted(progress.completedLessonSlugs),
+    hints,
+    lastSolvedDay: canonicalDay(progress.lastSolvedDay),
+  });
+}
+
+/** Stable SHA-256 merge fingerprint, with a deterministic fallback for older runtimes. */
+export async function progressFingerprint(progress: Progress): Promise<string> {
+  const bytes = new TextEncoder().encode(canonicalProgressFacts(progress));
+  if (globalThis.crypto?.subtle) {
+    const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes));
+    return `v1:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  // FNV-1a 64-bit is not a security primitive; it is only an old-runtime idempotency key.
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of bytes) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return `v1-fallback:${hash.toString(16).padStart(16, "0")}`;
 }
 
 /** Mark a level as attempted (first investigation action). Idempotent. */

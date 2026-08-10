@@ -3,7 +3,11 @@ import { getDb, hasDb } from "@/lib/db";
 import { applyIntents, InvalidProgressIntentError, readProgress } from "@/lib/db/progress-repo";
 import { isAuthConfigured } from "@/lib/env";
 import { allowRequest } from "@/lib/rate-limit";
-import { parseIntents, type ProgressIntent } from "@/lib/storage/progress-intent";
+import {
+  parseProgressBatch,
+  PROGRESS_OWNER_HEADER,
+  type ProgressBatch,
+} from "@/lib/storage/progress-intent";
 
 /**
  * Signed-in progress sync. GET returns the server-derived Progress snapshot; POST
@@ -25,6 +29,11 @@ export async function GET(request: Request): Promise<Response> {
   }
   const userId = await currentUserId(request);
   if (!userId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ownerId = request.headers.get(PROGRESS_OWNER_HEADER);
+  if (!ownerId) return Response.json({ error: "missing progress owner" }, { status: 400 });
+  if (ownerId !== userId) {
+    return Response.json({ error: "progress owner does not match session" }, { status: 409 });
+  }
   return Response.json(await readProgress(getDb(), userId));
 }
 
@@ -39,20 +48,31 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "rate limited" }, { status: 429 });
   }
   const body: unknown = await request.json().catch(() => null);
-  let intents: ProgressIntent[];
+  let batch: ProgressBatch;
   try {
-    intents = parseIntents(body);
+    batch = parseProgressBatch(body);
   } catch {
-    return Response.json({ error: "invalid progress intents" }, { status: 400 });
+    return Response.json({ error: "invalid progress batch" }, { status: 400 });
+  }
+  if (batch.ownerId !== userId) {
+    return Response.json({ error: "progress owner does not match session" }, { status: 409 });
   }
   const db = getDb();
   try {
-    await applyIntents(db, userId, intents);
+    await applyIntents(
+      db,
+      userId,
+      batch.deliveries.map(({ intent }) => intent),
+    );
   } catch (error) {
     if (error instanceof InvalidProgressIntentError) {
       return Response.json({ error: error.message }, { status: 400 });
     }
     throw error;
   }
-  return Response.json(await readProgress(db, userId));
+  return Response.json({
+    ownerId: userId,
+    acknowledgedIds: batch.deliveries.map(({ id }) => id),
+    progress: await readProgress(db, userId),
+  });
 }

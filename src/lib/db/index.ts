@@ -11,8 +11,9 @@ import { schema } from "./schema";
  * this file even when `DATABASE_URL` is unset (guest / static-build path).
  *
  * The HTTP driver is edge/serverless-friendly (no WebSocket, no pooling to manage).
- * Every klab write is a single idempotent statement, so cross-statement transactions
- * aren't required. Tests use a separate pglite-backed client (see src/tests/api).
+ * Progress facts use idempotent statements. Guest merge records its fingerprint only
+ * after those safe writes complete, so a failed attempt can be replayed without an
+ * interactive transaction. Tests use a separate pglite-backed client (see src/tests/api).
  */
 
 export type Database = NeonHttpDatabase<typeof schema>;

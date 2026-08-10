@@ -5,14 +5,16 @@ import { useMemo, useState } from "react";
 
 import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { DOCS_LESSONS, DOCS_NAV, lessonHref } from "@/content/docs";
+import {
+  curriculumLessons,
+  type CurriculumCatalog,
+  type CurriculumLessonSummary,
+} from "@/content/curriculum/model";
 import { useProgress } from "@/features/progress/use-progress";
 
 import { DocsMobileNav } from "./docs-mobile-nav";
 import { DocsSidebar } from "./docs-sidebar";
 import { LearningRoadmap } from "./learning-roadmap";
-
-const ORDERED = DOCS_NAV.flatMap((s) => s.lessons);
 
 // Sold in the hero: the concrete skills the course leaves you with (the destination,
 // not the inventory of lessons).
@@ -23,42 +25,45 @@ const OUTCOMES = ["Read any manifest", "Debug a crashing pod", "Ship a safe roll
  * home: overall progress, a resume/continue affordance that points at the first
  * incomplete lesson, client-side search, and per-section cards with completion.
  */
-export function DocsHome() {
+export function DocsHome({ catalog }: { catalog: CurriculumCatalog }) {
   const progress = useProgress();
   const [query, setQuery] = useState("");
+  const ordered = useMemo(() => curriculumLessons(catalog), [catalog]);
 
   const completed = useMemo(
     () => new Set(progress.completedLessonSlugs),
     [progress.completedLessonSlugs],
   );
-  const completedCount = ORDERED.filter((l) => completed.has(l.slug.join("/"))).length;
-  const total = ORDERED.length;
+  const completedCount = ordered.filter((lesson) => completed.has(lesson.key)).length;
+  const total = ordered.length;
   const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
   // Continue at the first lesson (in nav order) the learner hasn't completed.
-  const resume = ORDERED.find((l) => !completed.has(l.slug.join("/"))) ?? ORDERED[0];
+  const resume = ordered.find((lesson) => !completed.has(lesson.key)) ?? ordered[0];
   const allDone = completedCount === total && total > 0;
 
   const q = query.trim().toLowerCase();
   const results = useMemo(() => {
     if (!q) return [];
-    return DOCS_LESSONS.filter((l) => {
-      const haystack = [l.title, l.section, l.description, ...l.concepts].join(" ").toLowerCase();
-      return haystack.includes(q);
-    }).slice(0, 12);
-  }, [q]);
+    return ordered
+      .filter((l) => {
+        const haystack = [l.title, l.section, l.description, ...l.concepts].join(" ").toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 12);
+  }, [ordered, q]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1520px]">
       <aside className="border-border hidden w-64 shrink-0 border-r lg:block">
         <div className="sticky top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto py-4">
-          <DocsSidebar />
+          <DocsSidebar catalog={catalog} />
         </div>
       </aside>
 
       <main className="min-w-0 flex-1 px-5 py-6 lg:px-8">
         <div className="mb-4 lg:hidden">
-          <DocsMobileNav sectionLabel="Overview" />
+          <DocsMobileNav catalog={catalog} sectionLabel="Overview" />
         </div>
 
         {/* Hero */}
@@ -92,7 +97,7 @@ export function DocsHome() {
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {resume ? (
                 <Link
-                  href={lessonHref(resume)}
+                  href={resume.href}
                   className="bg-blue text-background hover:bg-blue/90 inline-flex h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors"
                 >
                   <icons.docsInteractive className="size-4" aria-hidden />
@@ -154,7 +159,7 @@ export function DocsHome() {
           <SearchResults results={results} completed={completed} query={query} />
         ) : (
           <div className="mt-8">
-            <LearningRoadmap completed={completed} />
+            <LearningRoadmap sections={catalog.sections} completed={completed} />
           </div>
         )}
       </main>
@@ -167,7 +172,7 @@ function SearchResults({
   completed,
   query,
 }: {
-  results: typeof DOCS_LESSONS;
+  results: readonly CurriculumLessonSummary[];
   completed: Set<string>;
   query: string;
 }) {
@@ -184,11 +189,11 @@ function SearchResults({
         {results.length} result{results.length === 1 ? "" : "s"}
       </p>
       {results.map((lesson) => {
-        const isDone = completed.has(lesson.slug.join("/"));
+        const isDone = completed.has(lesson.key);
         return (
           <Link
-            key={lesson.slug.join("/")}
-            href={lessonHref(lesson)}
+            key={lesson.key}
+            href={lesson.href}
             className="border-border bg-panel hover:border-border-strong hover:bg-panel-hover block rounded-md border p-3 transition-colors"
           >
             <div className="flex items-center gap-2">

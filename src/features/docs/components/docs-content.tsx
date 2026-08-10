@@ -392,37 +392,171 @@ function TakeawaysBlock({ items }: { items: string[] }) {
 
 type AnnotatedCodeBlock = Extract<DocsBlock, { type: "annotatedCode" }>;
 
-/** Full code with per-line teaching annotations pinned beside each line. */
+/**
+ * A continuous code listing with numbered callouts. Keeping explanations out of the
+ * code rows preserves indentation and line rhythm, while matching markers make the
+ * relationship between a line and its teaching note explicit at every viewport.
+ */
 function AnnotatedCode({ block }: { block: AnnotatedCodeBlock }) {
+  const source = block.lines.map((line) => line.code).join("\n");
+  const showIndentGuides = block.language === "yaml" || block.language === "json";
+  const annotations = block.lines.flatMap((line, lineIndex) =>
+    line.note
+      ? [
+          {
+            code: line.code,
+            lineNumber: lineIndex + 1,
+            note: line.note,
+          },
+        ]
+      : [],
+  );
+  const annotationNumberByLine = new Map(
+    annotations.map((annotation, annotationIndex) => [annotation.lineNumber, annotationIndex + 1]),
+  );
+
   return (
-    <figure className="border-border bg-panel overflow-hidden rounded-md border">
-      {block.title ? (
-        <figcaption className="border-border text-subtle border-b px-4 py-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
-          {block.title}
-        </figcaption>
-      ) : null}
-      <div className="bg-code/40 divide-y divide-border/50">
-        {block.lines.map((line, i) => (
-          <div
-            key={i}
-            className={cn(
-              "flex flex-col gap-0.5 px-4 py-0.5 md:flex-row md:items-start md:gap-4",
-              line.note ? "border-l-2 border-blue/40 md:border-l-2" : "border-l-2 border-transparent",
-            )}
-          >
-            <pre className="text-muted flex-1 overflow-x-auto font-mono text-xs leading-relaxed">
-              {line.code || " "}
-            </pre>
-            {line.note ? (
-              <p className="text-blue/90 text-[11px] leading-relaxed md:w-60 md:shrink-0 md:pt-0.5">
-                ← {line.note}
-              </p>
-            ) : null}
+    <figure className="border-border bg-panel @container overflow-hidden rounded-md border">
+      <figcaption className="border-border bg-panel-elevated/60 flex items-center justify-between gap-3 border-b px-3 py-2.5 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="border-border-strong bg-code text-muted shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-[0.08em] uppercase">
+            {block.language}
+          </span>
+          <div className="min-w-0">
+            <p className="text-foreground truncate text-sm font-semibold">
+              {block.title ?? "Annotated code"}
+            </p>
+            <p className="text-muted mt-0.5 text-[11px]">
+              {block.lines.length} lines · {annotations.length} callout
+              {annotations.length === 1 ? "" : "s"}
+            </p>
           </div>
-        ))}
+        </div>
+        <CopyButton text={source} className="shrink-0" />
+      </figcaption>
+
+      <div
+        className={cn(
+          annotations.length > 0 && "@3xl:grid @3xl:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]",
+        )}
+      >
+        <div className="bg-code/90 min-w-0">
+          <div className="border-border text-muted flex items-center justify-between border-b px-3 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase sm:px-4">
+            <span>Source</span>
+            {annotations.length > 0 ? <span>Markers map to callouts</span> : null}
+          </div>
+          <div
+            className="overflow-x-auto py-2.5"
+            role="region"
+            aria-label={`${block.language.toUpperCase()} source code`}
+            tabIndex={0}
+          >
+            <pre className="text-muted w-max min-w-full font-mono text-xs leading-6 [tab-size:2]">
+              <code>
+                {block.lines.map((line, lineIndex) => {
+                  const lineNumber = lineIndex + 1;
+                  const annotationNumber = annotationNumberByLine.get(lineNumber);
+                  const indentationDepth = showIndentGuides
+                    ? Math.floor((line.code.match(/^ */)?.[0].length ?? 0) / 2)
+                    : 0;
+
+                  return (
+                    <span
+                      key={lineIndex}
+                      data-code-line={lineNumber}
+                      className={cn(
+                        "grid min-h-6 grid-cols-[2.75rem_minmax(max-content,1fr)_2.5rem] items-start border-l-2 px-2",
+                        annotationNumber
+                          ? "border-blue/70 bg-blue/[0.06] text-foreground"
+                          : "border-transparent",
+                      )}
+                    >
+                      <span
+                        className="text-subtle/70 tabnums pr-3 text-right text-[10px] leading-6 select-none"
+                        aria-hidden
+                      >
+                        {lineNumber}
+                      </span>
+                      <span className="relative pr-5 leading-6 whitespace-pre">
+                        {indentationDepth > 0 ? (
+                          <span
+                            className="pointer-events-none absolute inset-y-0 left-0 flex"
+                            data-indent-guides={indentationDepth}
+                            aria-hidden
+                          >
+                            {Array.from({ length: indentationDepth }, (_, guideIndex) => (
+                              <span
+                                key={guideIndex}
+                                className="border-border/60 block w-[2ch] border-r"
+                              />
+                            ))}
+                          </span>
+                        ) : null}
+                        <span className="relative">{line.code || " "}</span>
+                      </span>
+                      {annotationNumber ? (
+                        <span
+                          className="border-blue/50 bg-blue/20 text-foreground mt-1 flex size-4 items-center justify-center rounded-full border text-[9px] leading-none font-bold select-none"
+                          aria-hidden
+                          title={`Callout ${annotationNumber}`}
+                        >
+                          {annotationNumber}
+                        </span>
+                      ) : (
+                        <span aria-hidden />
+                      )}
+                    </span>
+                  );
+                })}
+              </code>
+            </pre>
+          </div>
+        </div>
+
+        {annotations.length > 0 ? (
+          <aside
+            className="border-border bg-panel-elevated/35 border-t @3xl:border-t-0 @3xl:border-l"
+            aria-label={`${block.title ?? block.language.toUpperCase()} callouts`}
+          >
+            <div className="border-border flex items-center justify-between border-b px-3 py-1.5 sm:px-4">
+              <p className="text-foreground text-xs font-semibold">Callouts</p>
+              <p className="text-muted text-[10px]">Linked to source lines</p>
+            </div>
+            <ol className="grid gap-2 p-3 @md:grid-cols-2 @3xl:grid-cols-1">
+              {annotations.map((annotation, annotationIndex) => (
+                <li
+                  key={annotation.lineNumber}
+                  className="border-border bg-panel grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2.5 rounded-md border p-2.5"
+                >
+                  <span
+                    className="border-blue/50 bg-blue/20 text-foreground flex size-6 items-center justify-center rounded-full border text-[10px] font-bold"
+                    aria-hidden
+                  >
+                    {annotationIndex + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="text-muted tabnums shrink-0 text-[10px] font-semibold tracking-[0.08em] uppercase">
+                        Line {annotation.lineNumber}
+                      </span>
+                      <code
+                        className="text-muted min-w-0 truncate font-mono text-[10px]"
+                        title={annotation.code.trim() || "Blank line"}
+                      >
+                        {annotation.code.trim() || "Blank line"}
+                      </code>
+                    </div>
+                    <p className="text-muted mt-1.5 text-xs leading-relaxed">{annotation.note}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </aside>
+        ) : null}
       </div>
+
       {block.caption ? (
-        <p className="border-border text-subtle border-t px-4 py-2 text-center text-xs">
+        <p className="border-border bg-panel-elevated/60 text-muted border-t px-4 py-2.5 text-center text-xs leading-relaxed">
           {block.caption}
         </p>
       ) : null}
@@ -436,12 +570,13 @@ type BuildUpBlock = Extract<DocsBlock, { type: "buildUp" }>;
 function BuildUp({ block }: { block: BuildUpBlock }) {
   return (
     <div className="space-y-3">
-      {block.title ? (
-        <p className="text-foreground text-sm font-semibold">{block.title}</p>
-      ) : null}
+      {block.title ? <p className="text-foreground text-sm font-semibold">{block.title}</p> : null}
       <ol className="space-y-3">
         {block.stages.map((stage, i) => (
-          <li key={stage.label} className="border-border bg-panel overflow-hidden rounded-md border">
+          <li
+            key={stage.label}
+            className="border-border bg-panel overflow-hidden rounded-md border"
+          >
             <div className="border-border flex items-center gap-2 border-b px-3 py-2">
               <span className="text-blue font-mono text-xs">{String(i + 1).padStart(2, "0")}</span>
               <span className="text-foreground text-sm font-semibold">{stage.label}</span>

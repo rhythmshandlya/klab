@@ -5,13 +5,19 @@ import { usePathname } from "next/navigation";
 
 import { AuthMenu } from "@/components/auth/auth-menu";
 import { ClusterMark, icons } from "@/components/icons";
-import { PLACEHOLDER_USER } from "@/lib/config/placeholders";
 import { useProgress } from "@/features/progress/use-progress";
 import { cn } from "@/lib/utils/cn";
+import type { AuthCapabilities } from "@/lib/env";
 
 import { isSectionActive, NAV_ITEMS } from "./nav-items";
 
-export function TopNav({ authEnabled = false }: { authEnabled?: boolean }) {
+export function TopNav({
+  authEnabled = false,
+  authCapabilities = { github: false, email: false },
+}: {
+  authEnabled?: boolean;
+  authCapabilities?: AuthCapabilities;
+}) {
   const pathname = usePathname() ?? "/";
   const progress = useProgress();
 
@@ -29,9 +35,7 @@ export function TopNav({ authEnabled = false }: { authEnabled?: boolean }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex h-8 items-center px-3 text-sm transition-colors",
-                  active
-                    ? "text-foreground font-semibold"
-                    : "text-muted hover:text-foreground",
+                  active ? "text-foreground font-semibold" : "text-muted hover:text-foreground",
                 )}
               >
                 {item.label}
@@ -45,7 +49,7 @@ export function TopNav({ authEnabled = false }: { authEnabled?: boolean }) {
             <StatChip icon="streak" value={progress.streakDays} label="day streak" />
             <StatChip icon="xp" value={progress.xp} label="XP" />
           </div>
-          {authEnabled ? <AuthMenu /> : <UserChip />}
+          {authEnabled ? <AuthMenu capabilities={authCapabilities} /> : <UserChip />}
         </div>
       </div>
     </header>
@@ -86,10 +90,10 @@ function UserChip() {
         className="bg-blue/15 text-blue flex size-6 items-center justify-center rounded text-[11px] font-semibold"
         aria-hidden
       >
-        {PLACEHOLDER_USER.initials}
+        G
       </span>
       <span className="text-foreground hidden text-sm font-medium lg:inline">
-        {PLACEHOLDER_USER.name}
+        Guest
       </span>
     </div>
   );

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 
 import { icons, type IconName } from "@/components/icons";
-import { DOCS_NAV, lessonHref } from "@/content/docs";
+import type { CurriculumCatalog } from "@/content/curriculum/model";
 import { useProgress } from "@/features/progress/use-progress";
 import { cn } from "@/lib/utils/cn";
 
@@ -18,18 +18,29 @@ const SECTION_ICON: Record<string, IconName> = {
   "Real Incidents": "warning",
 };
 
-export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function DocsSidebar({
+  catalog,
+  onNavigate,
+}: {
+  catalog: CurriculumCatalog;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const progress = useProgress();
-  const totalLessons = DOCS_NAV.reduce((sum, section) => sum + section.lessons.length, 0);
+  const totalLessons = catalog.sections.reduce((sum, section) => sum + section.lessons.length, 0);
 
   const completed = useMemo(
     () => new Set(progress.completedLessonSlugs),
     [progress.completedLessonSlugs],
   );
   const completedCount = useMemo(
-    () => DOCS_NAV.reduce((n, s) => n + s.lessons.filter((l) => completed.has(l.slug.join("/"))).length, 0),
-    [completed],
+    () =>
+      catalog.sections.reduce(
+        (count, section) =>
+          count + section.lessons.filter((lesson) => completed.has(lesson.key)).length,
+        0,
+      ),
+    [catalog.sections, completed],
   );
   const pct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
 
@@ -63,7 +74,7 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      {DOCS_NAV.map((section) => {
+      {catalog.sections.map((section) => {
         const Icon = icons[SECTION_ICON[section.title] ?? "docs"];
         return (
           <div key={section.title}>
@@ -73,9 +84,9 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
             </p>
             <ul className="space-y-0.5">
               {section.lessons.map((lesson) => {
-                const href = lessonHref(lesson);
+                const href = lesson.href;
                 const active = pathname === href;
-                const isDone = completed.has(lesson.slug.join("/"));
+                const isDone = completed.has(lesson.key);
                 return (
                   <li key={href}>
                     <Link
@@ -90,7 +101,10 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
                       )}
                     >
                       {isDone ? (
-                        <icons.success className="text-green size-3.5 shrink-0" aria-label="Completed" />
+                        <icons.success
+                          className="text-green size-3.5 shrink-0"
+                          aria-label="Completed"
+                        />
                       ) : (
                         <span
                           className="border-border size-3.5 shrink-0 rounded-full border"

@@ -20,7 +20,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlaygroundTemplate } from "@/lib/domain/types";
 import { runCommandLine } from "@/lib/kube/command-runner";
-import type { SavedLab } from "@/lib/storage/local-labs";
+import type { SavedLab } from "@/lib/labs/contracts";
 import { takePlaygroundHandoff } from "@/lib/storage/playground-handoff";
 import { cn } from "@/lib/utils/cn";
 
@@ -76,23 +76,28 @@ export function PlaygroundWorkspace({
   const [copied, setCopied] = useState(false);
   const [paused, setPaused] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [labSaved, setLabSaved] = useState(false);
+  const [labSaveState, setLabSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const router = useRouter();
   const createLab = useLabsStore((s) => s.create);
   const updateLab = useLabsStore((s) => s.update);
 
   // "Save" on an open lab persists the current files back into it.
-  const handleSaveLab = useCallback(() => {
+  const handleSaveLab = useCallback(async () => {
     if (!lab) return;
-    updateLab(lab.id, { files: usePlaygroundStore.getState().files });
-    setLabSaved(true);
-    setTimeout(() => setLabSaved(false), 1500);
+    setLabSaveState("saving");
+    try {
+      await updateLab(lab.id, { files: usePlaygroundStore.getState().files });
+      setLabSaveState("saved");
+      setTimeout(() => setLabSaveState("idle"), 1500);
+    } catch {
+      setLabSaveState("error");
+    }
   }, [lab, updateLab]);
 
   // "Save as lab" (from a template) / "Save as…" (fork of a lab) creates and opens it.
   const handleCreateLab = useCallback(
-    (name: string) => {
-      const created = createLab({
+    async (name: string) => {
+      const created = await createLab({
         name,
         templateId: template.id,
         files: usePlaygroundStore.getState().files,
@@ -221,9 +226,18 @@ export function PlaygroundWorkspace({
                   <div className="flex items-center gap-1.5">
                     {lab ? (
                       <>
-                        <ToolbarButton onClick={handleSaveLab} disabled={!sim.ready}>
+                        <ToolbarButton
+                          onClick={() => void handleSaveLab()}
+                          disabled={!sim.ready || labSaveState === "saving"}
+                        >
                           <icons.bookmark aria-hidden />
-                          {labSaved ? "Saved" : "Save"}
+                          {labSaveState === "saving"
+                            ? "Saving…"
+                            : labSaveState === "saved"
+                              ? "Saved"
+                              : labSaveState === "error"
+                                ? "Retry save"
+                                : "Save"}
                         </ToolbarButton>
                         <ToolbarButton
                           onClick={() => setSaveDialogOpen(true)}

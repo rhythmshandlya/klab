@@ -1,37 +1,37 @@
 import { z } from "zod";
 
 /**
- * Environment configuration — intentionally ALL-OPTIONAL.
- *
- * klab runs as a zero-config static app for guests: with no env set, there is no
- * database, no auth, and no email — the app falls back to localStorage-only behavior
- * and the production build still succeeds (this is what keeps `pnpm build` and the
- * guest E2E green in CI, which provisions no secrets). Backend features light up
- * progressively as the matching variables are provided.
- *
- * Never throws on import. Parsing happens once, lazily, against `process.env`.
+ * Server-only environment configuration. Values remain optional so contributors and
+ * CI can run the browser-only guest build, but malformed values fail loudly instead of
+ * silently disabling the production backend.
  */
+
+const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
+const optionalUrl = z.preprocess(emptyToUndefined, z.url().optional());
+const optionalString = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
 
 const serverSchema = z.object({
   /** Pooled Neon connection string used by route handlers at runtime. */
-  DATABASE_URL: z.string().url().optional(),
+  DATABASE_URL: optionalUrl,
   /** Direct (unpooled) connection string used only by drizzle-kit migrations. */
-  DATABASE_URL_UNPOOLED: z.string().url().optional(),
-  /** Better Auth signing secret. Required in production once auth is enabled. */
-  BETTER_AUTH_SECRET: z.string().min(1).optional(),
-  /** Absolute base URL of the deployment (e.g. https://klab.dev). */
-  BETTER_AUTH_URL: z.string().url().optional(),
-  GITHUB_CLIENT_ID: z.string().min(1).optional(),
-  GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
-  /** Resend API key for magic-link + email verification mail. */
-  RESEND_API_KEY: z.string().min(1).optional(),
-  /** From-address for transactional email (e.g. "klab <no-reply@klab.dev>"). */
-  EMAIL_FROM: z.string().min(1).optional(),
-  /** Upstash Redis REST endpoint for rate limiting (optional; no-op when unset). */
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
+  DATABASE_URL_UNPOOLED: optionalUrl,
+  /** Better Auth signing secret. At least 32 characters. */
+  BETTER_AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
+  /** Canonical deployment origin (for example, https://klab.example.com). */
+  BETTER_AUTH_URL: optionalUrl,
+  GITHUB_CLIENT_ID: optionalString,
+  GITHUB_CLIENT_SECRET: optionalString,
+  /** Resend credentials enable verified email/password and magic-link login. */
+  RESEND_API_KEY: optionalString,
+  EMAIL_FROM: optionalString,
+  /** Upstash Redis REST credentials enable distributed app API rate limiting. */
+  UPSTASH_REDIS_REST_URL: optionalUrl,
+  UPSTASH_REDIS_REST_TOKEN: optionalString,
+  /** Vercel Marketplace names for the same Upstash REST connection. */
+  KV_REST_API_URL: optionalUrl,
+  KV_REST_API_TOKEN: optionalString,
   /** Enables the test-only login route used by the authed E2E project. Never set in prod. */
-  E2E_TEST_LOGIN: z.enum(["1"]).optional(),
+  E2E_TEST_LOGIN: z.preprocess(emptyToUndefined, z.enum(["1"]).optional()),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -41,13 +41,18 @@ let cached: ServerEnv | null = null;
 function read(): ServerEnv {
   if (cached) return cached;
   const parsed = serverSchema.safeParse(process.env);
-  // All fields optional → parse only fails on a malformed URL/enum; fall back to {}.
-  cached = parsed.success ? parsed.data : {};
+  if (!parsed.success) {
+    const details = parsed.error.issues
+      .map((issue) => `${issue.path.join(".") || "environment"}: ${issue.message}`)
+      .join("; ");
+    throw new Error(`Invalid klab environment configuration: ${details}`);
+  }
+  cached = parsed.data;
   return cached;
 }
 
 export const env = new Proxy({} as ServerEnv, {
-  get: (_t, key: string) => read()[key as keyof ServerEnv],
+  get: (_target, key: string) => read()[key as keyof ServerEnv],
 });
 
 /** True when a database is configured (progress/history/auth can persist server-side). */
@@ -55,26 +60,58 @@ export function hasDatabase(): boolean {
   return Boolean(read().DATABASE_URL);
 }
 
+export interface AuthCapabilities {
+  github: boolean;
+  email: boolean;
+}
+
+/** Login methods that have all of their credentials. Safe to serialize to the UI. */
+export function getAuthCapabilities(): AuthCapabilities {
+  const current = read();
+  return {
+    github: Boolean(current.GITHUB_CLIENT_ID && current.GITHUB_CLIENT_SECRET),
+    email: Boolean(current.RESEND_API_KEY && current.EMAIL_FROM),
+  };
+}
+
+/** Explicit URL is mandatory in production; local development has one safe default. */
+export function getAuthBaseUrl(): string | undefined {
+  return (
+    read().BETTER_AUTH_URL ??
+    (process.env.NODE_ENV === "development" ? "http://localhost:3000" : undefined)
+  );
+}
+
 /**
- * True when auth can run: needs a database, a signing secret, and at least one login
- * method (GitHub OAuth, or email via Resend for password-reset/magic-link).
+ * Auth needs durable storage, a signing secret, a canonical origin, and at least one
+ * fully configured login provider. Partial provider credentials never expose a UI or
+ * endpoint that cannot complete successfully.
  */
 export function isAuthConfigured(): boolean {
-  const e = read();
-  const hasSecret = Boolean(e.BETTER_AUTH_SECRET);
-  const hasGithub = Boolean(e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET);
-  const hasEmail = Boolean(e.RESEND_API_KEY && e.EMAIL_FROM);
-  return hasDatabase() && hasSecret && (hasGithub || hasEmail);
+  const current = read();
+  const capabilities = getAuthCapabilities();
+  return Boolean(
+    hasDatabase() &&
+    current.BETTER_AUTH_SECRET &&
+    getAuthBaseUrl() &&
+    (capabilities.github || capabilities.email),
+  );
 }
 
-/** True when transactional email can be sent (magic link, verification). */
+/** True when transactional email can be sent. */
 export function isEmailConfigured(): boolean {
-  const e = read();
-  return Boolean(e.RESEND_API_KEY && e.EMAIL_FROM);
+  return getAuthCapabilities().email;
 }
 
-/** True when Upstash Redis is configured for rate limiting (else limiting is a no-op). */
+/** True when Upstash Redis is configured for distributed rate limiting. */
 export function isRateLimitConfigured(): boolean {
-  const e = read();
-  return Boolean(e.UPSTASH_REDIS_REST_URL && e.UPSTASH_REDIS_REST_TOKEN);
+  return getRateLimitConfig() !== null;
+}
+
+/** Accept both Upstash-native and Vercel Marketplace variable names. */
+export function getRateLimitConfig(): { url: string; token: string } | null {
+  const current = read();
+  const url = current.UPSTASH_REDIS_REST_URL ?? current.KV_REST_API_URL;
+  const token = current.UPSTASH_REDIS_REST_TOKEN ?? current.KV_REST_API_TOKEN;
+  return url && token ? { url, token } : null;
 }

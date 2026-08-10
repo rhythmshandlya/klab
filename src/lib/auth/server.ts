@@ -1,52 +1,61 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { anonymous, magicLink } from "better-auth/plugins";
+import { magicLink } from "better-auth/plugins";
 
+import { createAuthRateLimitStorage } from "@/lib/auth/rate-limit-storage";
 import { getDb } from "@/lib/db";
 import { account, session, user, verification } from "@/lib/db/schema";
-import { sendMagicLinkEmail, sendVerificationEmail } from "@/lib/email";
-import { env } from "@/lib/env";
+import { sendAccountDeletionEmail, sendMagicLinkEmail, sendVerificationEmail } from "@/lib/email";
+import { env, getAuthBaseUrl, getAuthCapabilities, isEmailConfigured } from "@/lib/env";
 
 /**
- * Better Auth server instance — constructed lazily via `getAuth()` so importing this
- * module never touches the database or requires env. Callers (the auth route handler,
- * server-side session reads) must gate on `isAuthConfigured()` first.
- *
- * Providers: GitHub OAuth + email/password + magic link (email via Resend). The
- * anonymous plugin enables guest→account linking; its `onLinkAccount` merges any
- * server-side anonymous data (Phase 3 wires the full localStorage merge via /api/merge).
- * `nextCookies()` MUST stay last so it can attach Set-Cookie to responses.
- */
-
-/**
- * Kept as its own function so `cached` captures Better Auth's *precise* inferred
- * instance type (annotating it as the generic `Auth<BetterAuthOptions>` triggers a
- * variance mismatch on optional options like `appName`/`secret`).
+ * Constructed lazily so guest builds never touch the database or require secrets.
+ * Local guest progress is merged client-side after a real account signs in; Better
+ * Auth's anonymous-user plugin is intentionally not enabled because it would create
+ * disposable database users without adding anything to that merge flow.
  */
 function createAuth() {
-  const hasGithub = Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
+  const capabilities = getAuthCapabilities();
+  const baseURL = getAuthBaseUrl();
+  const rateLimitStorage = createAuthRateLimitStorage();
+  if (!baseURL) throw new Error("getAuth() called without a canonical BETTER_AUTH_URL.");
 
   return betterAuth({
     appName: "klab",
     secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
+    baseURL,
+    trustedOrigins: [baseURL],
     database: drizzleAdapter(getDb(), {
       provider: "pg",
       schema: { user, session, account, verification },
     }),
-    emailAndPassword: {
-      enabled: true,
-      sendResetPassword: async ({ user: u, url }) => {
-        await sendVerificationEmail(u.email, url);
-      },
+    account: {
+      encryptOAuthTokens: true,
+      updateAccountOnSignIn: true,
     },
-    emailVerification: {
-      sendVerificationEmail: async ({ user: u, url }) => {
-        await sendVerificationEmail(u.email, url);
-      },
-    },
-    socialProviders: hasGithub
+    emailAndPassword: capabilities.email
+      ? {
+          enabled: true,
+          requireEmailVerification: true,
+          minPasswordLength: 10,
+          maxPasswordLength: 128,
+          revokeSessionsOnPasswordReset: true,
+          sendResetPassword: async ({ user: currentUser, url }) => {
+            await sendVerificationEmail(currentUser.email, url);
+          },
+        }
+      : { enabled: false },
+    emailVerification: capabilities.email
+      ? {
+          sendOnSignUp: true,
+          autoSignInAfterVerification: true,
+          sendVerificationEmail: async ({ user: currentUser, url }) => {
+            await sendVerificationEmail(currentUser.email, url);
+          },
+        }
+      : undefined,
+    socialProviders: capabilities.github
       ? {
           github: {
             clientId: env.GITHUB_CLIENT_ID!,
@@ -54,19 +63,50 @@ function createAuth() {
           },
         }
       : {},
+    user: {
+      additionalFields: {
+        publicProfile: {
+          type: "boolean",
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
+      },
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: isEmailConfigured()
+          ? async ({ user: currentUser, url }) => {
+              await sendAccountDeletionEmail(currentUser.email, url);
+            }
+          : undefined,
+      },
+    },
+    session: {
+      expiresIn: 60 * 60 * 24 * 30,
+      updateAge: 60 * 60 * 24,
+      freshAge: 60 * 10,
+    },
+    verification: {
+      storeIdentifier: "hashed",
+    },
+    rateLimit: {
+      enabled: process.env.NODE_ENV === "production",
+      window: 60,
+      max: 100,
+      customStorage: rateLimitStorage,
+    },
     plugins: [
-      anonymous({
-        onLinkAccount: async () => {
-          // Server-side anonymous users carry no klab data yet. The localStorage
-          // guest merge is client-driven via POST /api/merge (Phase 3), because
-          // this callback runs on the server and cannot read the browser's storage.
-        },
-      }),
-      magicLink({
-        sendMagicLink: async ({ email, url }) => {
-          await sendMagicLinkEmail(email, url);
-        },
-      }),
+      ...(capabilities.email
+        ? [
+            magicLink({
+              expiresIn: 60 * 15,
+              sendMagicLink: async ({ email, url }) => {
+                await sendMagicLinkEmail(email, url);
+              },
+            }),
+          ]
+        : []),
+      // Must remain last so server actions can attach Set-Cookie headers.
       nextCookies(),
     ],
   });

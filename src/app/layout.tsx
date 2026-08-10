@@ -3,7 +3,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 
 import { AppShell } from "@/components/app-shell/app-shell";
-import { isAuthConfigured } from "@/lib/env";
+import { getAuthCapabilities, isAuthConfigured } from "@/lib/env";
 
 import "./globals.css";
 
@@ -24,6 +24,8 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const authCapabilities = getAuthCapabilities();
+
   return (
     <html
       lang="en"
@@ -33,7 +35,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans antialiased">
         {/* Whether accounts are available is a server-side fact (env); pass it down so
             the client nav shows sign-in only when the backend is actually configured. */}
-        <AppShell authEnabled={isAuthConfigured()}>{children}</AppShell>
+        <AppShell authEnabled={isAuthConfigured()} authCapabilities={authCapabilities}>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

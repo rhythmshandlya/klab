@@ -21,14 +21,25 @@ export function SaveLabDialog({
   onOpenChange: (open: boolean) => void;
   suggestedName: string;
   title: string;
-  onSave: (name: string) => void;
+  onSave: (name: string) => Promise<void>;
 }) {
   const [name, setName] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const submit = () => {
-    onSave(name.trim() || suggestedName);
-    setName("");
-    onOpenChange(false);
+  const submit = async () => {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      await onSave(name.trim() || suggestedName);
+      setName("");
+      onOpenChange(false);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Could not save this lab.");
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -54,7 +65,7 @@ export function SaveLabDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
+              if (e.key === "Enter") void submit();
             }}
             placeholder={suggestedName}
             aria-label="Lab name"
@@ -63,15 +74,16 @@ export function SaveLabDialog({
           <p className="text-subtle mt-2 text-xs">
             Labs keep your files and the cluster template they run on. Find them under “My labs”.
           </p>
+          {error ? <p className="text-red mt-2 text-xs">{error}</p> : null}
           <div className="mt-4 flex justify-end gap-2">
             <Dialog.Close asChild>
               <Button variant="secondary" size="sm">
                 Cancel
               </Button>
             </Dialog.Close>
-            <Button variant="primary" size="sm" onClick={submit}>
+            <Button variant="primary" size="sm" onClick={() => void submit()} disabled={pending}>
               <icons.bookmark aria-hidden />
-              Save lab
+              {pending ? "Saving…" : "Save lab"}
             </Button>
           </div>
         </Dialog.Content>

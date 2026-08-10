@@ -3,6 +3,7 @@ import { z } from "zod";
 import { assertNever } from "@/lib/utils/exhaustive";
 
 import {
+  progressSchema,
   recordAttempted,
   recordHintPenalty,
   recordLessonCompleted,
@@ -99,9 +100,86 @@ export const progressIntentSchema: z.ZodType<ProgressIntent> = z
     }
   });
 
+const ownerIdSchema = z.string().trim().min(1).max(512);
+const deliveryIdSchema = z.string().trim().min(16).max(128);
+
+export type ProgressDelivery = {
+  id: string;
+  ownerId: string;
+  createdAt: number;
+  intent: ProgressIntent;
+};
+
+export const progressDeliverySchema: z.ZodType<ProgressDelivery> = z.object({
+  id: deliveryIdSchema,
+  ownerId: ownerIdSchema,
+  createdAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  intent: progressIntentSchema,
+});
+
+const progressBatchSchema = z
+  .object({
+    ownerId: ownerIdSchema,
+    deliveries: z.array(progressDeliverySchema).min(1).max(500),
+  })
+  .superRefine(({ ownerId, deliveries }, context) => {
+    deliveries.forEach((delivery, index) => {
+      if (delivery.ownerId !== ownerId) {
+        context.addIssue({
+          code: "custom",
+          path: ["deliveries", index, "ownerId"],
+          message: "delivery owner does not match batch owner",
+        });
+      }
+    });
+  });
+
+export type ProgressBatch = z.infer<typeof progressBatchSchema>;
+
+const progressSyncResponseSchema = z.object({
+  ownerId: ownerIdSchema,
+  acknowledgedIds: z.array(deliveryIdSchema).max(500),
+  progress: progressSchema,
+});
+
+export type ProgressSyncResponse = z.infer<typeof progressSyncResponseSchema>;
+
+const mergeRequestSchema = z.object({ ownerId: ownerIdSchema, progress: progressSchema });
+const mergeResponseSchema = z.object({
+  ownerId: ownerIdSchema,
+  fingerprint: z.string().min(8).max(128),
+  progress: progressSchema,
+});
+
+export type MergeRequest = z.infer<typeof mergeRequestSchema>;
+export type MergeResponse = z.infer<typeof mergeResponseSchema>;
+
+/** Intended-owner header required by progress reads. */
+export const PROGRESS_OWNER_HEADER = "x-klab-progress-owner";
+
 /** Validate a POST body `{ intents: [...] }` into a typed intent list. */
 export function parseIntents(body: unknown): ProgressIntent[] {
   return z.object({ intents: z.array(progressIntentSchema).max(500) }).parse(body).intents;
+}
+
+export function parseProgressDelivery(value: unknown): ProgressDelivery {
+  return progressDeliverySchema.parse(value);
+}
+
+export function parseProgressBatch(body: unknown): ProgressBatch {
+  return progressBatchSchema.parse(body);
+}
+
+export function parseProgressSyncResponse(body: unknown): ProgressSyncResponse {
+  return progressSyncResponseSchema.parse(body);
+}
+
+export function parseMergeRequest(body: unknown): MergeRequest {
+  return mergeRequestSchema.parse(body);
+}
+
+export function parseMergeResponse(body: unknown): MergeResponse {
+  return mergeResponseSchema.parse(body);
 }
 
 let fallbackMutationSequence = 0;
@@ -123,7 +201,7 @@ export function createClientMutationId(): string {
 export function applyIntent(progress: Progress, intent: ProgressIntent): Progress {
   switch (intent.kind) {
     case "solved":
-      return recordSolved(progress, intent.slug, intent.xp);
+      return recordSolved(progress, intent.slug, intent.xp, intent.day);
     case "attempted":
       return recordAttempted(progress, intent.slug);
     case "completedLesson":

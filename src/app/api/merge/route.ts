@@ -4,7 +4,7 @@ import { mergeGuestProgress } from "@/lib/db/merge-repo";
 import { readProgress } from "@/lib/db/progress-repo";
 import { isAuthConfigured } from "@/lib/env";
 import { allowRequest } from "@/lib/rate-limit";
-import { coerceProgress } from "@/lib/storage/local-progress";
+import { parseMergeRequest, type MergeRequest } from "@/lib/storage/progress-intent";
 
 /**
  * One-shot guest→account merge. The client POSTs its localStorage Progress here on
@@ -28,8 +28,20 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const body: unknown = await request.json().catch(() => null);
-  const guest = coerceProgress((body as { progress?: unknown } | null)?.progress);
+  let mergeRequest: MergeRequest;
+  try {
+    mergeRequest = parseMergeRequest(body);
+  } catch {
+    return Response.json({ error: "invalid guest progress" }, { status: 400 });
+  }
+  if (mergeRequest.ownerId !== userId) {
+    return Response.json({ error: "progress owner does not match session" }, { status: 409 });
+  }
   const db = getDb();
-  await mergeGuestProgress(db, userId, guest);
-  return Response.json(await readProgress(db, userId));
+  const { fingerprint } = await mergeGuestProgress(db, userId, mergeRequest.progress);
+  return Response.json({
+    ownerId: userId,
+    fingerprint,
+    progress: await readProgress(db, userId),
+  });
 }

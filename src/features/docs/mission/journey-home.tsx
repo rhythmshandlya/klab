@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import { icons } from "@/components/icons";
-import { getMissionsBySection, MISSION_SECTIONS, missionHref } from "@/content/missions";
+import type {
+  CurriculumMissionSection,
+  CurriculumMissionSummary,
+} from "@/content/curriculum/model";
 import { useProgress } from "@/features/progress/use-progress";
-import type { Mission } from "@/lib/domain/mission-types";
 import { cn } from "@/lib/utils/cn";
 
 type MissionStatus = "done" | "current" | "upcoming";
@@ -23,7 +25,7 @@ function statusFor(index: number, currentIndex: number): MissionStatus {
  * flat lesson checklist. Mirrors DocsHome's visual language (border-border,
  * bg-panel, Badge-free but same spacing/typography rhythm).
  */
-export function JourneyHome() {
+export function JourneyHome({ sections }: { sections: readonly CurriculumMissionSection[] }) {
   const progress = useProgress();
   const completed = useMemo(
     () => new Set(progress.completedLessonSlugs),
@@ -32,26 +34,32 @@ export function JourneyHome() {
 
   return (
     <div className="space-y-8">
-      {MISSION_SECTIONS.map((section) => (
-        <SectionPath key={section} section={section} completed={completed} />
+      {sections.map((section) => (
+        <SectionPath key={section.title} section={section} completed={completed} />
       ))}
     </div>
   );
 }
 
-function SectionPath({ section, completed }: { section: string; completed: Set<string> }) {
-  const missions = getMissionsBySection(section);
-  const doneCount = missions.filter((m) => completed.has(m.slug.join("/"))).length;
+function SectionPath({
+  section,
+  completed,
+}: {
+  section: CurriculumMissionSection;
+  completed: Set<string>;
+}) {
+  const { missions } = section;
+  const doneCount = missions.filter((mission) => completed.has(mission.key)).length;
   // First incomplete mission in order is "current"; if all are done, there is no
   // current node (every node renders as done).
-  const currentIndex = missions.findIndex((m) => !completed.has(m.slug.join("/")));
+  const currentIndex = missions.findIndex((mission) => !completed.has(mission.key));
 
   if (missions.length === 0) return null;
 
   return (
     <section className="border-border bg-panel rounded-lg border p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-foreground text-sm font-semibold tracking-tight">{section}</h2>
+        <h2 className="text-foreground text-sm font-semibold tracking-tight">{section.title}</h2>
         <span className="text-subtle text-xs">
           {doneCount} of {missions.length} missions
         </span>
@@ -62,7 +70,7 @@ function SectionPath({ section, completed }: { section: string; completed: Set<s
           const status = statusFor(index, currentIndex === -1 ? missions.length : currentIndex);
           const isLast = index === missions.length - 1;
           return (
-            <li key={mission.slug.join("/")} className="relative flex gap-3 pb-6 last:pb-0">
+            <li key={mission.key} className="relative flex gap-3 pb-6 last:pb-0">
               {!isLast ? (
                 <span
                   className={cn(
@@ -88,14 +96,14 @@ function MissionNode({
   status,
   number,
 }: {
-  mission: Mission;
+  mission: CurriculumMissionSummary;
   status: MissionStatus;
   number: number;
 }) {
   return (
     <Link
-      href={missionHref(mission)}
-      data-testid={`mission-node-${mission.slug.join("/")}`}
+      href={mission.href}
+      data-testid={`mission-node-${mission.key}`}
       data-status={status}
       className="group hover:bg-panel-hover relative z-10 flex min-w-0 flex-1 items-start gap-3 rounded-md p-1.5 transition-colors"
     >
@@ -109,9 +117,7 @@ function MissionNode({
         >
           {mission.title}
         </p>
-        <p className="text-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">
-          {mission.coldOpen.goal}
-        </p>
+        <p className="text-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">{mission.goal}</p>
       </div>
       <icons.arrowRight
         className="text-subtle mt-1 size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"

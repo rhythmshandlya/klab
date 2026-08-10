@@ -5,6 +5,7 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { useState } from "react";
 
 import { icons } from "@/components/icons";
+import type { CurriculumCatalog } from "@/content/curriculum/model";
 
 import { DocsSidebar } from "./docs-sidebar";
 
@@ -14,7 +15,13 @@ import { DocsSidebar } from "./docs-sidebar";
  * lesson with no way to move. This slides the same DocsSidebar in from the left as a
  * Radix Dialog drawer and closes on selection.
  */
-export function DocsMobileNav({ sectionLabel }: { sectionLabel: string }) {
+export function DocsMobileNav({
+  catalog,
+  sectionLabel,
+}: {
+  catalog: CurriculumCatalog;
+  sectionLabel: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -31,9 +38,7 @@ export function DocsMobileNav({ sectionLabel }: { sectionLabel: string }) {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="anim-overlay fixed inset-0 z-50 bg-black/70 backdrop-blur-sm lg:hidden" />
-        <Dialog.Content
-          className="anim-drawer-left border-border bg-panel-elevated fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] flex-col border-r shadow-2xl lg:hidden"
-        >
+        <Dialog.Content className="anim-drawer-left border-border bg-panel-elevated fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] flex-col border-r shadow-2xl lg:hidden">
           <Dialog.Title asChild>
             <VisuallyHidden>Documentation navigation</VisuallyHidden>
           </Dialog.Title>
@@ -50,7 +55,7 @@ export function DocsMobileNav({ sectionLabel }: { sectionLabel: string }) {
             </Dialog.Close>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto py-4">
-            <DocsSidebar onNavigate={() => setOpen(false)} />
+            <DocsSidebar catalog={catalog} onNavigate={() => setOpen(false)} />
           </div>
         </Dialog.Content>
       </Dialog.Portal>

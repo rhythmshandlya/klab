@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
+import { useLabsStore } from "@/features/playground/labs-store";
 import { signOut, useSession } from "@/lib/auth/client";
+import type { AuthCapabilities } from "@/lib/env";
+import {
+  clearGuestProgressStorage,
+  clearUserProgressStorage,
+  flushProgressForAccountExit,
+} from "@/lib/storage/progress-store";
 import { cn } from "@/lib/utils/cn";
 
 import { SignInDialog } from "./sign-in-dialog";
@@ -13,10 +21,16 @@ import { SignInDialog } from "./sign-in-dialog";
  * out. Mirrors the read-then-hydrate pattern of the rest of the app: on first paint the
  * session is pending, so we render a neutral placeholder to avoid a flash.
  */
-export function AuthMenu() {
+export function AuthMenu({
+  capabilities = { github: true, email: true },
+}: {
+  capabilities?: AuthCapabilities;
+}) {
   const { data: session, isPending } = useSession();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [signOutPending, setSignOutPending] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   if (isPending) {
     return <div className="bg-panel border-border h-8 w-8 rounded-md border" aria-hidden />;
@@ -32,7 +46,7 @@ export function AuthMenu() {
         >
           Sign in
         </button>
-        <SignInDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+        <SignInDialog open={dialogOpen} onOpenChange={setDialogOpen} capabilities={capabilities} />
       </>
     );
   }
@@ -40,6 +54,27 @@ export function AuthMenu() {
   const user = session.user;
   const label = user.name || user.email || "Account";
   const initials = toInitials(label);
+
+  const handleSignOut = async () => {
+    setSignOutPending(true);
+    setSignOutError(null);
+    if (!(await flushProgressForAccountExit(user.id))) {
+      setSignOutPending(false);
+      setSignOutError("Progress is still syncing. Reconnect and try again.");
+      return;
+    }
+    const response = await signOut();
+    if (response?.error) {
+      setSignOutPending(false);
+      setSignOutError(response.error.message ?? "Could not sign out.");
+      return;
+    }
+    clearGuestProgressStorage();
+    clearUserProgressStorage(user.id);
+    useLabsStore.getState().resetForAccountExit();
+    setMenuOpen(false);
+    setSignOutPending(false);
+  };
 
   return (
     <div className="relative">
@@ -73,17 +108,24 @@ export function AuthMenu() {
               <p className="text-foreground truncate text-sm font-medium">{label}</p>
               {user.email ? <p className="text-subtle truncate text-xs">{user.email}</p> : null}
             </div>
+            <Link
+              href="/account"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="text-muted hover:bg-panel-hover hover:text-foreground block w-full px-3 py-2 text-left text-sm transition-colors"
+            >
+              Account settings
+            </Link>
             <button
               type="button"
               role="menuitem"
-              onClick={() => {
-                setMenuOpen(false);
-                void signOut();
-              }}
+              onClick={() => void handleSignOut()}
+              disabled={signOutPending}
               className="text-muted hover:bg-panel-hover hover:text-foreground w-full px-3 py-2 text-left text-sm transition-colors"
             >
-              Sign out
+              {signOutPending ? "Signing out…" : "Sign out"}
             </button>
+            {signOutError ? <p className="text-red px-3 py-2 text-xs">{signOutError}</p> : null}
           </div>
         </>
       ) : null}

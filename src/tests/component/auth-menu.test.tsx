@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Better Auth client so the menu renders deterministically with no network.
@@ -31,13 +31,17 @@ describe("AuthMenu", () => {
     expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
   });
 
-  it("shows the signed-in user and signs out from the menu", () => {
+  it("shows the signed-in user and signs out from the menu", async () => {
+    vi.mocked(signOut).mockResolvedValue({ data: null, error: null });
     mockUseSession.mockReturnValue(
-      asResult({ data: { user: { name: "Ada Lovelace", email: "ada@example.com" } }, isPending: false }),
+      asResult({
+        data: { user: { id: "user-ada", name: "Ada Lovelace", email: "ada@example.com" } },
+        isPending: false,
+      }),
     );
     render(<AuthMenu />);
     fireEvent.click(screen.getByRole("button", { name: /Ada Lovelace/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
-    expect(signOut).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
   });
 });

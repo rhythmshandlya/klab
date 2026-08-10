@@ -4,9 +4,8 @@ import Link from "next/link";
 
 import { icons } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { lessonHref } from "@/content/docs";
+import type { CurriculumLink } from "@/content/curriculum/model";
 import { useProgress } from "@/features/progress/use-progress";
-import type { DocsLesson } from "@/lib/domain/types";
 import { mutateProgress } from "@/lib/storage/progress-store";
 
 /**
@@ -16,9 +15,15 @@ import { mutateProgress } from "@/lib/storage/progress-store";
  * signed in. Answering a checkpoint quiz correctly also completes the lesson (see
  * `docs-quiz`), so this button is the explicit path for lessons without a quiz.
  */
-export function LessonComplete({ lesson, next }: { lesson: DocsLesson; next?: DocsLesson }) {
+export function LessonComplete({
+  lesson,
+  next,
+}: {
+  lesson: CurriculumLink;
+  next?: CurriculumLink;
+}) {
   const progress = useProgress();
-  const slug = lesson.slug.join("/");
+  const slug = lesson.key;
   const done = progress.completedLessonSlugs.includes(slug);
 
   if (done) {
@@ -30,7 +35,7 @@ export function LessonComplete({ lesson, next }: { lesson: DocsLesson; next?: Do
         </p>
         {next ? (
           <Link
-            href={lessonHref(next)}
+            href={next.href}
             className="border-blue/40 bg-blue/10 text-foreground hover:bg-blue/15 inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors"
           >
             Next: {next.title}

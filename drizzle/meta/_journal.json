@@ -15,6 +15,20 @@
       "when": 1783667238039,
       "tag": "0001_colorful_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784548422616,
+      "tag": "0002_fair_the_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786358302961,
+      "tag": "0003_cold_speed",
+      "breakpoints": true
     }
   ]
 }

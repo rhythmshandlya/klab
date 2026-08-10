@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { savedLabSchema, type SavedLab } from "@/lib/labs/contracts";
+
 /**
  * Local persistence for the user's saved labs. A lab is the user's own work —
  * a named snapshot of editor files plus the template whose cluster it boots on.
@@ -13,18 +15,9 @@ import { z } from "zod";
 const STORAGE_KEY = "klab:labs:v1";
 const LEGACY_SANDBOXES_KEY = "klab:sandboxes:v1";
 
-const labSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  templateId: z.string(),
-  files: z.record(z.string(), z.string()),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-});
+const listSchema = z.array(savedLabSchema);
 
-const listSchema = z.array(labSchema);
-
-export type SavedLab = z.infer<typeof labSchema>;
+export type { SavedLab } from "@/lib/labs/contracts";
 
 function newId(): string {
   try {
@@ -38,6 +31,17 @@ function write(list: SavedLab[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+/** Remove guest-only labs after an authenticated account has claimed them. */
+export function clearLabs(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_SANDBOXES_KEY);
   } catch {
     // ignore
   }

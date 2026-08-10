@@ -3,17 +3,10 @@
 import Link from "next/link";
 
 import { icons } from "@/components/icons";
-import { DOCS_NAV, type DocsSection, lessonHref } from "@/content/docs";
-import type { DocsLesson } from "@/lib/domain/types";
+import type { CurriculumLessonSummary, CurriculumSection } from "@/content/curriculum/model";
 import { cn } from "@/lib/utils/cn";
 
-import {
-  ACTIVITY_ICON,
-  ACTIVITY_LABEL,
-  lessonActivities,
-  relatedPlayground,
-  relatedProblem,
-} from "./lesson-meta";
+import { ACTIVITY_ICON, ACTIVITY_LABEL } from "./lesson-meta";
 
 type StageStatus = "done" | "current" | "upcoming";
 
@@ -37,13 +30,19 @@ const REAL_INCIDENTS = "Real Incidents";
  * and Problems). The final "Real Incidents" section is pulled out as a distinct
  * "Apply it" band — the payoff, not row six.
  */
-export function LearningRoadmap({ completed }: { completed: Set<string> }) {
-  const stages = DOCS_NAV.filter((s) => s.title !== REAL_INCIDENTS);
-  const incidents = DOCS_NAV.find((s) => s.title === REAL_INCIDENTS);
+export function LearningRoadmap({
+  sections,
+  completed,
+}: {
+  sections: readonly CurriculumSection[];
+  completed: Set<string>;
+}) {
+  const stages = sections.filter((section) => section.title !== REAL_INCIDENTS);
+  const incidents = sections.find((section) => section.title === REAL_INCIDENTS);
 
   // The "current" stage is the first that still has an incomplete lesson.
   const currentIndex = stages.findIndex(
-    (s) => !s.lessons.every((l) => completed.has(l.slug.join("/"))),
+    (section) => !section.lessons.every((lesson) => completed.has(lesson.key)),
   );
 
   return (
@@ -119,11 +118,11 @@ function Stage({
   status,
   completed,
 }: {
-  section: DocsSection;
+  section: CurriculumSection;
   status: StageStatus;
   completed: Set<string>;
 }) {
-  const done = section.lessons.filter((l) => completed.has(l.slug.join("/"))).length;
+  const done = section.lessons.filter((lesson) => completed.has(lesson.key)).length;
   return (
     <section className="min-w-0 flex-1 pt-0.5">
       <div className="mb-3">
@@ -149,21 +148,15 @@ function Stage({
 
       <div className="grid gap-2.5 sm:grid-cols-2">
         {section.lessons.map((lesson) => (
-          <LessonCard
-            key={lesson.slug.join("/")}
-            lesson={lesson}
-            done={completed.has(lesson.slug.join("/"))}
-          />
+          <LessonCard key={lesson.key} lesson={lesson} done={completed.has(lesson.key)} />
         ))}
       </div>
     </section>
   );
 }
 
-function LessonCard({ lesson, done }: { lesson: DocsLesson; done: boolean }) {
-  const activities = lessonActivities(lesson);
-  const playground = relatedPlayground(lesson);
-  const problem = relatedProblem(lesson);
+function LessonCard({ lesson, done }: { lesson: CurriculumLessonSummary; done: boolean }) {
+  const { activities, relatedPlayground: playground, relatedProblem: problem } = lesson;
 
   return (
     <div
@@ -172,7 +165,7 @@ function LessonCard({ lesson, done }: { lesson: DocsLesson; done: boolean }) {
         done && "border-green/25",
       )}
     >
-      <Link href={lessonHref(lesson)} className="min-w-0">
+      <Link href={lesson.href} className="min-w-0">
         <div className="flex items-start gap-2">
           {done ? (
             <icons.success className="text-green mt-0.5 size-4 shrink-0" aria-label="Completed" />
@@ -211,11 +204,7 @@ function LessonCard({ lesson, done }: { lesson: DocsLesson; done: boolean }) {
       {playground || problem ? (
         <div className="border-border/60 mt-2.5 flex flex-wrap items-center gap-3 border-t pt-2 pl-6">
           {playground ? (
-            <PracticeLink
-              href={`/playground/${playground.id}`}
-              icon="playground"
-              label="Try in sandbox"
-            />
+            <PracticeLink href={playground.href} icon="playground" label="Try in sandbox" />
           ) : null}
           {problem ? (
             <PracticeLink href={problem.href} icon="problems" label="Debug the incident" />
@@ -260,10 +249,10 @@ function RealIncidentsBand({
   section,
   completed,
 }: {
-  section: DocsSection;
+  section: CurriculumSection;
   completed: Set<string>;
 }) {
-  const done = section.lessons.filter((l) => completed.has(l.slug.join("/"))).length;
+  const done = section.lessons.filter((lesson) => completed.has(lesson.key)).length;
   return (
     <section className="border-amber/30 from-amber/5 rounded-lg border bg-gradient-to-br to-transparent p-5">
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -285,11 +274,7 @@ function RealIncidentsBand({
       </div>
       <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {section.lessons.map((lesson) => (
-          <LessonCard
-            key={lesson.slug.join("/")}
-            lesson={lesson}
-            done={completed.has(lesson.slug.join("/"))}
-          />
+          <LessonCard key={lesson.key} lesson={lesson} done={completed.has(lesson.key)} />
         ))}
       </div>
     </section>

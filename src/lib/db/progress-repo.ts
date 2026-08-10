@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import { getLevelBySlug } from "@/content/levels";
+import { getCurriculumCatalog } from "@/content/curriculum/server";
 import type { ProblemLevel } from "@/lib/domain/types";
 import { assertNever } from "@/lib/utils/exhaustive";
 import { EMPTY_PROGRESS, type Progress } from "@/lib/storage/local-progress";
@@ -116,7 +117,7 @@ async function applyOne(db: ProgressDb, userId: string, intent: ProgressIntent):
           results: intent.results ?? null,
           clientMutationId: intent.clientMutationId,
         })
-        .onConflictDoNothing();
+        .onConflictDoNothing({ target: [submissions.userId, submissions.clientMutationId] });
       return;
     default:
       return assertNever(intent);
@@ -124,13 +125,33 @@ async function applyOne(db: ProgressDb, userId: string, intent: ProgressIntent):
 }
 
 function validateCatalogIntent(intent: ProgressIntent): void {
-  if (intent.kind === "completedLesson") return;
+  if (intent.kind === "completedLesson") {
+    if (!isKnownCompletionSlug(intent.slug)) {
+      throw new InvalidProgressIntentError(
+        `Unknown curriculum item ${JSON.stringify(intent.slug)}`,
+      );
+    }
+    return;
+  }
   const level = requireLevel(intent.slug);
   if (intent.kind === "revealHint" && !level.hints.some(({ id }) => id === intent.hintId)) {
     throw new InvalidProgressIntentError(
       `Unknown hint ${JSON.stringify(intent.hintId)} for level ${JSON.stringify(intent.slug)}`,
     );
   }
+}
+
+const COMPLETION_SLUGS = new Set([
+  ...getCurriculumCatalog().sections.flatMap((section) =>
+    section.lessons.map((lesson) => lesson.key),
+  ),
+  ...getCurriculumCatalog().missionSections.flatMap((section) =>
+    section.missions.map((mission) => mission.key),
+  ),
+]);
+
+export function isKnownCompletionSlug(slug: string): boolean {
+  return COMPLETION_SLUGS.has(slug);
 }
 
 function requireLevel(slug: string): ProblemLevel {

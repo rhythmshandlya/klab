@@ -37,6 +37,8 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   isAnonymous: boolean("is_anonymous").default(false),
+  /** Explicit opt-in for leaderboard, recent activity, and speed records. */
+  publicProfile: boolean("public_profile").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -176,11 +178,11 @@ export const submissions = pgTable(
     /** Full validator results + submitted files snapshot for replay. */
     results: jsonb("results"),
     /** Dedupe key for at-least-once client retries. */
-    clientMutationId: text("client_mutation_id"),
+    clientMutationId: text("client_mutation_id").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("submissions_client_mutation_id_key").on(t.clientMutationId),
+    uniqueIndex("submissions_user_client_mutation_id_key").on(t.userId, t.clientMutationId),
     index("submissions_level_passed_idx").on(t.levelSlug, t.passed),
     index("submissions_level_created_idx").on(t.levelSlug, t.createdAt),
     index("submissions_user_level_idx").on(t.userId, t.levelSlug),
@@ -195,13 +197,18 @@ export const sandboxes = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /** Client-generated idempotency key used by create retries and guest imports. */
+    clientId: text("client_id").notNull(),
     name: text("name").notNull(),
     templateId: text("template_id").notNull(),
     files: jsonb("files").notNull(),
     savedAt: timestamp("saved_at").notNull(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("sandboxes_user_name_key").on(t.userId, t.name)],
+  (t) => [
+    uniqueIndex("sandboxes_user_client_id_key").on(t.userId, t.clientId),
+    index("sandboxes_user_updated_idx").on(t.userId, t.updatedAt),
+  ],
 );
 
 /** Guards guest→account imports from double-counting on repeat. */

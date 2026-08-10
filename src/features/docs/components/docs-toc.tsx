@@ -1,28 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { icons } from "@/components/icons";
-import { DOCS_LESSONS, lessonHref } from "@/content/docs";
-import type { DocsLesson } from "@/lib/domain/types";
+import type { LessonRail } from "@/content/curriculum/model";
 import { cn } from "@/lib/utils/cn";
 
-export function DocsToc({ lesson }: { lesson: DocsLesson }) {
-  const headings = lesson.content.flatMap((b) =>
-    b.type === "heading" ? [{ id: b.id, text: b.text }] : [],
-  );
-  const takeaways = useMemo(
-    () => lesson.content.find((b) => b.type === "takeaways")?.items ?? [],
-    [lesson.content],
-  );
-  const related = useMemo(() => {
-    const key = lesson.slug.join("/");
-    const concepts = new Set(lesson.concepts);
-    return DOCS_LESSONS.filter(
-      (l) => l.slug.join("/") !== key && l.concepts.some((c) => concepts.has(c)),
-    ).slice(0, 4);
-  }, [lesson]);
+export function DocsToc({ rail }: { rail: LessonRail }) {
+  const { headings, lab, related, relatedProblem, sources, takeaway } = rail;
   const [activeId, setActiveId] = useState(headings[0]?.id ?? "");
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
@@ -40,8 +26,7 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lesson]);
+  }, [headings]);
 
   return (
     <div className="space-y-6 px-4 text-sm">
@@ -67,7 +52,7 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
         </RailSection>
       ) : null}
 
-      {lesson.labs.length > 0 ? (
+      {lab ? (
         <RailSection title="Try it">
           <div className="border-border bg-panel rounded-md border p-4">
             <div className="text-green flex items-center gap-2">
@@ -76,10 +61,10 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
                 Interactive lab
               </span>
             </div>
-            <p className="text-foreground mt-2 text-base font-semibold">{lesson.labs[0]?.title}</p>
-            <p className="text-muted mt-1 text-sm leading-relaxed">{lesson.labs[0]?.prompt}</p>
+            <p className="text-foreground mt-2 text-base font-semibold">{lab.title}</p>
+            <p className="text-muted mt-1 text-sm leading-relaxed">{lab.prompt}</p>
             <a
-              href={`#lab-${lesson.labs[0]?.id}`}
+              href={`#lab-${lab.id}`}
               className="border-blue/50 bg-blue/10 text-foreground hover:bg-blue/15 mt-4 flex h-8 items-center justify-between rounded-md border px-3 text-sm transition-colors"
             >
               Start lab
@@ -94,8 +79,8 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
           <div className="grid gap-2">
             {related.map((l) => (
               <Link
-                key={l.slug.join("/")}
-                href={lessonHref(l)}
+                key={l.key}
+                href={l.href}
                 className="border-border bg-panel hover:bg-panel-hover hover:border-border-strong text-foreground flex items-center justify-between gap-2 rounded-md border px-3 py-2 transition-colors"
               >
                 <span className="min-w-0 truncate">{l.title}</span>
@@ -106,22 +91,22 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
         </RailSection>
       ) : null}
 
-      {takeaways.length > 0 ? (
+      {takeaway ? (
         <RailSection title="Quick note">
           <div className="border-border bg-panel rounded-md border p-4">
             <p className="text-amber flex items-center gap-2 text-sm font-semibold">
               <icons.challenge className="size-4" aria-hidden />
               Remember this
             </p>
-            <p className="text-muted mt-2 text-sm leading-relaxed">{takeaways[0]}</p>
+            <p className="text-muted mt-2 text-sm leading-relaxed">{takeaway}</p>
           </div>
         </RailSection>
       ) : null}
 
-      {lesson.relatedLevelSlug ? (
+      {relatedProblem ? (
         <RailSection title="Related problem">
           <Link
-            href={`/problems/${lesson.relatedLevelSlug}`}
+            href={relatedProblem.href}
             className="border-border bg-panel text-foreground hover:border-border-strong hover:bg-panel-hover flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
           >
             <icons.problems className="text-blue size-4" aria-hidden />
@@ -130,10 +115,10 @@ export function DocsToc({ lesson }: { lesson: DocsLesson }) {
         </RailSection>
       ) : null}
 
-      {lesson.sources?.length ? (
+      {sources.length > 0 ? (
         <RailSection title="Official references">
           <ul className="space-y-1.5">
-            {lesson.sources.map((source) => (
+            {sources.map((source) => (
               <li key={source.href}>
                 <a
                   href={source.href}

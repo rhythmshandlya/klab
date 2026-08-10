@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 import { icons } from "@/components/icons";
 import { PLAYGROUND_TEMPLATES, getTemplateById } from "@/content/playground-templates";
-import type { SavedLab } from "@/lib/storage/local-labs";
+import type { SavedLab } from "@/lib/labs/contracts";
 import { cn } from "@/lib/utils/cn";
 
 import { useLabsStore } from "../labs-store";
@@ -138,7 +138,7 @@ function MyLabs({ currentLabId }: { currentLabId?: string }) {
   }, [hydrate]);
 
   const commitRename = (lab: SavedLab) => {
-    if (renameValue.trim()) update(lab.id, { name: renameValue });
+    if (renameValue.trim()) void update(lab.id, { name: renameValue });
     setRenamingId(null);
   };
 
@@ -148,7 +148,7 @@ function MyLabs({ currentLabId }: { currentLabId?: string }) {
       return;
     }
     setPendingDelete(null);
-    remove(lab.id);
+    void remove(lab.id);
     // Deleting the lab you're standing in sends you back to its template.
     if (currentLabId === lab.id) {
       const fallback = getTemplateById(lab.templateId) ? lab.templateId : "";

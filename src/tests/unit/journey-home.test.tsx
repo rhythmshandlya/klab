@@ -2,7 +2,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { getMissionsBySection } from "@/content/missions";
+import { getCurriculumCatalog } from "@/content/curriculum/server";
 import { useProgress } from "@/features/progress/use-progress";
 
 vi.mock("@/features/progress/use-progress", () => ({
@@ -13,10 +13,12 @@ const mockUseProgress = vi.mocked(useProgress);
 
 async function renderJourneyHome() {
   const { JourneyHome } = await import("@/features/docs/mission/journey-home");
-  return render(<JourneyHome />);
+  return render(<JourneyHome sections={getCurriculumCatalog().missionSections} />);
 }
 
-const foundations = getMissionsBySection("Foundations");
+const foundations =
+  getCurriculumCatalog().missionSections.find((section) => section.title === "Foundations")
+    ?.missions ?? [];
 if (foundations.length === 0) {
   throw new Error("Expected at least one Foundations mission to test against");
 }
@@ -37,22 +39,22 @@ describe("JourneyHome", () => {
     await renderJourneyHome();
 
     expect(screen.getByText(mission1.title)).toBeInTheDocument();
-    expect(screen.getByText(mission1.coldOpen.goal)).toBeInTheDocument();
+    expect(screen.getByText(mission1.goal)).toBeInTheDocument();
   });
 
   it("marks a completed mission done and advances 'current' to the next one", async () => {
     mockUseProgress.mockReturnValue({
-      completedLessonSlugs: [mission1.slug.join("/")],
+      completedLessonSlugs: [mission1.key],
     } as unknown as ReturnType<typeof useProgress>);
 
     await renderJourneyHome();
 
-    const node1 = screen.getByTestId(`mission-node-${mission1.slug.join("/")}`);
+    const node1 = screen.getByTestId(`mission-node-${mission1.key}`);
     expect(node1.getAttribute("data-status")).toBe("done");
 
     if (foundations.length > 1) {
       const mission2 = foundations[1]!;
-      const node2 = screen.getByTestId(`mission-node-${mission2.slug.join("/")}`);
+      const node2 = screen.getByTestId(`mission-node-${mission2.key}`);
       expect(node2.getAttribute("data-status")).toBe("current");
     }
   });

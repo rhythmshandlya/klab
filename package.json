@@ -28,6 +28,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "deploy:check": "node scripts/check-deployment.mjs",
     "new:problem": "node scripts/new-problem.mjs",
     "gen:problem": "node scripts/generate-problems.mjs"
   },
@@ -93,6 +94,7 @@
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.63.0",
+    "vercel": "^58.9.0",
     "vitest": "^4.1.10"
   }
 }

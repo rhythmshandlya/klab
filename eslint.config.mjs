@@ -13,6 +13,9 @@ const eslintConfig = [
       "coverage/**",
       "playwright-report/**",
       "test-results/**",
+      ".agents/**",
+      ".claude/**",
+      ".superpowers/**",
       // Standalone Node dev scripts (generators/scaffolders); not app code.
       "scripts/**",
       "drizzle/**",

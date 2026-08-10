@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_LESSON_SLUG, DOCS_LESSONS, DOCS_NAV, getLessonBySlug } from "@/content/docs";
+import { curriculumLessons } from "@/content/curriculum/model";
+import { getCurriculumCatalog, getCurriculumLesson } from "@/content/curriculum/server";
+import { DOCS_LESSON_IMPLEMENTATIONS } from "@/content/docs/all-lessons";
 import { parseLesson } from "@/lib/domain/schemas";
+
+const CATALOG = getCurriculumCatalog();
+const DOCS_LESSONS = DOCS_LESSON_IMPLEMENTATIONS;
 
 describe("docs content", () => {
   it("all lessons parse against the schema", () => {
@@ -25,25 +30,28 @@ describe("docs content", () => {
   });
 
   it("resolves the default lesson and the three required slugs", () => {
-    expect(getLessonBySlug(DEFAULT_LESSON_SLUG)).toBeDefined();
+    expect(getCurriculumLesson(CATALOG.defaultLessonKey.split("/"))).toBeDefined();
     for (const slug of [
       ["foundations", "desired-vs-actual-state"],
       ["networking", "services"],
       ["debugging", "readiness-probes"],
     ]) {
-      expect(getLessonBySlug(slug)).toBeDefined();
+      expect(getCurriculumLesson(slug)).toBeDefined();
     }
   });
 
   it("groups lessons into ordered sections for the nav", () => {
-    expect(DOCS_NAV.length).toBeGreaterThan(0);
-    expect(DOCS_NAV.every((s) => s.lessons.length > 0)).toBe(true);
+    expect(CATALOG.sections.length).toBeGreaterThan(0);
+    expect(CATALOG.sections.every((section) => section.lessons.length > 0)).toBe(true);
+    expect(curriculumLessons(CATALOG)).toHaveLength(DOCS_LESSONS.length);
   });
 
   it("has unique heading ids within each lesson", () => {
     for (const lesson of DOCS_LESSONS) {
       const ids = lesson.content.flatMap((b) => (b.type === "heading" ? [b.id] : []));
-      expect(new Set(ids).size, `duplicate heading id in ${lesson.slug.join("/")}`).toBe(ids.length);
+      expect(new Set(ids).size, `duplicate heading id in ${lesson.slug.join("/")}`).toBe(
+        ids.length,
+      );
     }
   });
 

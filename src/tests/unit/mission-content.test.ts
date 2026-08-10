@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DOCS_LESSONS } from "@/content/docs";
+import { DOCS_LESSON_IMPLEMENTATIONS } from "@/content/docs/all-lessons";
 import {
   MISSIONS,
   accumulatedSeedManifests,
   getMissionBySlug,
   getMissionsBySection,
 } from "@/content/missions";
+
+const DOCS_LESSONS = DOCS_LESSON_IMPLEMENTATIONS;
 
 describe("mission content", () => {
   it("registers Foundations missions in order", () => {
@@ -14,7 +16,9 @@ describe("mission content", () => {
     expect(f.map((m) => m.order)).toEqual([...f.map((m) => m.order)].sort((a, b) => a - b));
   });
   it("resolves a mission by slug", () => {
-    expect(getMissionBySlug(["foundations", "what-is-kubernetes"])?.title).toBe("What is Kubernetes?");
+    expect(getMissionBySlug(["foundations", "what-is-kubernetes"])?.title).toBe(
+      "What is Kubernetes?",
+    );
   });
   it("every mission's first section mission does not inherit and has seedManifests", () => {
     for (const section of ["Foundations"]) {

@@ -3,16 +3,19 @@
 import { type ReactNode } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { AuthCapabilities } from "@/lib/env";
 
-import { ProgressSync } from "./progress-sync";
+import { GuestDataSync, ProgressSync } from "./progress-sync";
 import { TopNav } from "./top-nav";
 
 export function AppShell({
   children,
   authEnabled = false,
+  authCapabilities = { github: false, email: false },
 }: {
   children: ReactNode;
   authEnabled?: boolean;
+  authCapabilities?: AuthCapabilities;
 }) {
   return (
     <TooltipProvider delayDuration={250} skipDelayDuration={0}>
@@ -24,9 +27,9 @@ export function AppShell({
       </a>
       {/* Syncs session → progress store; only when auth is on, so guests never
           mount the session hook. */}
-      {authEnabled ? <ProgressSync /> : null}
+      {authEnabled ? <ProgressSync /> : <GuestDataSync />}
       <div className="flex min-h-dvh flex-col">
-        <TopNav authEnabled={authEnabled} />
+        <TopNav authEnabled={authEnabled} authCapabilities={authCapabilities} />
         <main id="main" className="flex min-h-0 flex-1 flex-col">
           {children}
         </main>
