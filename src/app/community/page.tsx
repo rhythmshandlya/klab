@@ -50,9 +50,7 @@ export default async function CommunityPage() {
           <p className="text-subtle text-[11px] font-semibold tracking-[0.12em] uppercase">
             The klab community
           </p>
-          <h1 className="text-foreground mt-1 text-2xl font-semibold tracking-tight">
-            Community
-          </h1>
+          <h1 className="text-foreground mt-1 text-2xl font-semibold tracking-tight">Community</h1>
         </div>
         {data && data.pulse.players > 0 ? (
           <p className="text-muted pb-1 text-sm">
@@ -67,8 +65,8 @@ export default async function CommunityPage() {
         ) : null}
       </div>
       <p className="text-muted mt-2 max-w-2xl text-[15px] leading-relaxed">
-        See how you stack up — XP leaderboard, live solve activity, and the fastest recorded
-        time for every incident lab.
+        See how you stack up — XP leaderboard, live solve activity, and the fastest recorded time
+        for every incident lab.
       </p>
 
       <div className="mt-8">
@@ -89,8 +87,8 @@ export default async function CommunityPage() {
         <div className="border-border bg-panel mt-10 rounded-xl border px-6 py-10 text-center">
           <p className="text-foreground text-sm font-medium">Community stats are offline</p>
           <p className="text-muted mx-auto mt-1 max-w-md text-sm">
-            This deployment has no server database, so the leaderboard, activity feed, and
-            records can&apos;t be shown. Your own progress above still tracks locally.
+            This deployment has no server database, so the leaderboard, activity feed, and records
+            can&apos;t be shown. Your own progress above still tracks locally.
           </p>
         </div>
       )}

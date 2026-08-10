@@ -16,13 +16,11 @@ Closes #
 
 ## Checklist
 
-- [ ] `pnpm lint` passes
-- [ ] `pnpm typecheck` passes
-- [ ] `pnpm test` passes
-- [ ] `pnpm build` passes
+- [ ] `pnpm verify` passes
 - [ ] `pnpm test:e2e` passes (if UI/behavior changed)
 - [ ] No hardcoded colors outside the design tokens; status is not conveyed by color alone
 - [ ] Any not-Ready cluster scenario uses a bare Pod (avoids simulator pod churn)
+- [ ] Database changes include a reviewed migration and remain backward compatible
 
 ## Screenshots / notes
 

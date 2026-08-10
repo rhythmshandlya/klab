@@ -32,9 +32,26 @@ export const apiObjects: Mission = {
       quiz: {
         question: "Which field should your application manifest actually edit?",
         options: [
-          { id: "a", text: "status", correct: false, explain: "status is written by controllers and the kubelet; anything you put there on apply is discarded." },
-          { id: "b", text: "spec", correct: true, explain: "spec is the desired state you declare — the one part of the object you are meant to author." },
-          { id: "c", text: "both equally", correct: false, explain: "You own spec; the system owns status. They are not symmetric." },
+          {
+            id: "a",
+            text: "status",
+            correct: false,
+            explain:
+              "status is written by controllers and the kubelet; anything you put there on apply is discarded.",
+          },
+          {
+            id: "b",
+            text: "spec",
+            correct: true,
+            explain:
+              "spec is the desired state you declare — the one part of the object you are meant to author.",
+          },
+          {
+            id: "c",
+            text: "both equally",
+            correct: false,
+            explain: "You own spec; the system owns status. They are not symmetric.",
+          },
         ],
       },
     },
@@ -48,12 +65,25 @@ export const apiObjects: Mission = {
       kind: "predict",
       id: "predict-status-update",
       predict: {
-        question: "You raise spec.replicas from 2 to 3 and apply. How does status.readyReplicas reach 3?",
+        question:
+          "You raise spec.replicas from 2 to 3 and apply. How does status.readyReplicas reach 3?",
         options: [
-          { id: "a", text: "The controller creates a Pod and updates status as it becomes Ready", correct: true, explain: "status is observed: the controller acts on the new spec, and the count climbs as reality catches up." },
-          { id: "b", text: "You must also set status.readyReplicas: 3 in the manifest", correct: false, explain: "status is never authored — a value you type there is stripped on apply." },
+          {
+            id: "a",
+            text: "The controller creates a Pod and updates status as it becomes Ready",
+            correct: true,
+            explain:
+              "status is observed: the controller acts on the new spec, and the count climbs as reality catches up.",
+          },
+          {
+            id: "b",
+            text: "You must also set status.readyReplicas: 3 in the manifest",
+            correct: false,
+            explain: "status is never authored — a value you type there is stripped on apply.",
+          },
         ],
-        reveal: "You only change spec. Controllers create the third Pod, and status.readyReplicas rises to 3 on its own once it is Ready.",
+        reveal:
+          "You only change spec. Controllers create the third Pod, and status.readyReplicas rises to 3 on its own once it is Ready.",
       },
     },
     {
@@ -61,11 +91,17 @@ export const apiObjects: Mission = {
       id: "do-scale",
       goal: "The team needs more capacity. Edit spec.replicas from 2 to 3 and apply, then watch status catch up to your new intent.",
       files: [
-        { path: "web-deployment.yaml", initialValue: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n        tier: frontend\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          ports:\n            - containerPort: 8080\n", language: "yaml" },
+        {
+          path: "web-deployment.yaml",
+          initialValue:
+            "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n        tier: frontend\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          ports:\n            - containerPort: 8080\n",
+          language: "yaml",
+        },
       ],
       check: { kind: "deployment-available", name: "web", minAvailable: 3 },
       hint: "Find spec.replicas, change 2 to 3, and apply. You never touch status — the controller updates it for you.",
-      debrief: "You changed one number in spec and the controller did the rest. status.readyReplicas is a readout of reality, not a knob — you moved the intent and the observed state followed.",
+      debrief:
+        "You changed one number in spec and the controller did the rest. status.readyReplicas is a readout of reality, not a knob — you moved the intent and the observed state followed.",
     },
     {
       kind: "debrief",

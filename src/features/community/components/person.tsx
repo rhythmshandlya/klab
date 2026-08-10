@@ -22,7 +22,10 @@ export function Person({
     <span className={cn("flex min-w-0 items-center gap-2", className)}>
       <PersonAvatar name={name} image={image} isAnonymous={isAnonymous} />
       <span
-        className={cn("truncate text-sm font-medium", isAnonymous ? "text-muted" : "text-foreground")}
+        className={cn(
+          "truncate text-sm font-medium",
+          isAnonymous ? "text-muted" : "text-foreground",
+        )}
       >
         {label}
       </span>

@@ -7,28 +7,34 @@
   "license": "MIT",
   "packageManager": "pnpm@11.10.0",
   "engines": {
-    "node": ">=20.9.0"
+    "node": "22.x"
   },
   "scripts": {
+    "prepare": "simple-git-hooks",
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/start.mjs",
+    "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:levels": "vitest run --config vitest.levels.config.ts",
     "test:watch": "vitest",
     "test:api": "vitest run --config vitest.api.config.ts",
+    "test:all": "pnpm test && pnpm test:api",
     "audit:problems": "vitest run src/tests/unit/content.test.ts",
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "check:fast": "pnpm format:check && pnpm lint && pnpm typecheck",
+    "verify": "pnpm check:fast && pnpm test:all && pnpm build",
+    "doctor": "node scripts/dev-doctor.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "deploy:check": "node scripts/check-deployment.mjs",
+    "smoke:production": "node scripts/smoke-deployment.mjs",
     "new:problem": "node scripts/new-problem.mjs",
     "gen:problem": "node scripts/generate-problems.mjs"
   },
@@ -89,12 +95,18 @@
     "eslint-config-next": "^16.2.10",
     "jest-axe": "^10.0.0",
     "jsdom": "^29.1.1",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.9.4",
     "prettier-plugin-tailwindcss": "^0.8.0",
+    "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.63.0",
     "vercel": "^58.9.0",
     "vitest": "^4.1.10"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged",
+    "pre-push": "pnpm check:fast"
   }
 }

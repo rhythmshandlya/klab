@@ -31,13 +31,32 @@ export const clusterArchitecture: Mission = {
       id: "predict-schedule",
       visual: { mode: "concept", variant: "cluster-architecture", buildToStep: 2 },
       predict: {
-        question: "You apply a Pod with no nodeName set. Which component picks the node it runs on?",
+        question:
+          "You apply a Pod with no nodeName set. Which component picks the node it runs on?",
         options: [
-          { id: "a", text: "The kube-scheduler", correct: true, explain: "The scheduler watches for unbound Pods and writes spec.nodeName. It decides where; it does not start anything." },
-          { id: "b", text: "The kubelet on whichever node has room", correct: false, explain: "The kubelet only acts after a node is assigned — it runs containers, it does not choose placement." },
-          { id: "c", text: "etcd, since it stores the Pod", correct: false, explain: "etcd only persists data. It makes no scheduling decisions." },
+          {
+            id: "a",
+            text: "The kube-scheduler",
+            correct: true,
+            explain:
+              "The scheduler watches for unbound Pods and writes spec.nodeName. It decides where; it does not start anything.",
+          },
+          {
+            id: "b",
+            text: "The kubelet on whichever node has room",
+            correct: false,
+            explain:
+              "The kubelet only acts after a node is assigned — it runs containers, it does not choose placement.",
+          },
+          {
+            id: "c",
+            text: "etcd, since it stores the Pod",
+            correct: false,
+            explain: "etcd only persists data. It makes no scheduling decisions.",
+          },
         ],
-        reveal: "The scheduler notices the empty nodeName, picks a suitable node, and binds the Pod by writing that one field through the API server.",
+        reveal:
+          "The scheduler notices the empty nodeName, picks a suitable node, and binds the Pod by writing that one field through the API server.",
       },
     },
     {
@@ -52,9 +71,26 @@ export const clusterArchitecture: Mission = {
       quiz: {
         question: "Which component writes Pod health and container state back to the API server?",
         options: [
-          { id: "a", text: "kubelet", correct: true, explain: "The kubelet runs on each node and reports observed Pod status, including phase and Ready conditions." },
-          { id: "b", text: "etcd", correct: false, explain: "etcd stores data but never runs Pods, executes probes, or reports status." },
-          { id: "c", text: "kubectl", correct: false, explain: "kubectl is a client; it submits desired state and does not reconcile or report status." },
+          {
+            id: "a",
+            text: "kubelet",
+            correct: true,
+            explain:
+              "The kubelet runs on each node and reports observed Pod status, including phase and Ready conditions.",
+          },
+          {
+            id: "b",
+            text: "etcd",
+            correct: false,
+            explain: "etcd stores data but never runs Pods, executes probes, or reports status.",
+          },
+          {
+            id: "c",
+            text: "kubectl",
+            correct: false,
+            explain:
+              "kubectl is a client; it submits desired state and does not reconcile or report status.",
+          },
         ],
       },
     },
@@ -63,11 +99,17 @@ export const clusterArchitecture: Mission = {
       id: "do-second-pod",
       goal: "Apply a second Pod and watch the same pipeline place it: the scheduler binds it, then the kubelet runs it. Your cluster now has two Pods.",
       files: [
-        { path: "web-2.yaml", initialValue: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web-2\n  labels:\n    app: web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080\n", language: "yaml" },
+        {
+          path: "web-2.yaml",
+          initialValue:
+            "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web-2\n  labels:\n    app: web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080\n",
+          language: "yaml",
+        },
       ],
       check: { kind: "pods-ready", selector: { app: "web" }, minReady: 2 },
       hint: "Apply as-is, then watch the second Pod go Pending (waiting on the scheduler) and then Ready (the kubelet started it). No edits needed.",
-      debrief: "Nothing ran the instant you applied. The object was stored, the scheduler bound it to a node, and only then did a kubelet start the container — the same chain every Pod flows through.",
+      debrief:
+        "Nothing ran the instant you applied. The object was stored, the scheduler bound it to a node, and only then did a kubelet start the container — the same chain every Pod flows through.",
     },
     {
       kind: "debrief",

@@ -249,8 +249,7 @@ class RecreateStrategyScenario implements ScriptedScenarioRuntime {
     const strategy = valueAt(deployment.raw, "spec.strategy.type");
     const rollingUpdate = objectAt(deployment.raw, "spec.strategy.rollingUpdate");
     const maxUnavailable = rollingUpdate ? valueAt(rollingUpdate, "maxUnavailable") : undefined;
-    this.fixed =
-      strategy === "RollingUpdate" && (maxUnavailable === 0 || maxUnavailable === "0");
+    this.fixed = strategy === "RollingUpdate" && (maxUnavailable === 0 || maxUnavailable === "0");
     return ok([{ kind: "Deployment", name: "checkout", namespace: "default" }]);
   }
 
@@ -317,9 +316,11 @@ class RolloutMaxSurgeScenario implements ScriptedScenarioRuntime {
     const maxSurge = rollingUpdate ? valueAt(rollingUpdate, "maxSurge") : undefined;
     const maxUnavailable = rollingUpdate ? valueAt(rollingUpdate, "maxUnavailable") : undefined;
     const surgeFits = maxSurge === 0 || maxSurge === "0";
-    const maxUnavailableNum = typeof maxUnavailable === "number" ? maxUnavailable : Number(maxUnavailable);
+    const maxUnavailableNum =
+      typeof maxUnavailable === "number" ? maxUnavailable : Number(maxUnavailable);
     const allowsRoom = !Number.isNaN(maxUnavailableNum) && maxUnavailableNum >= 1;
-    this.fixed = (strategy === undefined || strategy === "RollingUpdate") && surgeFits && allowsRoom;
+    this.fixed =
+      (strategy === undefined || strategy === "RollingUpdate") && surgeFits && allowsRoom;
     return ok([{ kind: "Deployment", name: "analytics", namespace: "default" }]);
   }
 
@@ -330,7 +331,12 @@ class RolloutMaxSurgeScenario implements ScriptedScenarioRuntime {
     }
     return this.fixed
       ? { ok: true, status: 200, body: "analytics v2 ready\n" }
-      : { ok: false, status: 500, body: "analytics v1 internal error\n", reason: "v1 is serving 500" };
+      : {
+          ok: false,
+          status: 500,
+          body: "analytics v1 internal error\n",
+          reason: "v1 is serving 500",
+        };
   }
 
   logs(namespace: string, pod: string, container?: string): LogLine[] {
@@ -628,7 +634,11 @@ function recreateOutageSnapshot(fixed: boolean): ClusterSnapshot {
     ],
     replicaSets: [
       {
-        metadata: { name: fixed ? "checkout-7d9c1-rs" : "checkout-7d9c1-newrs", namespace: "default", labels: { app: "checkout" } },
+        metadata: {
+          name: fixed ? "checkout-7d9c1-rs" : "checkout-7d9c1-newrs",
+          namespace: "default",
+          labels: { app: "checkout" },
+        },
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: "checkout" } },
@@ -665,7 +675,12 @@ function recreateOutageSnapshot(fixed: boolean): ClusterSnapshot {
 }
 
 function rolloutMaxSurgeSnapshot(fixed: boolean): ClusterSnapshot {
-  const readyPod = (name: string, podIP: string, image: string, labels: Record<string, string>) => ({
+  const readyPod = (
+    name: string,
+    podIP: string,
+    image: string,
+    labels: Record<string, string>,
+  ) => ({
     metadata: { name, namespace: "default", labels },
     spec: {
       nodeName: "node-1",
@@ -716,12 +731,24 @@ function rolloutMaxSurgeSnapshot(fixed: boolean): ClusterSnapshot {
   });
   const pods = fixed
     ? [
-        readyPod("analytics-a", "10.0.0.51", "klab/analytics:2.0.0", { app: "analytics", track: "v2" }),
-        readyPod("analytics-b", "10.0.0.52", "klab/analytics:2.0.0", { app: "analytics", track: "v2" }),
+        readyPod("analytics-a", "10.0.0.51", "klab/analytics:2.0.0", {
+          app: "analytics",
+          track: "v2",
+        }),
+        readyPod("analytics-b", "10.0.0.52", "klab/analytics:2.0.0", {
+          app: "analytics",
+          track: "v2",
+        }),
       ]
     : [
-        readyPod("analytics-old-a", "10.0.0.53", "klab/analytics:1.0.0", { app: "analytics", track: "v1" }),
-        readyPod("analytics-old-b", "10.0.0.54", "klab/analytics:1.0.0", { app: "analytics", track: "v1" }),
+        readyPod("analytics-old-a", "10.0.0.53", "klab/analytics:1.0.0", {
+          app: "analytics",
+          track: "v1",
+        }),
+        readyPod("analytics-old-b", "10.0.0.54", "klab/analytics:1.0.0", {
+          app: "analytics",
+          track: "v1",
+        }),
         pendingPod("analytics-new-a"),
         pendingPod("analytics-new-b"),
       ];
@@ -764,20 +791,44 @@ function rolloutMaxSurgeSnapshot(fixed: boolean): ClusterSnapshot {
     replicaSets: fixed
       ? [
           {
-            metadata: { name: "analytics-3b8f1-v2rs", namespace: "default", labels: { app: "analytics", track: "v2" } },
-            spec: { replicas: 2, selector: { matchLabels: { app: "analytics" } }, template: { metadata: { labels: { app: "analytics", track: "v2" } } } },
+            metadata: {
+              name: "analytics-3b8f1-v2rs",
+              namespace: "default",
+              labels: { app: "analytics", track: "v2" },
+            },
+            spec: {
+              replicas: 2,
+              selector: { matchLabels: { app: "analytics" } },
+              template: { metadata: { labels: { app: "analytics", track: "v2" } } },
+            },
             status: { replicas: 2, readyReplicas: 2, availableReplicas: 2 },
           },
         ]
       : [
           {
-            metadata: { name: "analytics-2a1c0-v1rs", namespace: "default", labels: { app: "analytics", track: "v1" } },
-            spec: { replicas: 2, selector: { matchLabels: { app: "analytics" } }, template: { metadata: { labels: { app: "analytics", track: "v1" } } } },
+            metadata: {
+              name: "analytics-2a1c0-v1rs",
+              namespace: "default",
+              labels: { app: "analytics", track: "v1" },
+            },
+            spec: {
+              replicas: 2,
+              selector: { matchLabels: { app: "analytics" } },
+              template: { metadata: { labels: { app: "analytics", track: "v1" } } },
+            },
             status: { replicas: 2, readyReplicas: 2, availableReplicas: 2 },
           },
           {
-            metadata: { name: "analytics-3b8f1-v2rs", namespace: "default", labels: { app: "analytics", track: "v2" } },
-            spec: { replicas: 2, selector: { matchLabels: { app: "analytics" } }, template: { metadata: { labels: { app: "analytics", track: "v2" } } } },
+            metadata: {
+              name: "analytics-3b8f1-v2rs",
+              namespace: "default",
+              labels: { app: "analytics", track: "v2" },
+            },
+            spec: {
+              replicas: 2,
+              selector: { matchLabels: { app: "analytics" } },
+              template: { metadata: { labels: { app: "analytics", track: "v2" } } },
+            },
             status: { replicas: 0, readyReplicas: 0, availableReplicas: 0 },
           },
         ],
@@ -803,7 +854,8 @@ function rolloutMaxSurgeSnapshot(fixed: boolean): ClusterSnapshot {
             involvedObject: { kind: "Pod", name: "analytics-new-a", namespace: "default" },
             type: "Warning",
             reason: "FailedScheduling",
-            message: "0/1 nodes are available: 1 Insufficient cpu. Deployment rollout is blocked: maxSurge=2 cannot fit, maxUnavailable=0 will not yield capacity.",
+            message:
+              "0/1 nodes are available: 1 Insufficient cpu. Deployment rollout is blocked: maxSurge=2 cannot fit, maxUnavailable=0 will not yield capacity.",
           },
         ],
   } as unknown as ClusterSnapshot;
@@ -867,7 +919,11 @@ function immutableSelectorSnapshot(fixed: boolean): ClusterSnapshot {
     replicaSets: [
       {
         metadata: { name: "search-6e2a1-rs", namespace: "default", labels: { app: "search" } },
-        spec: { replicas: 2, selector: { matchLabels: { app: "search" } }, template: { metadata: { labels } } },
+        spec: {
+          replicas: 2,
+          selector: { matchLabels: { app: "search" } },
+          template: { metadata: { labels } },
+        },
         status: { replicas: 2, readyReplicas: 2, availableReplicas: 2 },
       },
     ],

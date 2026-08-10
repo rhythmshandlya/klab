@@ -30,12 +30,26 @@ export const declarativeWorkflow: Mission = {
       kind: "predict",
       id: "predict-idempotent",
       predict: {
-        question: "You run `kubectl apply -f web.yaml` twice with no change to the file. What does the second run report?",
+        question:
+          "You run `kubectl apply -f web.yaml` twice with no change to the file. What does the second run report?",
         options: [
-          { id: "a", text: "unchanged — apply is idempotent", correct: true, explain: "apply is create-or-update: with nothing to change, it reports 'unchanged' rather than erroring." },
-          { id: "b", text: "an AlreadyExists error", correct: false, explain: "That is kubectl create. apply updates in place, which is exactly why it backs every GitOps pipeline." },
+          {
+            id: "a",
+            text: "unchanged — apply is idempotent",
+            correct: true,
+            explain:
+              "apply is create-or-update: with nothing to change, it reports 'unchanged' rather than erroring.",
+          },
+          {
+            id: "b",
+            text: "an AlreadyExists error",
+            correct: false,
+            explain:
+              "That is kubectl create. apply updates in place, which is exactly why it backs every GitOps pipeline.",
+          },
         ],
-        reveal: "apply creates the object if absent and updates it if present. Re-running is safe — the backbone of CI and GitOps.",
+        reveal:
+          "apply creates the object if absent and updates it if present. Re-running is safe — the backbone of CI and GitOps.",
       },
     },
     {
@@ -50,9 +64,25 @@ export const declarativeWorkflow: Mission = {
       quiz: {
         question: "Why run `kubectl diff` before `kubectl apply`?",
         options: [
-          { id: "a", text: "To preview exactly which fields will change before mutating the cluster", correct: true, explain: "diff performs the same merge apply would and shows the resulting changes, catching unintended edits before controllers act." },
-          { id: "b", text: "To restart every node in the cluster", correct: false, explain: "diff is read-only; it never touches nodes." },
-          { id: "c", text: "To edit etcd directly, bypassing the API server", correct: false, explain: "diff still goes through the API server and changes nothing." },
+          {
+            id: "a",
+            text: "To preview exactly which fields will change before mutating the cluster",
+            correct: true,
+            explain:
+              "diff performs the same merge apply would and shows the resulting changes, catching unintended edits before controllers act.",
+          },
+          {
+            id: "b",
+            text: "To restart every node in the cluster",
+            correct: false,
+            explain: "diff is read-only; it never touches nodes.",
+          },
+          {
+            id: "c",
+            text: "To edit etcd directly, bypassing the API server",
+            correct: false,
+            explain: "diff still goes through the API server and changes nothing.",
+          },
         ],
       },
     },
@@ -61,17 +91,28 @@ export const declarativeWorkflow: Mission = {
       id: "do-baseline",
       goal: "Three replicas was a temporary bump. Edit spec.replicas from 3 down to the reviewed baseline of 2 and apply — the diff should read a clean -3 +2 before you commit to it.",
       files: [
-        { path: "web-deployment.yaml", initialValue: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n        tier: frontend\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          ports:\n            - containerPort: 8080\n", language: "yaml" },
+        {
+          path: "web-deployment.yaml",
+          initialValue:
+            "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n        tier: frontend\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          ports:\n            - containerPort: 8080\n",
+          language: "yaml",
+        },
       ],
       check: { kind: "deployment-replicas", name: "web", replicas: 2 },
       hint: "Change spec.replicas from 3 to 2 and apply. The image tag stays pinned to 1.0.0 so the diff is deterministic — only the replica count should change. Applying without the edit keeps desired at 3, so the check will hold until you actually right-size it.",
-      debrief: "You fed a deliberate, diffable change into the reconciliation loop, and it converged to a healthy two-replica Deployment. This same render-diff-apply-verify loop is how every durable change to a cluster should be made.",
+      debrief:
+        "You fed a deliberate, diffable change into the reconciliation loop, and it converged to a healthy two-replica Deployment. This same render-diff-apply-verify loop is how every durable change to a cluster should be made.",
     },
     {
       kind: "debrief",
       id: "wrap",
-      summary: "Foundations complete: your cluster runs a healthy, self-healing two-replica Deployment managed entirely from a version-controlled manifest — the baseline the Workloads section builds on.",
-      commands: ["kubectl diff -f web-deployment.yaml", "kubectl apply -f web-deployment.yaml", "kubectl rollout status deployment/web"],
+      summary:
+        "Foundations complete: your cluster runs a healthy, self-healing two-replica Deployment managed entirely from a version-controlled manifest — the baseline the Workloads section builds on.",
+      commands: [
+        "kubectl diff -f web-deployment.yaml",
+        "kubectl apply -f web-deployment.yaml",
+        "kubectl rollout status deployment/web",
+      ],
       takeaways: [
         "Imperative commands mutate the cluster now and leave no artifact; declarative apply enforces files that are your source of truth.",
         "Always render, diff, apply, then verify — a clean diff proves intent, not that traffic actually works.",

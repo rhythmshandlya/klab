@@ -4,16 +4,26 @@ klab targets Vercel, Neon Postgres, Better Auth, and optionally Resend and Upsta
 learning product remains free: accounts provide identity, cloud progress, saved work,
 password recovery, and account deletion; there is no billing gate.
 
-## 1. Create the hosting project
+## 1. Hosting and GitHub delivery
 
-Link this directory to a Vercel project:
+The production project is `rhythm-shandlyas-projects/klab` and the source repository is
+`rhythmshandlya/klab`. Link a fresh checkout when local Vercel access is needed:
 
 ```bash
 pnpm exec vercel link
 ```
 
-Choose a stable production domain before configuring OAuth or email links. Every production
-and preview environment that should support sign-in needs the complete variable set below.
+Production delivery runs in `.github/workflows/ci.yml` only after both quality and browser tests
+pass on `main`. The GitHub `production` environment contains `VERCEL_TOKEN`; repository variables
+contain `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`. Rotate the token in Vercel and GitHub together.
+Pull-request jobs are secret-free.
+
+Create `VERCEL_TOKEN` from **Vercel account settings → Tokens**, scope it to the owning team, and
+give it an explicit expiry of no more than one year. Do not copy the short-lived token used by a
+`vercel login` CLI session. Record token rotation as an operational task before its expiry.
+
+The canonical domain is `https://klab-five.vercel.app`. Keep `BETTER_AUTH_URL` and the GitHub
+OAuth callback aligned with that origin.
 
 ## 2. Provision Postgres
 
@@ -59,13 +69,25 @@ sync, guest merge, and per-user community limits atomic across serverless instan
 
 ## 5. Deploy and verify
 
+Normal releases happen by reviewed pull request:
+
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:api
-pnpm build
+gh pr create --fill
+gh pr checks --watch
+gh pr merge --squash --delete-branch
+```
+
+After the merge, GitHub Actions runs CI, creates a Vercel production deployment, and executes the
+smoke suite against its immutable URL. Monitor it with `gh run watch`.
+
+For a deliberate local deployment or recovery operation:
+
+```bash
+pnpm verify
+pnpm test:e2e
+pnpm deploy:check
 pnpm exec vercel deploy --prod
+pnpm smoke:production
 ```
 
 After deployment:
@@ -82,3 +104,11 @@ After deployment:
 
 If `/api/health` returns 503, do not promote the deployment. It intentionally reports degraded
 until the database is reachable and the complete auth configuration is active.
+
+## Rollback
+
+For an urgent application rollback, open the Vercel deployment history and promote the last
+known-good production deployment, then fix forward through a pull request. Database migrations
+are not automatically rolled back. Schema changes must remain compatible with the previous app
+until the new deployment is healthy; use a separately reviewed down migration only when one was
+designed and tested in advance.

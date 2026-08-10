@@ -66,24 +66,19 @@ export const immutableDeploymentSelector = {
   estimatedMinutes: 25,
   successRate: 47,
   concepts: ["deployments", "labels-selectors", "rollouts", "debugging"],
-  blurb: "The teammate edited the wrong field and the API pushed back. The pods are healthy — they just aren't selected.",
+  blurb:
+    "The teammate edited the wrong field and the API pushed back. The pods are healthy — they just aren't selected.",
   story:
     "The routing team moved search-svc onto a tier-based selector so only `tier: api` pods receive traffic. A teammate tried to add the `tier: api` label by editing the Deployment's spec.selector — the apply failed with `field is immutable`, so the selector is still just {app: search}. The pods are Running and Ready, but their template labels never gained `tier: api`, so search-svc matches nothing and returns 503. Add the label the right way.",
-  objective: "Make search-svc route to the search pods by labeling pods correctly — without touching the immutable selector.",
+  objective:
+    "Make search-svc route to the search pods by labeling pods correctly — without touching the immutable selector.",
   learningObjectives: [
     "Recognize that a Deployment's spec.selector is immutable after creation.",
     "Migrate labels safely through the pod template rather than the selector.",
   ],
   prerequisites: ["rolling-update-gone-wrong", "service-selector-mismatch"],
   learningPaths: ["application-debugging", "reliability"],
-  capabilities: [
-    "pods",
-    "services",
-    "deployments",
-    "events",
-    "http-probes",
-    "rollouts",
-  ],
+  capabilities: ["pods", "services", "deployments", "events", "http-probes", "rollouts"],
   engine: { kind: "scripted", scenarioId: "immutable-selector" },
   constraints: [
     {
@@ -222,12 +217,18 @@ export const immutableDeploymentSelector = {
       label: "search-svc has zero endpoints despite Ready pods",
       hiddenLabel: "Service endpoints inspected",
       source: "object-explorer",
-      trigger: { type: "object-view", kind: "Service", nameMatches: "^search-svc$", namespace: "default" },
+      trigger: {
+        type: "object-view",
+        kind: "Service",
+        nameMatches: "^search-svc$",
+        namespace: "default",
+      },
     },
     {
       id: "r-immutable-selector",
       evidenceId: "immutable-selector",
-      label: "The Deployment selector is {app: search}; tier cannot be added to an immutable selector",
+      label:
+        "The Deployment selector is {app: search}; tier cannot be added to an immutable selector",
       hiddenLabel: "Deployment selector inspected",
       source: "terminal",
       trigger: {

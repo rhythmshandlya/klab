@@ -5,11 +5,13 @@ common "how do I add …" tasks. The [README](./README.md) has the architecture 
 
 ## Development setup
 
-Requires **Node ≥ 20.9** and **pnpm** (via corepack, bundled with Node).
+Requires **Node 22** and **pnpm 11.10.0** (via corepack). The complete onboarding and daily
+branch workflow lives in [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md).
 
 ```bash
 corepack enable
 pnpm install
+pnpm doctor
 pnpm dev            # http://localhost:3000
 ```
 
@@ -18,11 +20,7 @@ pnpm dev            # http://localhost:3000
 Run the full local gate — CI runs the same commands and must be green:
 
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test           # unit + integration (Vitest, jsdom) — includes the level solvability harness
-pnpm test:api       # DB-backed repo/merge/stats tests (in-process Postgres via pglite)
-pnpm build
+pnpm verify         # format + lint + types + Vitest + API/Postgres + production build
 pnpm test:e2e       # Playwright (installs a browser on first run: pnpm exec playwright install chromium)
 ```
 
@@ -76,7 +74,9 @@ fails the build.
 
 - Small, focused commits with a clear message.
 - Reference the issue you're addressing.
-- Fill in the pull request template. CI must pass.
+- Use a short-lived branch and open the pull request with `gh pr create --fill`.
+- Fill in the pull request template. The `Quality` and `End-to-end` checks must pass.
+- Prefer a squash merge; GitHub removes merged branches automatically.
 
 ## Code of Conduct
 

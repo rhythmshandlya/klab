@@ -7,11 +7,7 @@ export type DiagramSpec =
   | { mode: "static"; variant: ConceptDiagramVariant };
 
 export type ConceptDiagramVariant =
-  | "control-loop"
-  | "cluster-architecture"
-  | "api-object"
-  | "workload-hierarchy"
-  | "service-routing";
+  "control-loop" | "cluster-architecture" | "api-object" | "workload-hierarchy" | "service-routing";
 
 export interface QuizOption {
   id: string;

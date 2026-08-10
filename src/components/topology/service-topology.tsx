@@ -35,7 +35,14 @@ function nodeStyle(ok: boolean): React.CSSProperties {
 function nodeLabel(title: string, rows: { text: string; ok?: boolean }[]): React.ReactNode {
   return (
     <div style={{ textAlign: "left" }}>
-      <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div
+        style={{
+          fontWeight: 600,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
         {title}
       </div>
       {rows.map((row, index) => (
@@ -63,7 +70,10 @@ function formatLabels(labels: Record<string, string> | undefined): string {
     .join(",");
 }
 
-function matches(labels: Record<string, string> | undefined, selector: Record<string, string>): boolean {
+function matches(
+  labels: Record<string, string> | undefined,
+  selector: Record<string, string>,
+): boolean {
   if (!labels) return false;
   return Object.entries(selector).every(([k, v]) => labels[k] === v);
 }
@@ -85,11 +95,9 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
       requested.length > 0
         ? new Set(requested)
         : new Set(
-            [
-              ...snapshot.services,
-              ...snapshot.deployments,
-              ...snapshot.pods,
-            ].map((o) => o.metadata?.namespace ?? "default"),
+            [...snapshot.services, ...snapshot.deployments, ...snapshot.pods].map(
+              (o) => o.metadata?.namespace ?? "default",
+            ),
           );
     const showNs = nsSet.size > 1;
     const inScope = <T extends { metadata?: { namespace?: string } }>(items: T[]): T[] =>
@@ -164,7 +172,8 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
         { text: formatLabels(pod.metadata?.labels) },
         { text: ready ? "Ready" : "Not Ready", ok: ready },
       ];
-      if (restarts > 0) rows.push({ text: `${restarts} restart${restarts === 1 ? "" : "s"}`, ok: false });
+      if (restarts > 0)
+        rows.push({ text: `${restarts} restart${restarts === 1 ? "" : "s"}`, ok: false });
       nodes.push({
         id: `pod/${ns}/${name}`,
         position: { x: index * X_STEP, y: 270 },

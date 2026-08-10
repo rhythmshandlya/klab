@@ -21,10 +21,7 @@ import {
 import { runCommandLine } from "@/lib/kube/command-runner";
 import type { InteractiveLab as Lab } from "@/lib/domain/types";
 import { setPlaygroundHandoff } from "@/lib/storage/playground-handoff";
-import {
-  XtermTerminal,
-  type TerminalRunResult,
-} from "@/components/terminal/xterm-terminal";
+import { XtermTerminal, type TerminalRunResult } from "@/components/terminal/xterm-terminal";
 import { cn } from "@/lib/utils/cn";
 
 import { useSimulator } from "@/features/problems/hooks/use-simulator";
@@ -177,7 +174,7 @@ function LiveLab({ lab }: { lab: Lab }) {
       {/* Body */}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_360px]">
         {/* Left: editor + terminal */}
-        <div className="bg-panel flex min-h-0 flex-col border-r border-border">
+        <div className="bg-panel border-border flex min-h-0 flex-col border-r">
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="border-border flex h-9 shrink-0 items-center gap-1 border-b px-2">
               <span className="text-subtle mr-1 text-[11px] font-semibold tracking-[0.08em] uppercase">
@@ -210,7 +207,7 @@ function LiveLab({ lab }: { lab: Lab }) {
             </div>
           </div>
 
-          <div className="flex min-h-[12rem] flex-col border-t border-border">
+          <div className="border-border flex min-h-[12rem] flex-col border-t">
             <div className="border-border flex h-9 shrink-0 items-center justify-between border-b px-3">
               <span className="text-subtle flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.08em] uppercase">
                 <icons.terminal className="text-green size-3.5" aria-hidden />
@@ -222,7 +219,10 @@ function LiveLab({ lab }: { lab: Lab }) {
               <ErrorBoundary label="Terminal">
                 <XtermTerminal
                   onCommand={runCommand}
-                  welcome={["klab lab terminal — type a command and press Enter.", "Try: kubectl get pods"]}
+                  welcome={[
+                    "klab lab terminal — type a command and press Enter.",
+                    "Try: kubectl get pods",
+                  ]}
                 />
               </ErrorBoundary>
             </div>
@@ -264,18 +264,11 @@ function LiveLab({ lab }: { lab: Lab }) {
               </p>
             ) : null}
             {pods.length === 0 ? (
-              <p className="text-subtle text-xs">
-                No pods yet. Edit the YAML, then apply changes.
-              </p>
+              <p className="text-subtle text-xs">No pods yet. Edit the YAML, then apply changes.</p>
             ) : (
               pods.map((p) => (
-                <div
-                  key={p.metadata?.name}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="text-muted truncate font-mono text-xs">
-                    {p.metadata?.name}
-                  </span>
+                <div key={p.metadata?.name} className="flex items-center justify-between gap-2">
+                  <span className="text-muted truncate font-mono text-xs">{p.metadata?.name}</span>
                   <Badge tone={isPodReady(p) ? "success" : "warning"}>
                     {isPodReady(p) ? "Ready" : podPhase(p)}
                   </Badge>

@@ -122,9 +122,7 @@ export function ClusterExplorer({
                       <RowIcon icon={row.icon} />
                       <span className="truncate font-mono text-xs">
                         {row.name}
-                        {showNs ? (
-                          <span className="text-subtle/80"> · {row.namespace}</span>
-                        ) : null}
+                        {showNs ? <span className="text-subtle/80"> · {row.namespace}</span> : null}
                       </span>
                       {row.ok !== undefined ? (
                         <span

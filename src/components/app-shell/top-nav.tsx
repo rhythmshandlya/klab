@@ -92,9 +92,7 @@ function UserChip() {
       >
         G
       </span>
-      <span className="text-foreground hidden text-sm font-medium lg:inline">
-        Guest
-      </span>
+      <span className="text-foreground hidden text-sm font-medium lg:inline">Guest</span>
     </div>
   );
 }

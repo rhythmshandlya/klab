@@ -48,10 +48,7 @@ export function ActivityFeed({ solves, now }: { solves: readonly RecentSolve[]; 
                   {displayName(solve.name, solve.isAnonymous)}
                 </span>{" "}
                 <span className="text-muted">solved</span>{" "}
-                <Link
-                  href={`/problems/${solve.levelSlug}`}
-                  className="text-blue hover:underline"
-                >
+                <Link href={`/problems/${solve.levelSlug}`} className="text-blue hover:underline">
                   {titles.get(solve.levelSlug)}
                 </Link>
                 <span className="text-subtle mt-0.5 block text-xs">

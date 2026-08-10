@@ -85,7 +85,8 @@ export const rolloutCannotFitMaxsurge = {
   estimatedMinutes: 35,
   successRate: 38,
   concepts: ["deployments", "rollouts", "scheduling", "resources", "debugging"],
-  blurb: "The new release is ready, but the rollout is frozen solid — the cluster cannot spare a single surge pod.",
+  blurb:
+    "The new release is ready, but the rollout is frozen solid — the cluster cannot spare a single surge pod.",
   story:
     "Analytics v1 has a dependency-schema bug and is serving HTTP 500. The fix is in v2.0.0, which you kicked off ten minutes ago — but the rollout is still at 0% updated. The new ReplicaSet's pods are stuck Pending with Insufficient cpu, and the old ReplicaSet refuses to give up a slot. The cluster is full, and the rollout strategy will not let anything move.",
   objective: "Land the v2.0.0 release by making the rollout fit the cluster's capacity.",
@@ -251,7 +252,11 @@ export const rolloutCannotFitMaxsurge = {
       label: "Surge pods fail scheduling: Insufficient cpu",
       hiddenLabel: "Scheduling events reviewed",
       source: "events",
-      trigger: { type: "event-reason", reason: "FailedScheduling", messageMatches: "Insufficient cpu" },
+      trigger: {
+        type: "event-reason",
+        reason: "FailedScheduling",
+        messageMatches: "Insufficient cpu",
+      },
     },
     {
       id: "r-maxsurge-strategy",

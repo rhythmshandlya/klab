@@ -13,13 +13,25 @@ const valid: Mission = {
   concepts: ["pods"],
   steps: [
     { kind: "teach", id: "t1", idea: "A cluster runs your desired state." },
-    { kind: "check", id: "c1", quiz: { question: "Q?", options: [
-      { id: "a", text: "yes", correct: true, explain: "right" },
-      { id: "b", text: "no", correct: false, explain: "nope" },
-    ] } },
-    { kind: "do", id: "d1", goal: "Apply a Pod.", files: [
-      { path: "pod.yaml", initialValue: "apiVersion: v1", language: "yaml" },
-    ], check: { kind: "pods-ready", selector: { app: "web" }, minReady: 1 }, debrief: "Done." },
+    {
+      kind: "check",
+      id: "c1",
+      quiz: {
+        question: "Q?",
+        options: [
+          { id: "a", text: "yes", correct: true, explain: "right" },
+          { id: "b", text: "no", correct: false, explain: "nope" },
+        ],
+      },
+    },
+    {
+      kind: "do",
+      id: "d1",
+      goal: "Apply a Pod.",
+      files: [{ path: "pod.yaml", initialValue: "apiVersion: v1", language: "yaml" }],
+      check: { kind: "pods-ready", selector: { app: "web" }, minReady: 1 },
+      debrief: "Done.",
+    },
   ],
 };
 

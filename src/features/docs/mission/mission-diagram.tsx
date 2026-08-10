@@ -44,7 +44,10 @@ const VARIANTS: Record<ConceptDiagramVariant, Beat[]> = {
     { node: mk("etcd", "etcd", "cluster state", 0, 110), edgeFrom: "api-server" },
     { node: mk("controllers", "Controllers", "reconcile loop", 260, 220), edgeFrom: "api-server" },
     { node: mk("scheduler", "Scheduler", "places Pods", 520, 110), edgeFrom: "api-server" },
-    { node: mk("kubelet", "kubelet (worker)", "runs Pods on the node", 520, 0), edgeFrom: "api-server" },
+    {
+      node: mk("kubelet", "kubelet (worker)", "runs Pods on the node", 520, 0),
+      edgeFrom: "api-server",
+    },
   ],
   "api-object": [
     { node: mk("metadata", "metadata", "name, labels", 0, 0) },
@@ -107,10 +110,13 @@ export function MissionDiagram({
     );
   }
 
-  const { nodes, edges } = conceptGraph(spec.variant, spec.mode === "concept" ? spec.buildToStep : 99);
+  const { nodes, edges } = conceptGraph(
+    spec.variant,
+    spec.mode === "concept" ? spec.buildToStep : 99,
+  );
 
   return (
-    <div className="h-56 rounded-md border border-border">
+    <div className="border-border h-56 rounded-md border">
       <ReactFlow
         nodes={nodes}
         edges={edges}

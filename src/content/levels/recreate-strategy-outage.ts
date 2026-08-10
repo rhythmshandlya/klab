@@ -67,7 +67,8 @@ export const recreateStrategyOutage = {
   estimatedMinutes: 25,
   successRate: 52,
   concepts: ["deployments", "rollouts", "disruptions", "debugging"],
-  blurb: "Every release takes checkout offline for half a minute. The release is fine; the strategy is not.",
+  blurb:
+    "Every release takes checkout offline for half a minute. The release is fine; the strategy is not.",
   story:
     "Checkout shipped v2.1.0 an hour ago. The release itself is healthy, but for ~40 seconds during the rollout the Service returned 503 to every customer. On-call traced it to the Deployment: the old ReplicaSet was scaled to zero before a single new pod was Ready. The Deployment is still on the Recreate strategy left over from early prototyping.",
   objective: "Make checkout-svc stay available during a rollout by using a zero-downtime strategy.",

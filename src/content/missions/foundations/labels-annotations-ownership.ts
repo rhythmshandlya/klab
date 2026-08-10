@@ -30,12 +30,26 @@ export const labelsAnnotationsOwnership: Mission = {
       kind: "predict",
       id: "predict-selector",
       predict: {
-        question: "A Service selects tier: frontend, but a Pod puts tier: frontend under annotations instead of labels. Does the Service route to it?",
+        question:
+          "A Service selects tier: frontend, but a Pod puts tier: frontend under annotations instead of labels. Does the Service route to it?",
         options: [
-          { id: "a", text: "No — annotations are never selected on, so it matches nothing", correct: true, explain: "Selectors only read labels. A value stranded in annotations is invisible to selection." },
-          { id: "b", text: "Yes — Kubernetes checks both labels and annotations", correct: false, explain: "Annotations are non-identifying by design and are never consulted for selection or routing." },
+          {
+            id: "a",
+            text: "No — annotations are never selected on, so it matches nothing",
+            correct: true,
+            explain:
+              "Selectors only read labels. A value stranded in annotations is invisible to selection.",
+          },
+          {
+            id: "b",
+            text: "Yes — Kubernetes checks both labels and annotations",
+            correct: false,
+            explain:
+              "Annotations are non-identifying by design and are never consulted for selection or routing.",
+          },
         ],
-        reveal: "The EndpointSlice controller publishes zero endpoints for that Pod. When a selector finds nothing, compare it against the Pod's metadata.labels first.",
+        reveal:
+          "The EndpointSlice controller publishes zero endpoints for that Pod. When a selector finds nothing, compare it against the Pod's metadata.labels first.",
       },
     },
     {
@@ -48,11 +62,30 @@ export const labelsAnnotationsOwnership: Mission = {
       kind: "check",
       id: "check-cascade",
       quiz: {
-        question: "You run `kubectl delete deployment web` with the default cascade policy. What happens to its ReplicaSet and Pods?",
+        question:
+          "You run `kubectl delete deployment web` with the default cascade policy. What happens to its ReplicaSet and Pods?",
         options: [
-          { id: "a", text: "The garbage collector deletes the owned ReplicaSet and Pods in the background", correct: true, explain: "Background is the default: the Deployment is removed immediately and the collector follows ownerReferences to clean up children." },
-          { id: "b", text: "They are orphaned and keep running with no owner", correct: false, explain: "That is --cascade=orphan, which strips ownerReferences. It is not the default." },
-          { id: "c", text: "Nothing; you must delete every Pod by hand", correct: false, explain: "Cascading deletion is automatic because children carry ownerReferences back up the tree." },
+          {
+            id: "a",
+            text: "The garbage collector deletes the owned ReplicaSet and Pods in the background",
+            correct: true,
+            explain:
+              "Background is the default: the Deployment is removed immediately and the collector follows ownerReferences to clean up children.",
+          },
+          {
+            id: "b",
+            text: "They are orphaned and keep running with no owner",
+            correct: false,
+            explain:
+              "That is --cascade=orphan, which strips ownerReferences. It is not the default.",
+          },
+          {
+            id: "c",
+            text: "Nothing; you must delete every Pod by hand",
+            correct: false,
+            explain:
+              "Cascading deletion is automatic because children carry ownerReferences back up the tree.",
+          },
         ],
       },
     },
@@ -61,11 +94,17 @@ export const labelsAnnotationsOwnership: Mission = {
       id: "do-fix-label",
       goal: "This extra Pod should join the frontend, but its label reads tier: fronted — a typo the selector will never match. Fix the label so the frontend selector counts four Pods.",
       files: [
-        { path: "web-extra.yaml", initialValue: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web-extra\n  labels:\n    app: web-extra\n    tier: fronted\n  annotations:\n    owner: platform-team\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080\n", language: "yaml" },
+        {
+          path: "web-extra.yaml",
+          initialValue:
+            "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web-extra\n  labels:\n    app: web-extra\n    tier: fronted\n  annotations:\n    owner: platform-team\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080\n",
+          language: "yaml",
+        },
       ],
       check: { kind: "pods-ready", selector: { tier: "frontend" }, minReady: 4 },
       hint: "The three Deployment Pods already carry tier: frontend. Change this Pod's tier: fronted to tier: frontend so the selector counts four. The annotation stays untouched — it is not selected on.",
-      debrief: "One character of metadata decided whether this Pod was visible. Selectors match labels exactly; a typo, or a value placed in annotations, means zero matches — which is why a Service with no endpoints is almost always a label problem. One deliberate detail: web-extra keeps app: web-extra, NOT app: web. If its labels fully matched the web Deployment's selector (app: web + tier: frontend), the ReplicaSet would adopt it as one of its own — and immediately delete it to hold replicas at three.",
+      debrief:
+        "One character of metadata decided whether this Pod was visible. Selectors match labels exactly; a typo, or a value placed in annotations, means zero matches — which is why a Service with no endpoints is almost always a label problem. One deliberate detail: web-extra keeps app: web-extra, NOT app: web. If its labels fully matched the web Deployment's selector (app: web + tier: frontend), the ReplicaSet would adopt it as one of its own — and immediately delete it to hold replicas at three.",
     },
     {
       kind: "debrief",

@@ -531,7 +531,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                             "flex h-10 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors",
                             centerTab === tab.id
                               ? "border-foreground text-foreground"
-                              : "border-transparent text-muted hover:text-foreground",
+                              : "text-muted hover:text-foreground border-transparent",
                           )}
                         >
                           <Icon className="size-4" aria-hidden />
@@ -642,7 +642,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                           "flex h-9 shrink-0 items-center gap-1.5 border-b-2 px-2 font-mono text-xs transition-colors",
                           active
                             ? "border-foreground text-foreground"
-                            : "border-transparent text-muted hover:text-foreground",
+                            : "text-muted hover:text-foreground border-transparent",
                         )}
                       >
                         <icons.yaml className="text-subtle size-3.5" aria-hidden />

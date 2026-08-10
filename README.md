@@ -25,12 +25,13 @@ Three areas, all backed by the same in-browser Kubernetes simulation:
 
 ## Quick start
 
-Requires **Node ≥ 20.9** and **pnpm** (via [corepack](https://nodejs.org/api/corepack.html),
-which ships with Node).
+Requires **Node 22** and **pnpm 11.10.0** (via
+[corepack](https://nodejs.org/api/corepack.html)).
 
 ```bash
 corepack enable        # activates the pnpm version pinned in package.json
 pnpm install
+pnpm doctor            # verifies the local toolchain and configuration
 pnpm dev               # http://localhost:3000
 ```
 
@@ -43,8 +44,12 @@ pnpm dev               # http://localhost:3000
 | `pnpm lint` | ESLint (flat config) |
 | `pnpm typecheck` | `tsc --noEmit`, strict mode |
 | `pnpm test` / `pnpm test:watch` | Unit + integration tests (Vitest) |
+| `pnpm test:api` / `pnpm test:all` | Postgres-backed API tests / all Vitest suites |
+| `pnpm check:fast` / `pnpm verify` | Local pre-push checks / complete CI quality gate |
 | `pnpm test:e2e` | End-to-end tests (Playwright; run `pnpm exec playwright install chromium` once) |
 | `pnpm format` / `pnpm format:check` | Prettier write / check |
+| `pnpm doctor` | Validate Node, pnpm, dependencies, Git, and local backend configuration |
+| `pnpm smoke:production [url]` | Verify deployment health and protected-route behavior |
 
 ## Tech stack
 
@@ -155,9 +160,11 @@ Add a `PlaygroundTemplate` to `src/content/playground-templates/index.ts` (id, t
 - **API / database** (`pnpm test:api`): the progress/merge/stats repositories run against
   an in-process real Postgres (`@electric-sql/pglite`) — no external service needed.
 
-CI (`.github/workflows/ci.yml`) runs lint → typecheck → test → test:api → build on every
-push/PR, with a separate Playwright E2E job and a nightly job that applies the Drizzle
-migrations to a real Postgres to catch schema drift.
+CI runs `pnpm verify` and Playwright on every push and pull request. A successful push to `main`
+is built and deployed to Vercel, then checked through the production smoke suite. A separate
+nightly workflow applies the full Drizzle history to clean Postgres and checks for schema drift.
+See [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md) for the daily workflow and
+[`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) for operations.
 
 ## Backend & accounts
 

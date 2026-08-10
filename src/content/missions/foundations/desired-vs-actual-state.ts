@@ -31,12 +31,26 @@ export const desiredVsActualState: Mission = {
       id: "predict-heal",
       visual: { mode: "concept", variant: "control-loop", buildToStep: 2 },
       predict: {
-        question: "A Deployment declares replicas: 2. Someone deletes one of its Pods. What happens next?",
+        question:
+          "A Deployment declares replicas: 2. Someone deletes one of its Pods. What happens next?",
         options: [
-          { id: "a", text: "The controller creates a replacement to get back to 2", correct: true, explain: "Actual (1) no longer matches desired (2), so the loop creates one more Pod. That is self-healing." },
-          { id: "b", text: "Nothing — a human must notice and recreate it", correct: false, explain: "That would be imperative. The reconciliation loop runs continuously with no human in the way." },
+          {
+            id: "a",
+            text: "The controller creates a replacement to get back to 2",
+            correct: true,
+            explain:
+              "Actual (1) no longer matches desired (2), so the loop creates one more Pod. That is self-healing.",
+          },
+          {
+            id: "b",
+            text: "Nothing — a human must notice and recreate it",
+            correct: false,
+            explain:
+              "That would be imperative. The reconciliation loop runs continuously with no human in the way.",
+          },
         ],
-        reveal: "The loop notices replicas dropped below the desired count and recreates a Pod. Drift closes automatically.",
+        reveal:
+          "The loop notices replicas dropped below the desired count and recreates a Pod. Drift closes automatically.",
       },
     },
     {
@@ -50,9 +64,26 @@ export const desiredVsActualState: Mission = {
       quiz: {
         question: "A Deployment says replicas: 2, but only 1 Pod exists. What should happen next?",
         options: [
-          { id: "a", text: "The controller creates 1 more Pod", correct: true, explain: "The Deployment and ReplicaSet controllers reconcile actual replicas toward the desired count." },
-          { id: "b", text: "kubectl must manually start a container", correct: false, explain: "kubectl only submits desired state; controllers do the ongoing work of closing the gap." },
-          { id: "c", text: "Nothing, until you restart the Deployment", correct: false, explain: "The loop runs continuously; no restart is needed for reconciliation to act." },
+          {
+            id: "a",
+            text: "The controller creates 1 more Pod",
+            correct: true,
+            explain:
+              "The Deployment and ReplicaSet controllers reconcile actual replicas toward the desired count.",
+          },
+          {
+            id: "b",
+            text: "kubectl must manually start a container",
+            correct: false,
+            explain:
+              "kubectl only submits desired state; controllers do the ongoing work of closing the gap.",
+          },
+          {
+            id: "c",
+            text: "Nothing, until you restart the Deployment",
+            correct: false,
+            explain: "The loop runs continuously; no restart is needed for reconciliation to act.",
+          },
         ],
       },
     },
@@ -61,11 +92,17 @@ export const desiredVsActualState: Mission = {
       id: "do-deployment",
       goal: "Apply a Deployment for `web` with replicas: 2. It stamps out two self-healing Pods labeled tier: frontend — the resilient replacement for your hand-made ones.",
       files: [
-        { path: "web-deployment.yaml", initialValue: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n        tier: frontend\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          ports:\n            - containerPort: 8080\n", language: "yaml" },
+        {
+          path: "web-deployment.yaml",
+          initialValue:
+            "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n        tier: frontend\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          ports:\n            - containerPort: 8080\n",
+          language: "yaml",
+        },
       ],
       check: { kind: "pods-ready", selector: { app: "web", tier: "frontend" }, minReady: 2 },
       hint: "Apply as-is. The Deployment owns a ReplicaSet, which creates two Pods carrying tier: frontend. Watch the ready count climb to 2.",
-      debrief: "The Deployment now holds two replicas for you. Your two hand-made Pods (labeled only app: web) are now redundant pets — in a real cluster you would run `kubectl delete pod web web-2` to retire them and let the cattle carry the load.",
+      debrief:
+        "The Deployment now holds two replicas for you. Your two hand-made Pods (labeled only app: web) are now redundant pets — in a real cluster you would run `kubectl delete pod web web-2` to retire them and let the cattle carry the load.",
     },
     {
       kind: "debrief",

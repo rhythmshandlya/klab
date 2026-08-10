@@ -27,7 +27,11 @@ export function RankCard({ authEnabled }: { authEnabled: boolean }) {
 
   return (
     <div className="border-border bg-panel flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border px-6 py-5">
-      <Stat icon={<Xp className="text-purple size-5" aria-hidden />} value={progress.xp} label="XP" />
+      <Stat
+        icon={<Xp className="text-purple size-5" aria-hidden />}
+        value={progress.xp}
+        label="XP"
+      />
       <Stat
         icon={<Streak className="text-amber size-5" aria-hidden />}
         value={progress.streakDays}
@@ -135,7 +139,9 @@ function RankOrSignIn() {
         Rank <span className="tabnums">#{rank.rank}</span>
       </p>
       <p className={cn("text-subtle text-xs")}>
-        {rank.totalRanked >= 10 ? `of ${rank.totalRanked} · top ${percentile}%` : `of ${rank.totalRanked} players`}
+        {rank.totalRanked >= 10
+          ? `of ${rank.totalRanked} · top ${percentile}%`
+          : `of ${rank.totalRanked} players`}
       </p>
     </div>
   );
