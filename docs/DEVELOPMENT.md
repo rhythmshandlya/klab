@@ -71,6 +71,7 @@ Useful commands:
 | `pnpm check:fast` | Formatting, lint, and TypeScript checks |
 | `pnpm test:all` | Application and API/Postgres test suites |
 | `pnpm verify` | Complete non-browser CI quality gate |
+| `pnpm security:audit` | Fail on high or critical production dependency advisories |
 | `pnpm test:e2e` | Production-build Playwright suite |
 | `pnpm smoke:production [url]` | Health and authorization smoke checks against a deployment |
 | `pnpm new:problem <slug> <title>` | Scaffold a Kubernetes incident problem |
@@ -97,11 +98,12 @@ for schema drift.
 
 Every pull request runs two secret-free jobs:
 
-1. `Quality` installs from the frozen lockfile and runs `pnpm verify`.
+1. `Quality` installs from the frozen lockfile and runs `pnpm verify`, including a production
+   dependency audit that blocks high and critical advisories.
 2. `End-to-end` installs Chromium and runs the Playwright production-build suite.
 
-After reviewed code reaches `main`, the same workflow waits for both jobs, pulls the protected
-production configuration from Vercel, builds a prebuilt artifact, deploys it, and runs
+After reviewed code reaches `main`, the same workflow waits for both jobs and asks Vercel to build
+the source remotely, where protected production values never leave Vercel. It then runs
 authorization and health smoke checks against the immutable deployment URL. Pull-request code
 never receives the Vercel production token.
 

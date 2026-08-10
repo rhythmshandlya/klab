@@ -46,6 +46,7 @@ pnpm dev               # http://localhost:3000
 | `pnpm test` / `pnpm test:watch` | Unit + integration tests (Vitest) |
 | `pnpm test:api` / `pnpm test:all` | Postgres-backed API tests / all Vitest suites |
 | `pnpm check:fast` / `pnpm verify` | Local pre-push checks / complete CI quality gate |
+| `pnpm security:audit` | Block high or critical production dependency advisories |
 | `pnpm test:e2e` | End-to-end tests (Playwright; run `pnpm exec playwright install chromium` once) |
 | `pnpm format` / `pnpm format:check` | Prettier write / check |
 | `pnpm doctor` | Validate Node, pnpm, dependencies, Git, and local backend configuration |
