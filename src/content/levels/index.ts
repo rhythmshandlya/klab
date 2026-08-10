@@ -108,17 +108,3 @@ export const LEVEL_CATALOG: readonly LevelSummary[] = LEVELS.map((level) => ({
   incidentSource: level.incidentSource,
   blurb: level.blurb,
 }));
-
-export function missingPrerequisites(
-  level: Pick<ProblemLevel, "prerequisites">,
-  solvedSlugs: ReadonlySet<string>,
-): string[] {
-  return level.prerequisites.filter((slug) => !solvedSlugs.has(slug));
-}
-
-export function isLevelLocked(
-  level: Pick<ProblemLevel, "prerequisites">,
-  solvedSlugs: ReadonlySet<string>,
-): boolean {
-  return missingPrerequisites(level, solvedSlugs).length > 0;
-}

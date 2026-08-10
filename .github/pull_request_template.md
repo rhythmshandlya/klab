@@ -9,10 +9,10 @@ Closes #
 ## Type
 
 - [ ] Bug fix
-- [ ] New level / template / docs lesson (content)
+- [ ] New level / template / learning lesson (content)
 - [ ] Feature
 - [ ] Refactor / chore
-- [ ] Docs
+- [ ] Learn content
 
 ## Checklist
 

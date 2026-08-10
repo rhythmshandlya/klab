@@ -29,7 +29,7 @@ export function DocsPage({ page }: { page: CurriculumLessonPage }) {
 
         <div className="text-subtle flex items-center gap-2 text-xs">
           <Link href="/docs" className="hover:text-foreground transition-colors">
-            Docs
+            Learn
           </Link>
           <span aria-hidden>/</span>
           <span>{current.section}</span>

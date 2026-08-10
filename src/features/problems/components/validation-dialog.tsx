@@ -102,7 +102,7 @@ export function ValidationDialog({
                   className="text-blue inline-flex items-center gap-1.5 text-sm font-medium hover:underline"
                 >
                   <icons.docs className="size-4" aria-hidden />
-                  Read the related docs lesson
+                  Open the related lesson
                 </Link>
               ) : null}
               {level.postSolveExplanation.recommendedNextSlugs.length > 0 ? (

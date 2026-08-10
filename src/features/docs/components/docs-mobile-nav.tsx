@@ -40,10 +40,10 @@ export function DocsMobileNav({
         <Dialog.Overlay className="anim-overlay fixed inset-0 z-50 bg-black/70 backdrop-blur-sm lg:hidden" />
         <Dialog.Content className="anim-drawer-left border-border bg-panel-elevated fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] flex-col border-r shadow-2xl lg:hidden">
           <Dialog.Title asChild>
-            <VisuallyHidden>Documentation navigation</VisuallyHidden>
+            <VisuallyHidden>Learning navigation</VisuallyHidden>
           </Dialog.Title>
           <div className="border-border flex h-12 shrink-0 items-center justify-between border-b px-4">
-            <span className="text-foreground text-sm font-semibold">Documentation</span>
+            <span className="text-foreground text-sm font-semibold">Learn</span>
             <Dialog.Close asChild>
               <button
                 type="button"

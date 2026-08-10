@@ -7,12 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import {
-  getLevelBySlug,
-  isLevelLocked,
-  missingPrerequisites,
-  type LevelSummary,
-} from "@/content/levels";
+import { type LevelSummary } from "@/content/levels";
 import type { Difficulty, KubernetesConcept, ProblemLearningPath } from "@/lib/domain/types";
 import { mutateProgress } from "@/lib/storage/progress-store";
 import { useProgress } from "@/features/progress/use-progress";
@@ -25,7 +20,7 @@ import { cn } from "@/lib/utils/cn";
  * state, bookmarks) read from localStorage.
  */
 
-type LevelStatus = "solved" | "in-progress" | "unsolved" | "locked";
+type LevelStatus = "solved" | "in-progress" | "unsolved";
 type StatusFilter = "all" | LevelStatus;
 type Tab = "all" | "architects" | "incidents" | "saved" | "completed";
 type Sort = "featured" | "xp" | "time" | "success" | "title";
@@ -110,7 +105,6 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "solved", label: "Solved" },
   { id: "in-progress", label: "In progress" },
   { id: "unsolved", label: "Unsolved" },
-  { id: "locked", label: "Locked" },
 ];
 
 /** XP needed per player level (display only). */
@@ -148,11 +142,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     ),
   );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
-    readChoice(
-      searchParams.get("status"),
-      ["all", "solved", "in-progress", "unsolved", "locked"],
-      "all",
-    ),
+    readChoice(searchParams.get("status"), ["all", "solved", "in-progress", "unsolved"], "all"),
   );
   const [difficultyFilter, setDifficultyFilter] = useState<Set<Difficulty>>(() =>
     readSet(searchParams.get("difficulty"), DIFFICULTIES),
@@ -177,7 +167,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
   const statusOf = useCallback(
     (level: LevelSummary): LevelStatus => {
       if (solved.has(level.slug)) return "solved";
-      if (isLevelLocked(level, solved)) return "locked";
       if (attempted.has(level.slug)) return "in-progress";
       return "unsolved";
     },
@@ -190,7 +179,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
       solved: 0,
       "in-progress": 0,
       unsolved: 0,
-      locked: 0,
     };
     for (const level of catalog) counts[statusOf(level)] += 1;
     return counts;
@@ -295,7 +283,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
       setStatusFilter(
         readChoice<StatusFilter>(
           params.get("status"),
-          ["all", "solved", "in-progress", "unsolved", "locked"],
+          ["all", "solved", "in-progress", "unsolved"],
           "all",
         ),
       );
@@ -357,20 +345,18 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     mutateProgress({ kind: "setSaved", slug, saved: !saved.has(slug) });
   };
 
-  const unlockedUnsolved = catalog.filter(
+  const availableUnsolved = catalog.filter(
     (l) => statusOf(l) === "unsolved" || statusOf(l) === "in-progress",
   );
   const dailyChallenge =
-    unlockedUnsolved.length > 0
-      ? unlockedUnsolved[hashString(localDay()) % unlockedUnsolved.length]
+    availableUnsolved.length > 0
+      ? availableUnsolved[hashString(localDay()) % availableUnsolved.length]
       : catalog[hashString(localDay()) % Math.max(1, catalog.length)];
   const continueLearning = catalog
     .filter((l) => attempted.has(l.slug) && !solved.has(l.slug))
     .slice(0, 3);
   const recommended = catalog
-    .filter(
-      (l) => !solved.has(l.slug) && !isLevelLocked(l, solved) && l.slug !== dailyChallenge?.slug,
-    )
+    .filter((l) => !solved.has(l.slug) && l.slug !== dailyChallenge?.slug)
     .slice(0, 3);
 
   const topicsShown = showAllTopics ? topicCounts : topicCounts.slice(0, 8);
@@ -590,7 +576,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                       status={status}
                       saved={saved.has(level.slug)}
                       onToggleSaved={() => toggleBookmark(level.slug)}
-                      solvedSlugs={solved}
                     />
                   ))
                 )}
@@ -747,7 +732,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                   label="Unsolved"
                   value={statusCounts.unsolved}
                 />
-                <ProgressLegend color="bg-amber" label="Locked" value={statusCounts.locked} />
               </ul>
             </div>
             <div className="border-border mt-4 border-t pt-3">
@@ -1088,7 +1072,6 @@ function Th({ className, children }: { className?: string; children: React.React
 function StatusIcon({ status }: { status: LevelStatus }) {
   if (status === "solved")
     return <icons.success className="text-green size-4" aria-label="Solved" />;
-  if (status === "locked") return <icons.lock className="text-subtle size-4" aria-label="Locked" />;
   if (status === "in-progress")
     return (
       <span
@@ -1111,18 +1094,13 @@ function ProblemRow({
   status,
   saved,
   onToggleSaved,
-  solvedSlugs,
 }: {
   level: LevelSummary;
   status: LevelStatus;
   saved: boolean;
   onToggleSaved: () => void;
-  solvedSlugs: ReadonlySet<string>;
 }) {
   const meta = DIFFICULTY_META[level.difficulty];
-  const locked = status === "locked";
-  const missing = missingPrerequisites(level, solvedSlugs);
-  const firstMissing = missing[0] ? getLevelBySlug(missing[0]) : undefined;
   const statsLabel =
     level.statsSource === "client-validated"
       ? `Client-validated telemetry, n=${level.statsSampleSize ?? 0}`
@@ -1130,12 +1108,7 @@ function ProblemRow({
 
   const title = (
     <>
-      <span
-        className={cn(
-          "flex flex-wrap items-center gap-1.5 text-sm font-medium",
-          locked ? "text-muted" : "text-foreground",
-        )}
-      >
+      <span className="text-foreground flex flex-wrap items-center gap-1.5 text-sm font-medium">
         <span>{level.title}</span>
         {level.challengeMode === "build" ? (
           <span className="text-purple inline-flex items-center gap-1 text-[10px] font-medium tracking-wide uppercase">
@@ -1150,32 +1123,19 @@ function ProblemRow({
           </span>
         ) : null}
       </span>
-      <span className="text-subtle mt-0.5 block truncate text-xs">
-        {locked
-          ? `Locked — complete ${firstMissing?.title ?? missing[0]}${missing.length > 1 ? ` +${missing.length - 1}` : ""}`
-          : level.blurb}
-      </span>
+      <span className="text-subtle mt-0.5 block truncate text-xs">{level.blurb}</span>
     </>
   );
 
   return (
-    <tr
-      className={cn(
-        "border-border border-b transition-colors last:border-b-0",
-        locked ? "opacity-60" : "hover:bg-panel-hover",
-      )}
-    >
+    <tr className="border-border hover:bg-panel-hover border-b transition-colors last:border-b-0">
       <td className="py-3 pr-1 pl-4 align-middle">
         <StatusIcon status={status} />
       </td>
       <td className="max-w-0 px-3 py-3 align-middle">
-        {locked ? (
-          title
-        ) : (
-          <Link href={`/problems/${level.slug}`} className="group block">
-            {title}
-          </Link>
-        )}
+        <Link href={`/problems/${level.slug}`} className="group block">
+          {title}
+        </Link>
       </td>
       <td className="px-3 py-3 align-middle">
         <Badge tone={meta.tone}>{meta.label}</Badge>

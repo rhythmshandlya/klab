@@ -1,5 +1,5 @@
-name: Docs improvement
-description: Suggest a new or improved docs lesson
+name: Learn improvement
+description: Suggest a new or improved learning lesson
 labels: [docs, content]
 body:
   - type: input

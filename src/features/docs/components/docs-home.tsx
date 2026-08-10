@@ -149,7 +149,7 @@ export function DocsHome({ catalog }: { catalog: CurriculumCatalog }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search lessons and concepts…"
-              aria-label="Search documentation"
+              aria-label="Search lessons"
               className="border-border bg-panel text-foreground placeholder:text-subtle focus:border-blue/60 h-10 w-full rounded-md border pr-3 pl-9 text-sm transition-colors outline-none"
             />
           </label>

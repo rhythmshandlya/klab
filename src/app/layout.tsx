@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s · klab",
   },
   description:
-    "A gamified, hands-on Kubernetes learning platform. Debug broken clusters, experiment in a sandbox, and study interactive docs — all simulated in your browser.",
+    "A gamified, hands-on Kubernetes learning platform. Debug broken clusters, experiment in a sandbox, and study interactive lessons — all simulated in your browser.",
   applicationName: "klab",
   keywords: ["kubernetes", "k8s", "learning", "debugging", "sandbox", "devtools"],
 };

@@ -25,7 +25,7 @@ const AREAS = [
   {
     href: "/docs",
     icon: "docs",
-    title: "Docs",
+    title: "Learn",
     description:
       "Interactive lessons where concepts animate and reconcile live. Read, run inline examples, and open any snippet straight into the playground.",
     accent: "purple",
@@ -63,7 +63,7 @@ export function Landing() {
             href="/docs"
             className="border-border bg-panel text-foreground hover:border-border-strong hover:bg-panel-hover focus-visible:ring-ring focus-visible:ring-offset-app inline-flex h-11 items-center gap-2 rounded-md border px-5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
-            Explore the docs
+            Start learning
           </Link>
         </div>
 

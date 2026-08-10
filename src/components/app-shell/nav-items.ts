@@ -10,7 +10,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/problems", label: "Problems", icon: "problems" },
   { href: "/playground", label: "Playground", icon: "playground" },
-  { href: "/docs", label: "Docs", icon: "docs" },
+  { href: "/docs", label: "Learn", icon: "docs" },
   { href: "/community", label: "Community", icon: "community" },
 ];
 

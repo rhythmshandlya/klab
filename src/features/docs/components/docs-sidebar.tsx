@@ -45,10 +45,10 @@ export function DocsSidebar({
   const pct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
 
   return (
-    <nav aria-label="Documentation" className="space-y-5 px-4">
+    <nav aria-label="Learning" className="space-y-5 px-4">
       <div>
         <p className="text-subtle mb-3 text-[11px] font-semibold tracking-[0.12em] uppercase">
-          Documentation
+          Learn
         </p>
         <div className="border-border bg-panel rounded-md border p-3">
           <p className="text-foreground flex items-center gap-2 text-sm font-semibold">

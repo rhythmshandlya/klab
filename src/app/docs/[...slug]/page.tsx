@@ -21,7 +21,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const key = slug.join("/");
   const summary = curriculumLessons(getCurriculumCatalog()).find((lesson) => lesson.key === key);
-  return { title: summary?.title ?? "Docs" };
+  return { title: summary?.title ?? "Learn" };
 }
 
 export default async function DocsSlugPage({ params }: { params: Promise<{ slug: string[] }> }) {

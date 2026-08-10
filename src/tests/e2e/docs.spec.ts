@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Docs E2E: open an interactive lesson, start its inline lab, and confirm the lab's
+ * Learn E2E: open an interactive lesson, start its inline lab, and confirm the lab's
  * cluster reconciles (the Pod becomes Ready and the Service gets an endpoint).
  */
-test("open a docs lesson and run its inline lab", async ({ page }) => {
+test("open a Learn lesson and run its inline lab", async ({ page }) => {
   await page.goto("/docs/debugging/readiness-probes");
 
   await test.step("lesson content renders", async () => {
