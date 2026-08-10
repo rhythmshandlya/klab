@@ -29,6 +29,13 @@
       "when": 1786358302961,
       "tag": "0003_cold_speed",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786375666513,
+      "tag": "0004_slow_vindicator",
+      "breakpoints": true
     }
   ]
 }

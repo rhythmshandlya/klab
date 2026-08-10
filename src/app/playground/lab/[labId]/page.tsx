@@ -2,12 +2,9 @@ import type { Metadata } from "next";
 
 import { LabWorkspace } from "@/features/playground/components/lab-workspace";
 
-export const metadata: Metadata = { title: "Lab · Playground" };
+export const metadata: Metadata = { title: "Playground" };
 
-/**
- * A saved lab — the user's own work. Labs live in browser storage, so the
- * lookup happens client-side inside LabWorkspace.
- */
+/** Compatibility route for bookmarks created before the Playground rename. */
 export default async function PlaygroundLabPage({
   params,
 }: {

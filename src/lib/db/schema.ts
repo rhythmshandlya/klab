@@ -202,12 +202,19 @@ export const sandboxes = pgTable(
     name: text("name").notNull(),
     templateId: text("template_id").notNull(),
     files: jsonb("files").notNull(),
+    description: text("description").notNull().default(""),
+    starred: boolean("starred").notNull().default(false),
+    visibility: text("visibility").notNull().default("private"),
+    activeFilePath: text("active_file_path").notNull().default(""),
     savedAt: timestamp("saved_at").notNull(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    lastOpenedAt: timestamp("last_opened_at").notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex("sandboxes_user_client_id_key").on(t.userId, t.clientId),
     index("sandboxes_user_updated_idx").on(t.userId, t.updatedAt),
+    index("sandboxes_user_last_opened_idx").on(t.userId, t.lastOpenedAt),
+    index("sandboxes_user_starred_idx").on(t.userId, t.starred, t.updatedAt),
   ],
 );
 

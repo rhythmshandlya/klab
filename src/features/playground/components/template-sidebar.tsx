@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { icons } from "@/components/icons";
-import { PLAYGROUND_TEMPLATES, getTemplateById } from "@/content/playground-templates";
-import type { SavedLab } from "@/lib/labs/contracts";
+import { PLAYGROUND_TEMPLATES } from "@/content/playground-templates";
+import type { PlaygroundTemplate } from "@/lib/domain/types";
+import type { SavedPlayground } from "@/lib/labs/contracts";
 import { cn } from "@/lib/utils/cn";
 
-import { useLabsStore } from "../labs-store";
+import { usePlaygroundsStore } from "../labs-store";
 import { usePlaygroundStore } from "../playground-store";
 import { CommandReference } from "./command-reference";
 
@@ -46,16 +47,34 @@ spec:
 `,
 };
 
-export function TemplateSidebar({
-  currentTemplateId,
-  currentLabId,
-}: {
-  currentTemplateId: string;
-  currentLabId?: string;
-}) {
-  const files = usePlaygroundStore((s) => s.files);
-  const addFile = usePlaygroundStore((s) => s.addFile);
-  const setFile = usePlaygroundStore((s) => s.setFile);
+function templateFiles(template: PlaygroundTemplate): Record<string, string> {
+  return Object.fromEntries(template.files.map((file) => [file.path, file.initialValue]));
+}
+
+export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?: string }) {
+  const router = useRouter();
+  const files = usePlaygroundStore((state) => state.files);
+  const addFile = usePlaygroundStore((state) => state.addFile);
+  const setFile = usePlaygroundStore((state) => state.setFile);
+  const playgrounds = usePlaygroundsStore((state) => state.playgrounds);
+  const hydrated = usePlaygroundsStore((state) => state.hydrated);
+  const create = usePlaygroundsStore((state) => state.create);
+  const update = usePlaygroundsStore((state) => state.update);
+  const duplicate = usePlaygroundsStore((state) => state.duplicate);
+  const remove = usePlaygroundsStore((state) => state.remove);
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const recent = playgrounds.slice(0, 5);
+  const starred = playgrounds.filter((playground) => playground.starred);
+  const results = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return normalized
+      ? playgrounds.filter((playground) => playground.name.toLowerCase().includes(normalized))
+      : [];
+  }, [playgrounds, query]);
 
   const insertSnippet = (kind: string) => {
     const path = `${kind.toLowerCase()}-${Object.keys(files).length + 1}.yaml`;
@@ -63,34 +82,153 @@ export function TemplateSidebar({
     setFile(path, SNIPPETS[kind] ?? "");
   };
 
+  const startFrom = async (template: PlaygroundTemplate) => {
+    if (!hydrated || creating) return;
+    setCreating(true);
+    try {
+      const created = await create({
+        templateId: template.id,
+        files: templateFiles(template),
+        activeFilePath: template.files[0]?.path,
+      });
+      router.push(`/playground/p/${created.id}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDuplicate = async (playground: SavedPlayground) => {
+    if (currentPlaygroundId === playground.id) {
+      const state = usePlaygroundStore.getState();
+      await update(playground.id, {
+        files: state.files,
+        activeFilePath: state.activeFilePath,
+      });
+    }
+    const created = await duplicate(playground.id);
+    if (created) router.push(`/playground/p/${created.id}`);
+  };
+
+  const handleDelete = async (playground: SavedPlayground) => {
+    if (pendingDelete !== playground.id) {
+      setPendingDelete(playground.id);
+      return;
+    }
+    setPendingDelete(null);
+    await remove(playground.id);
+    if (currentPlaygroundId === playground.id) router.push("/playground");
+  };
+
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-3 text-sm">
-      <Section title="My labs">
-        <MyLabs currentLabId={currentLabId} />
-      </Section>
+      <button
+        type="button"
+        onClick={() => void startFrom(PLAYGROUND_TEMPLATES[0]!)}
+        disabled={!hydrated || creating}
+        className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring flex h-9 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+      >
+        <icons.plus className="size-4" aria-hidden />
+        {creating ? "Creating…" : "New Playground"}
+      </button>
+
+      <div>
+        <label htmlFor="playground-search" className="sr-only">
+          Search playgrounds
+        </label>
+        <div className="relative">
+          <icons.search className="text-subtle pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+          <input
+            id="playground-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search playgrounds"
+            className="border-border bg-code text-foreground placeholder:text-subtle focus-visible:ring-ring h-8 w-full rounded-md border pr-2 pl-8 text-xs outline-none focus-visible:ring-2"
+          />
+        </div>
+      </div>
+
+      {query.trim() ? (
+        <Section title="Search results">
+          <PlaygroundList
+            playgrounds={results}
+            currentPlaygroundId={currentPlaygroundId}
+            pendingDelete={pendingDelete}
+            onStar={(playground) => void update(playground.id, { starred: !playground.starred })}
+            onDuplicate={(playground) => void handleDuplicate(playground)}
+            onDelete={(playground) => void handleDelete(playground)}
+          />
+        </Section>
+      ) : (
+        <>
+          <Section title="Recent">
+            <PlaygroundList
+              playgrounds={recent}
+              currentPlaygroundId={currentPlaygroundId}
+              pendingDelete={pendingDelete}
+              onStar={(playground) => void update(playground.id, { starred: !playground.starred })}
+              onDuplicate={(playground) => void handleDuplicate(playground)}
+              onDelete={(playground) => void handleDelete(playground)}
+            />
+            {playgrounds.length > 5 ? (
+              <button
+                type="button"
+                onClick={() => setShowAll((value) => !value)}
+                className="text-blue hover:text-blue/80 mt-2 flex items-center gap-1 px-2 text-xs font-medium"
+              >
+                {showAll ? "Hide all playgrounds" : "View all playgrounds"}
+                <icons.arrowRight className="size-3" aria-hidden />
+              </button>
+            ) : null}
+          </Section>
+
+          {starred.length ? (
+            <Section title="Starred">
+              <PlaygroundList
+                playgrounds={starred}
+                currentPlaygroundId={currentPlaygroundId}
+                pendingDelete={pendingDelete}
+                onStar={(playground) =>
+                  void update(playground.id, { starred: !playground.starred })
+                }
+                onDuplicate={(playground) => void handleDuplicate(playground)}
+                onDelete={(playground) => void handleDelete(playground)}
+              />
+            </Section>
+          ) : null}
+
+          {showAll ? (
+            <Section title="All Playgrounds">
+              <PlaygroundList
+                playgrounds={playgrounds}
+                currentPlaygroundId={currentPlaygroundId}
+                pendingDelete={pendingDelete}
+                onStar={(playground) =>
+                  void update(playground.id, { starred: !playground.starred })
+                }
+                onDuplicate={(playground) => void handleDuplicate(playground)}
+                onDelete={(playground) => void handleDelete(playground)}
+              />
+            </Section>
+          ) : null}
+        </>
+      )}
 
       <Section title="Templates">
         <ul className="space-y-0.5">
-          {PLAYGROUND_TEMPLATES.map((t) => {
-            const Icon = icons.deployment;
-            const active = currentLabId === undefined && t.id === currentTemplateId;
-            return (
-              <li key={t.id}>
-                <Link
-                  href={`/playground/${t.id}`}
-                  className={cn(
-                    "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors",
-                    active
-                      ? "bg-panel-hover text-foreground"
-                      : "text-muted hover:bg-panel-hover hover:text-foreground",
-                  )}
-                >
-                  <Icon className="text-subtle size-3.5" aria-hidden />
-                  {t.title}
-                </Link>
-              </li>
-            );
-          })}
+          {PLAYGROUND_TEMPLATES.map((template) => (
+            <li key={template.id}>
+              <button
+                type="button"
+                onClick={() => void startFrom(template)}
+                disabled={!hydrated || creating}
+                className="text-muted hover:bg-panel-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors disabled:opacity-50"
+              >
+                <icons.deployment className="text-subtle size-3.5" aria-hidden />
+                {template.title}
+              </button>
+            </li>
+          ))}
         </ul>
       </Section>
 
@@ -116,131 +254,78 @@ export function TemplateSidebar({
   );
 }
 
-/**
- * The user's saved labs — first-class workspaces with their own routes. Saving
- * happens in the workspace toolbar ("Save as lab"); this list opens, renames,
- * and deletes them.
- */
-function MyLabs({ currentLabId }: { currentLabId?: string }) {
-  const router = useRouter();
-  const labs = useLabsStore((s) => s.labs);
-  const hydrated = useLabsStore((s) => s.hydrated);
-  const hydrate = useLabsStore((s) => s.hydrate);
-  const update = useLabsStore((s) => s.update);
-  const remove = useLabsStore((s) => s.remove);
-
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!useLabsStore.getState().hydrated) hydrate();
-  }, [hydrate]);
-
-  const commitRename = (lab: SavedLab) => {
-    if (renameValue.trim()) void update(lab.id, { name: renameValue });
-    setRenamingId(null);
-  };
-
-  const handleDelete = (lab: SavedLab) => {
-    if (pendingDelete !== lab.id) {
-      setPendingDelete(lab.id);
-      return;
-    }
-    setPendingDelete(null);
-    void remove(lab.id);
-    // Deleting the lab you're standing in sends you back to its template.
-    if (currentLabId === lab.id) {
-      const fallback = getTemplateById(lab.templateId) ? lab.templateId : "";
-      router.push(`/playground/${fallback}`);
-    }
-  };
-
-  if (!hydrated || labs.length === 0) {
-    return (
-      <p className="text-subtle px-2 text-xs leading-relaxed">
-        Start from a template, then use <span className="text-muted font-medium">Save as lab</span>{" "}
-        in the toolbar to keep your work here.
-      </p>
-    );
+function PlaygroundList({
+  playgrounds,
+  currentPlaygroundId,
+  pendingDelete,
+  onStar,
+  onDuplicate,
+  onDelete,
+}: {
+  playgrounds: SavedPlayground[];
+  currentPlaygroundId?: string;
+  pendingDelete: string | null;
+  onStar: (playground: SavedPlayground) => void;
+  onDuplicate: (playground: SavedPlayground) => void;
+  onDelete: (playground: SavedPlayground) => void;
+}) {
+  if (!playgrounds.length) {
+    return <p className="text-subtle px-2 text-xs">No playgrounds yet.</p>;
   }
 
   return (
     <ul className="space-y-0.5">
-      {labs.map((lab) => {
-        const active = lab.id === currentLabId;
-        const template = getTemplateById(lab.templateId);
-        const armed = pendingDelete === lab.id;
+      {playgrounds.map((playground) => {
+        const active = playground.id === currentPlaygroundId;
+        const armed = pendingDelete === playground.id;
         return (
-          <li key={lab.id} className="group relative">
-            {renamingId === lab.id ? (
-              <input
-                autoFocus
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onBlur={() => commitRename(lab)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitRename(lab);
-                  if (e.key === "Escape") setRenamingId(null);
-                }}
-                aria-label={`Rename ${lab.name}`}
-                className="border-border bg-code text-foreground focus-visible:ring-ring mx-2 my-1 h-7 w-[calc(100%-1rem)] rounded border px-2 text-xs outline-none focus-visible:ring-2"
+          <li key={playground.id} className="group relative">
+            <Link
+              href={`/playground/p/${playground.id}`}
+              className={cn(
+                "flex items-center gap-2 rounded-md py-1.5 pr-20 pl-2 transition-colors",
+                active
+                  ? "bg-panel-hover text-foreground"
+                  : "text-muted hover:bg-panel-hover hover:text-foreground",
+              )}
+            >
+              <icons.yaml
+                className={cn("size-3.5 shrink-0", active ? "text-blue" : "text-subtle")}
               />
-            ) : (
-              <>
-                <Link
-                  href={`/playground/lab/${lab.id}`}
-                  className={cn(
-                    "flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors",
-                    active
-                      ? "bg-panel-hover text-foreground"
-                      : "text-muted hover:bg-panel-hover hover:text-foreground",
-                  )}
-                >
-                  <icons.bookmark
-                    className={cn("mt-0.5 size-3.5 shrink-0", active ? "text-blue" : "text-subtle")}
-                    aria-hidden
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{lab.name}</span>
-                    <span className="text-subtle block truncate text-[10px]">
-                      {template?.title ?? lab.templateId} · {timeAgo(lab.updatedAt)}
-                    </span>
-                  </span>
-                </Link>
-                <span className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
-                  <button
-                    type="button"
-                    aria-label={`Rename ${lab.name}`}
-                    onClick={() => {
-                      setRenamingId(lab.id);
-                      setRenameValue(lab.name);
-                    }}
-                    className="text-subtle hover:text-foreground rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  >
-                    <icons.edit className="size-3" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={armed ? `Confirm delete ${lab.name}` : `Delete ${lab.name}`}
-                    onClick={() => handleDelete(lab)}
-                    onBlur={() => setPendingDelete(null)}
-                    className={cn(
-                      "rounded p-1 transition-all",
-                      armed
-                        ? "text-red bg-red/10 opacity-100"
-                        : "text-subtle hover:text-red opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-                    )}
-                  >
-                    {armed ? (
-                      <span className="px-0.5 text-[10px] font-semibold">Sure?</span>
-                    ) : (
-                      <icons.trash className="size-3" aria-hidden />
-                    )}
-                  </button>
-                </span>
-              </>
-            )}
+              <span className="min-w-0 flex-1 truncate">{playground.name}</span>
+              <span className="text-subtle shrink-0 text-[10px]">
+                {timeAgo(playground.lastOpenedAt)}
+              </span>
+            </Link>
+            <span className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+              <ActionButton
+                label={`${playground.starred ? "Unstar" : "Star"} ${playground.name}`}
+                onClick={() => onStar(playground)}
+                active={playground.starred}
+              >
+                <icons.star
+                  className="size-3"
+                  fill={playground.starred ? "currentColor" : "none"}
+                />
+              </ActionButton>
+              <ActionButton
+                label={`Duplicate ${playground.name}`}
+                onClick={() => onDuplicate(playground)}
+              >
+                <icons.copy className="size-3" />
+              </ActionButton>
+              <ActionButton
+                label={armed ? `Confirm delete ${playground.name}` : `Delete ${playground.name}`}
+                onClick={() => onDelete(playground)}
+                destructive={armed}
+              >
+                {armed ? (
+                  <span className="text-[9px] font-bold">Sure?</span>
+                ) : (
+                  <icons.trash className="size-3" />
+                )}
+              </ActionButton>
+            </span>
           </li>
         );
       })}
@@ -248,14 +333,47 @@ function MyLabs({ currentLabId }: { currentLabId?: string }) {
   );
 }
 
+function ActionButton({
+  label,
+  onClick,
+  children,
+  active,
+  destructive,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  active?: boolean;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "rounded p-1",
+        active
+          ? "text-amber"
+          : destructive
+            ? "bg-red/10 text-red"
+            : "text-subtle hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function timeAgo(at: number): string {
   const seconds = Math.max(0, Math.floor((Date.now() - at) / 1000));
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return "now";
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

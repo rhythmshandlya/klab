@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorBoundary } from "@/components/app-shell/error-boundary";
 import { EventsTimeline } from "@/components/events/events-timeline";
@@ -20,99 +20,166 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlaygroundTemplate } from "@/lib/domain/types";
 import { runCommandLine } from "@/lib/kube/command-runner";
-import type { SavedLab } from "@/lib/labs/contracts";
+import type { SavedPlayground } from "@/lib/labs/contracts";
 import { takePlaygroundHandoff } from "@/lib/storage/playground-handoff";
 import { cn } from "@/lib/utils/cn";
 
 import type { SelectedObject } from "@/features/problems/level-store";
-import { useSimulator } from "@/features/problems/hooks/use-simulator";
+import { useSimulator, type SimulatorBootSpec } from "@/features/problems/hooks/use-simulator";
 
-import { useLabsStore } from "../labs-store";
+import { usePlaygroundsStore } from "../labs-store";
 import { usePlaygroundStore } from "../playground-store";
 import { MultiFileEditor } from "./multi-file-editor";
 import { NetworkActivity } from "./network-activity";
 import { ResourceSummary } from "./resource-summary";
-import { SaveLabDialog } from "./save-lab-dialog";
 import { TemplateSidebar } from "./template-sidebar";
 
 const ServiceTopology = dynamic(
-  () => import("@/components/topology/service-topology").then((m) => m.ServiceTopology),
+  () => import("@/components/topology/service-topology").then((module) => module.ServiceTopology),
   { ssr: false, loading: () => <Skeleton className="m-3 h-[calc(100%-1.5rem)]" /> },
 );
 
 const NAMESPACE = "default";
+const AUTOSAVE_DELAY_MS = 850;
 type RightTab = "explorer" | "network" | "events" | "resources";
+type SaveState = "idle" | "saving" | "saved" | "error";
 const RIGHT_TABS = ["explorer", "network", "events", "resources"] as const;
 
 export function PlaygroundWorkspace({
   template,
-  lab,
+  playground,
 }: {
   template: PlaygroundTemplate;
-  /** When set, the workspace edits this saved lab (files come from it, Save updates it). */
-  lab?: SavedLab;
+  playground?: SavedPlayground;
 }) {
-  const initTemplate = usePlaygroundStore((s) => s.initTemplate);
-  const loadFiles = usePlaygroundStore((s) => s.loadFiles);
+  const router = useRouter();
+  const initTemplate = usePlaygroundStore((state) => state.initTemplate);
+  const loadFiles = usePlaygroundStore((state) => state.loadFiles);
+  const contentRevision = usePlaygroundStore((state) => state.contentRevision);
+  const activeFilePath = usePlaygroundStore((state) => state.activeFilePath);
+  const hydrated = usePlaygroundsStore((state) => state.hydrated);
+  const createPlayground = usePlaygroundsStore((state) => state.create);
+  const updatePlayground = usePlaygroundsStore((state) => state.update);
+  const duplicatePlayground = usePlaygroundsStore((state) => state.duplicate);
+
+  const initializedKey = useRef<string | null>(null);
   useEffect(() => {
+    const key = playground?.id ?? `template:${template.id}`;
+    if (initializedKey.current === key) return;
+    initializedKey.current = key;
     initTemplate(template);
-    if (lab) {
-      loadFiles(lab.files);
+    if (playground) {
+      loadFiles(playground.files, playground.activeFilePath);
       return;
     }
-    // If a docs lab handed off manifests, load them into the editor (user applies).
     const handoff = takePlaygroundHandoff();
     if (handoff && Object.keys(handoff).length > 0) loadFiles(handoff);
-  }, [template, lab, initTemplate, loadFiles]);
+  }, [template, playground, initTemplate, loadFiles]);
 
-  const sim = useSimulator(template);
-  // Pane sizes survive reloads, same mechanism as the problems workspace.
+  const [simulatorBootSpec] = useState<SimulatorBootSpec>(() =>
+    playground
+      ? {
+          ...template,
+          initialManifests: [],
+          files: Object.entries(playground.files).map(([path, initialValue]) => ({
+            path,
+            initialValue,
+            applyAtBoot: true,
+          })),
+        }
+      : template,
+  );
+  const sim = useSimulator(simulatorBootSpec);
   const columnsLayout = usePersistedLayout("klab:layout:playground-workspace:columns");
   const centerLayout = usePersistedLayout("klab:layout:playground-workspace:center");
   const rightLayout = usePersistedLayout("klab:layout:playground-workspace:right");
   const [rightTab, setRightTab] = useState<RightTab>("explorer");
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [applying, setApplying] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [applyMessage, setApplyMessage] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [labSaveState, setLabSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const router = useRouter();
-  const createLab = useLabsStore((s) => s.create);
-  const updateLab = useLabsStore((s) => s.update);
+  const [saveState, setSaveState] = useState<SaveState>(playground ? "saved" : "idle");
+  const [title, setTitle] = useState(playground?.name ?? "Untitled Playground");
+  const creationPromise = useRef<Promise<SavedPlayground> | null>(null);
+  const saveVersion = useRef(0);
+  const lastSavedRevision = useRef(0);
+  const lastSavedActiveFile = useRef(playground?.activeFilePath ?? activeFilePath);
 
-  // "Save" on an open lab persists the current files back into it.
-  const handleSaveLab = useCallback(async () => {
-    if (!lab) return;
-    setLabSaveState("saving");
-    try {
-      await updateLab(lab.id, { files: usePlaygroundStore.getState().files });
-      setLabSaveState("saved");
-      setTimeout(() => setLabSaveState("idle"), 1500);
-    } catch {
-      setLabSaveState("error");
-    }
-  }, [lab, updateLab]);
-
-  // "Save as lab" (from a template) / "Save as…" (fork of a lab) creates and opens it.
-  const handleCreateLab = useCallback(
-    async (name: string) => {
-      const created = await createLab({
+  const createAndNavigate = useCallback(
+    async (name = title) => {
+      if (playground) return playground;
+      if (creationPromise.current) return creationPromise.current;
+      const state = usePlaygroundStore.getState();
+      setSaveState("saving");
+      const pending = createPlayground({
         name,
         templateId: template.id,
-        files: usePlaygroundStore.getState().files,
+        files: state.files,
+        activeFilePath: state.activeFilePath,
       });
-      router.push(`/playground/lab/${created.id}`);
+      creationPromise.current = pending;
+      try {
+        const created = await pending;
+        const latest = usePlaygroundStore.getState();
+        if (latest.contentRevision !== state.contentRevision) {
+          await updatePlayground(created.id, {
+            files: latest.files,
+            activeFilePath: latest.activeFilePath,
+          });
+        }
+        setSaveState("saved");
+        router.replace(`/playground/p/${created.id}`);
+        return created;
+      } catch (error) {
+        setSaveState("error");
+        creationPromise.current = null;
+        throw error;
+      }
     },
-    [createLab, template.id, router],
+    [createPlayground, playground, router, template.id, title, updatePlayground],
   );
 
-  // Topology spans every user namespace so e.g. the Namespaces template's team-a
-  // pod is visible; control-plane namespaces stay hidden.
+  // A template becomes an autosaved Playground on the user's first manifest edit.
+  useEffect(() => {
+    if (playground || !hydrated || contentRevision === 0) return;
+    const timeout = window.setTimeout(() => {
+      if (usePlaygroundStore.getState().contentRevision === 0) return;
+      void createAndNavigate().catch(() => undefined);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [contentRevision, createAndNavigate, hydrated, playground]);
+
+  // Persist manifest and active-tab changes without a manual Save action.
+  useEffect(() => {
+    if (!playground || !hydrated) return;
+    const contentChanged = contentRevision !== lastSavedRevision.current;
+    const activeChanged = activeFilePath !== lastSavedActiveFile.current;
+    if (!contentChanged && !activeChanged) return;
+
+    const version = ++saveVersion.current;
+    const timeout = window.setTimeout(() => {
+      setSaveState("saving");
+      const state = usePlaygroundStore.getState();
+      void updatePlayground(playground.id, {
+        files: state.files,
+        activeFilePath: state.activeFilePath,
+      })
+        .then(() => {
+          lastSavedRevision.current = state.contentRevision;
+          lastSavedActiveFile.current = state.activeFilePath;
+          if (saveVersion.current === version) setSaveState("saved");
+        })
+        .catch(() => {
+          if (saveVersion.current === version) setSaveState("error");
+        });
+    }, AUTOSAVE_DELAY_MS);
+    return () => window.clearTimeout(timeout);
+  }, [activeFilePath, contentRevision, hydrated, playground, updatePlayground]);
+
   const userNamespaces = useMemo(() => {
     const names = sim.snapshot.namespaces
-      .map((n) => n.metadata?.name ?? "")
-      .filter((n) => n !== "" && !n.startsWith("kube-"));
+      .map((namespace) => namespace.metadata?.name ?? "")
+      .filter((name) => name !== "" && !name.startsWith("kube-"));
     return names.length > 0 ? names : [NAMESPACE];
   }, [sim.snapshot.namespaces]);
 
@@ -129,8 +196,9 @@ export function PlaygroundWorkspace({
 
   const runCommand = useCallback(
     async (line: string): Promise<TerminalRunResult> => {
-      if (!sim.ready)
+      if (!sim.ready) {
         return { output: "Cluster is still booting — try again in a moment.", isError: true };
+      }
       const result = await runCommandLine(line, {
         simulator: sim.simulator,
         namespace: NAMESPACE,
@@ -143,8 +211,10 @@ export function PlaygroundWorkspace({
 
   const handleApply = useCallback(async () => {
     setApplying(true);
+    setApplyMessage(null);
     try {
-      await sim.applyFiles(usePlaygroundStore.getState().files);
+      const result = await sim.applyFiles(usePlaygroundStore.getState().files);
+      setApplyMessage(result.ok ? "Manifests applied" : result.error);
     } finally {
       setApplying(false);
     }
@@ -152,27 +222,70 @@ export function PlaygroundWorkspace({
 
   const handleReset = useCallback(async () => {
     await sim.reset();
-    if (lab) {
-      // In a lab, Reset returns to the lab's last-saved files, not the template.
-      const latest = useLabsStore.getState().labs.find((l) => l.id === lab.id);
-      usePlaygroundStore.getState().loadFiles(latest?.files ?? lab.files);
+    if (playground) {
+      const current = usePlaygroundsStore
+        .getState()
+        .playgrounds.find((candidate) => candidate.id === playground.id);
+      const files = current?.files ?? playground.files;
+      usePlaygroundStore
+        .getState()
+        .loadFiles(files, current?.activeFilePath ?? playground.activeFilePath);
+      await sim.applyFiles(files);
     } else {
       usePlaygroundStore.getState().resetToTemplate();
     }
     setSelected(null);
     setPaused(false);
-  }, [sim, lab]);
+    setApplyMessage(null);
+  }, [sim, playground]);
 
-  const handleCopy = useCallback(async () => {
-    const yaml = Object.values(usePlaygroundStore.getState().files).join("\n---\n");
+  const commitTitle = useCallback(async () => {
+    const next = title.trim() || "Untitled Playground";
+    setTitle(next);
+    setSaveState("saving");
     try {
-      await navigator.clipboard.writeText(yaml);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (playground) await updatePlayground(playground.id, { name: next });
+      else if (hydrated) await createAndNavigate(next);
+      setSaveState("saved");
     } catch {
-      /* clipboard unavailable */
+      setSaveState("error");
     }
-  }, []);
+  }, [createAndNavigate, hydrated, playground, title, updatePlayground]);
+
+  const handleDuplicate = useCallback(async () => {
+    if (!playground) return;
+    const state = usePlaygroundStore.getState();
+    setSaveState("saving");
+    try {
+      await updatePlayground(playground.id, {
+        files: state.files,
+        activeFilePath: state.activeFilePath,
+      });
+      const duplicate = await duplicatePlayground(playground.id);
+      setSaveState("saved");
+      if (duplicate) router.push(`/playground/p/${duplicate.id}`);
+    } catch {
+      setSaveState("error");
+    }
+  }, [duplicatePlayground, playground, router, updatePlayground]);
+
+  const handleExport = useCallback(() => {
+    const files = usePlaygroundStore.getState().files;
+    const yaml = Object.entries(files)
+      .map(([path, contents]) => `# ${path}\n${contents}`)
+      .join("\n---\n");
+    const url = URL.createObjectURL(new Blob([yaml], { type: "application/yaml" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "") || "playground"
+    }.yaml`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [title]);
 
   return (
     <div className="h-[calc(100dvh-3.5rem)] overflow-x-auto p-3">
@@ -183,7 +296,6 @@ export function PlaygroundWorkspace({
         onLayoutChanged={columnsLayout.onLayoutChanged}
         className="h-full min-w-[1080px]"
       >
-        {/* Left sidebar */}
         <ResizablePane
           id="rail-left"
           defaultSize="19%"
@@ -192,16 +304,15 @@ export function PlaygroundWorkspace({
           className="h-full"
         >
           <Panel className="h-full">
-            <PanelHeader title="Sandbox" icon={<icons.playground />} />
+            <PanelHeader title="Playgrounds" icon={<icons.playground />} />
             <div className="min-h-0 flex-1 overflow-hidden">
-              <TemplateSidebar currentTemplateId={template.id} currentLabId={lab?.id} />
+              <TemplateSidebar currentPlaygroundId={playground?.id} />
             </div>
           </Panel>
         </ResizablePane>
 
-        <ResizableHandle orientation="vertical" aria-label="Resize sandbox sidebar" />
+        <ResizableHandle orientation="vertical" aria-label="Resize playground sidebar" />
 
-        {/* Center column — vertical split so the editor/terminal ratio is adjustable. */}
         <ResizablePane id="center" minSize="32%" className="h-full">
           <ResizableGroup
             orientation="vertical"
@@ -212,56 +323,72 @@ export function PlaygroundWorkspace({
           >
             <ResizablePane id="center-editor" defaultSize="60%" minSize="20%" className="h-full">
               <Panel className="h-full">
-                <div className="border-border flex h-10 shrink-0 items-center justify-between border-b pr-2 pl-3">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="text-subtle shrink-0 text-[11px] font-semibold tracking-[0.08em] uppercase">
-                      {lab ? "Lab" : "Workspace"}
-                    </span>
-                    {lab ? (
-                      <span className="text-foreground truncate text-xs font-medium">
-                        {lab.name}
+                <div className="border-border flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-3 py-1.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <input
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      onBlur={() => void commitTitle()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                        if (event.key === "Escape") {
+                          setTitle(playground?.name ?? "Untitled Playground");
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      aria-label="Playground name"
+                      className="text-foreground focus:bg-code focus:ring-ring max-w-64 min-w-0 rounded px-1.5 py-1 text-sm font-semibold outline-none focus:ring-2"
+                    />
+                    <SaveIndicator state={saveState} transient={!playground} />
+                    {applyMessage ? (
+                      <span
+                        className={cn(
+                          "max-w-40 truncate text-[11px]",
+                          applyMessage === "Manifests applied" ? "text-green" : "text-red",
+                        )}
+                        role="status"
+                      >
+                        {applyMessage}
                       </span>
                     ) : null}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {lab ? (
-                      <>
-                        <ToolbarButton
-                          onClick={() => void handleSaveLab()}
-                          disabled={!sim.ready || labSaveState === "saving"}
-                        >
-                          <icons.bookmark aria-hidden />
-                          {labSaveState === "saving"
-                            ? "Saving…"
-                            : labSaveState === "saved"
-                              ? "Saved"
-                              : labSaveState === "error"
-                                ? "Retry save"
-                                : "Save"}
-                        </ToolbarButton>
-                        <ToolbarButton
-                          onClick={() => setSaveDialogOpen(true)}
-                          disabled={!sim.ready}
-                        >
-                          <icons.yaml aria-hidden />
-                          Save as…
-                        </ToolbarButton>
-                      </>
-                    ) : (
-                      <ToolbarButton onClick={() => setSaveDialogOpen(true)} disabled={!sim.ready}>
-                        <icons.bookmark aria-hidden />
-                        Save as lab
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {playground ? (
+                      <ToolbarButton
+                        onClick={() =>
+                          void updatePlayground(playground.id, { starred: !playground.starred })
+                        }
+                        label={playground.starred ? "Unstar" : "Star"}
+                      >
+                        <icons.star
+                          fill={playground.starred ? "currentColor" : "none"}
+                          aria-hidden
+                        />
                       </ToolbarButton>
-                    )}
-                    <ToolbarButton onClick={() => void handleCopy()} disabled={!sim.ready}>
-                      <icons.yaml aria-hidden />
-                      {copied ? "Copied" : "Copy YAML"}
+                    ) : null}
+                    {playground ? (
+                      <ToolbarButton onClick={() => void handleDuplicate()} label="Duplicate">
+                        <icons.copy aria-hidden />
+                        Duplicate
+                      </ToolbarButton>
+                    ) : null}
+                    <ToolbarButton onClick={handleExport} label="Export YAML">
+                      <icons.download aria-hidden />
+                      Export
                     </ToolbarButton>
-                    <ToolbarButton onClick={togglePause} disabled={!sim.ready}>
+                    <ToolbarButton
+                      onClick={togglePause}
+                      disabled={!sim.ready}
+                      label={paused ? "Resume" : "Pause"}
+                    >
                       {paused ? <icons.run aria-hidden /> : <icons.pause aria-hidden />}
                       {paused ? "Resume" : "Pause"}
                     </ToolbarButton>
-                    <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
+                    <ToolbarButton
+                      onClick={() => void handleReset()}
+                      disabled={!sim.ready}
+                      label="Reset"
+                    >
                       <icons.reset aria-hidden />
                       Reset
                     </ToolbarButton>
@@ -269,6 +396,7 @@ export function PlaygroundWorkspace({
                       onClick={() => void handleApply()}
                       disabled={applying || !sim.ready}
                       primary
+                      label="Apply manifests"
                     >
                       <icons.run aria-hidden />
                       {applying ? "Applying…" : "Apply Manifests"}
@@ -306,7 +434,6 @@ export function PlaygroundWorkspace({
 
         <ResizableHandle orientation="vertical" aria-label="Resize cluster rail" />
 
-        {/* Right rail — vertical split between topology and the inspector tabs. */}
         <ResizablePane
           id="rail-right"
           defaultSize="26%"
@@ -387,20 +514,37 @@ export function PlaygroundWorkspace({
           </ResizableGroup>
         </ResizablePane>
       </ResizableGroup>
-
-      <SaveLabDialog
-        open={saveDialogOpen}
-        onOpenChange={setSaveDialogOpen}
-        title={lab ? "Save a copy" : "Save as lab"}
-        suggestedName={lab ? `${lab.name} copy` : `my ${template.title.toLowerCase()} lab`}
-        onSave={handleCreateLab}
-      />
     </div>
   );
 }
 
+function SaveIndicator({ state, transient }: { state: SaveState; transient: boolean }) {
+  const label =
+    state === "saving"
+      ? "Saving…"
+      : state === "saved"
+        ? "Saved"
+        : state === "error"
+          ? "Save failed"
+          : transient
+            ? "Autosaves when you edit"
+            : "Saved";
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1 text-[11px]",
+        state === "error" ? "text-red" : state === "saving" ? "text-amber" : "text-green",
+      )}
+      role="status"
+    >
+      <span className="size-1.5 rounded-full bg-current" aria-hidden />
+      {label}
+      {state === "saved" ? <span aria-hidden>✓</span> : null}
+    </span>
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
-  // "Simulator ready" (not bare "Ready") so it can't be misread as workload health.
   const label =
     status === "ready"
       ? "Simulator ready"
@@ -434,17 +578,21 @@ function ToolbarButton({
   onClick,
   disabled,
   primary,
+  label,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   primary?: boolean;
+  label: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-label={label}
+      title={label}
       className={cn(
         "focus-visible:ring-ring inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50 [&_svg]:size-3.5",
         primary

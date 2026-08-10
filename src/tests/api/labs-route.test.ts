@@ -2,18 +2,25 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   userId: "user-B" as string | null,
-  readLabs: vi.fn(async () => []),
-  createLab: vi.fn(async () => ({
+  readPlaygrounds: vi.fn(async () => []),
+  createPlayground: vi.fn(async () => ({
     id: "123e4567-e89b-12d3-a456-426614174000",
     name: "saved",
     templateId: "empty",
     files: {},
+    description: "",
+    starred: false,
+    visibility: "private" as const,
+    activeFilePath: "",
     createdAt: 1,
     updatedAt: 1,
+    lastOpenedAt: 1,
   })),
-  updateLab: vi.fn(async () => null),
-  deleteLab: vi.fn(async () => false),
-  mergeGuestLabs: vi.fn(async () => undefined),
+  updatePlayground: vi.fn(async () => null),
+  openPlayground: vi.fn(async () => null),
+  duplicatePlayground: vi.fn(async () => null),
+  deletePlayground: vi.fn(async () => false),
+  mergeGuestPlaygrounds: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/auth/server", () => ({
@@ -25,11 +32,13 @@ vi.mock("@/lib/db", () => ({ getDb: () => ({}), hasDb: () => true }));
 vi.mock("@/lib/env", () => ({ isAuthConfigured: () => true }));
 vi.mock("@/lib/rate-limit", () => ({ allowRequest: async () => true }));
 vi.mock("@/lib/db/labs-repo", () => ({
-  readLabs: mocks.readLabs,
-  createLab: mocks.createLab,
-  updateLab: mocks.updateLab,
-  deleteLab: mocks.deleteLab,
-  mergeGuestLabs: mocks.mergeGuestLabs,
+  readPlaygrounds: mocks.readPlaygrounds,
+  createPlayground: mocks.createPlayground,
+  updatePlayground: mocks.updatePlayground,
+  openPlayground: mocks.openPlayground,
+  duplicatePlayground: mocks.duplicatePlayground,
+  deletePlayground: mocks.deletePlayground,
+  mergeGuestPlaygrounds: mocks.mergeGuestPlaygrounds,
 }));
 
 import { GET, POST } from "@/app/api/labs/route";
@@ -39,12 +48,12 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("labs route authorization", () => {
+describe("playgrounds route authorization", () => {
   it("rejects unauthenticated reads", async () => {
     mocks.userId = null;
     const response = await GET(new Request("http://test/api/labs"));
     expect(response.status).toBe(401);
-    expect(mocks.readLabs).not.toHaveBeenCalled();
+    expect(mocks.readPlaygrounds).not.toHaveBeenCalled();
   });
 
   it("always creates for the session user", async () => {
@@ -53,20 +62,25 @@ describe("labs route authorization", () => {
         method: "POST",
         body: JSON.stringify({
           action: "create",
-          lab: {
+          playground: {
             clientId: "create-client-0001",
             name: "saved",
             templateId: "empty",
             files: {},
+            description: "",
+            starred: false,
+            visibility: "private",
+            activeFilePath: "",
             createdAt: 1,
             updatedAt: 1,
+            lastOpenedAt: 1,
           },
         }),
       }),
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.createLab).toHaveBeenCalledWith(
+    expect(mocks.createPlayground).toHaveBeenCalledWith(
       {},
       "user-B",
       expect.objectContaining({ clientId: "create-client-0001" }),
@@ -86,7 +100,7 @@ describe("labs route authorization", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(mocks.updateLab).toHaveBeenCalledWith(
+    expect(mocks.updatePlayground).toHaveBeenCalledWith(
       {},
       "user-B",
       "123e4567-e89b-12d3-a456-426614174000",

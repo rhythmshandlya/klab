@@ -247,7 +247,7 @@ export function AccountSettings({
         <CardHeader>
           <CardTitle className="text-red">Delete account</CardTitle>
           <CardDescription>
-            This permanently deletes your account, sessions, progress, submissions, and saved labs.
+            This permanently deletes your account, sessions, progress, submissions, and playgrounds.
           </CardDescription>
         </CardHeader>
         <CardContent>

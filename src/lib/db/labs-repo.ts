@@ -1,74 +1,138 @@
 import { and, desc, eq } from "drizzle-orm";
 
-import type { LabDraft, SavedLab } from "@/lib/labs/contracts";
+import type { PlaygroundDraft, PlaygroundPatch, SavedPlayground } from "@/lib/labs/contracts";
 
 import type { ProgressDb } from "./progress-repo";
 import { sandboxes } from "./schema";
 
-function toSavedLab(row: typeof sandboxes.$inferSelect): SavedLab {
+function toSavedPlayground(row: typeof sandboxes.$inferSelect): SavedPlayground {
   return {
     id: row.id,
     name: row.name,
     templateId: row.templateId,
     files: row.files as Record<string, string>,
+    description: row.description,
+    starred: row.starred,
+    visibility: row.visibility === "link" ? "link" : "private",
+    activeFilePath: row.activeFilePath,
     createdAt: row.savedAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
+    lastOpenedAt: row.lastOpenedAt.getTime(),
   };
 }
 
-export async function readLabs(db: ProgressDb, userId: string): Promise<SavedLab[]> {
+export async function readPlaygrounds(db: ProgressDb, userId: string): Promise<SavedPlayground[]> {
   const rows = await db
     .select()
     .from(sandboxes)
     .where(eq(sandboxes.userId, userId))
-    .orderBy(desc(sandboxes.updatedAt));
-  return rows.map(toSavedLab);
+    .orderBy(desc(sandboxes.lastOpenedAt), desc(sandboxes.updatedAt));
+  return rows.map(toSavedPlayground);
 }
 
-export async function createLab(
+export async function createPlayground(
   db: ProgressDb,
   userId: string,
-  draft: LabDraft,
-): Promise<SavedLab> {
+  draft: PlaygroundDraft,
+): Promise<SavedPlayground> {
+  const values = {
+    userId,
+    clientId: draft.clientId,
+    name: draft.name,
+    templateId: draft.templateId,
+    files: draft.files,
+    description: draft.description,
+    starred: draft.starred,
+    visibility: draft.visibility,
+    activeFilePath: draft.activeFilePath,
+    savedAt: new Date(draft.createdAt),
+    updatedAt: new Date(draft.updatedAt),
+    lastOpenedAt: new Date(draft.lastOpenedAt),
+  };
   const rows = await db
     .insert(sandboxes)
-    .values({
-      userId,
-      clientId: draft.clientId,
-      name: draft.name,
-      templateId: draft.templateId,
-      files: draft.files,
-      savedAt: new Date(draft.createdAt),
-      updatedAt: new Date(draft.updatedAt),
-    })
+    .values(values)
     .onConflictDoUpdate({
       target: [sandboxes.userId, sandboxes.clientId],
       set: {
-        name: draft.name,
-        templateId: draft.templateId,
-        files: draft.files,
-        updatedAt: new Date(draft.updatedAt),
+        name: values.name,
+        templateId: values.templateId,
+        files: values.files,
+        description: values.description,
+        starred: values.starred,
+        visibility: values.visibility,
+        activeFilePath: values.activeFilePath,
+        updatedAt: values.updatedAt,
+        lastOpenedAt: values.lastOpenedAt,
       },
     })
     .returning();
-  return toSavedLab(rows[0]!);
+  return toSavedPlayground(rows[0]!);
 }
 
-export async function updateLab(
+export async function updatePlayground(
   db: ProgressDb,
   userId: string,
   id: string,
-  patch: { name?: string; files?: Record<string, string> },
-): Promise<SavedLab | null> {
+  patch: PlaygroundPatch,
+): Promise<SavedPlayground | null> {
+  const now = new Date();
   const rows = await db
     .update(sandboxes)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({ ...patch, updatedAt: now, lastOpenedAt: now })
     .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
     .returning();
-  return rows[0] ? toSavedLab(rows[0]) : null;
+  return rows[0] ? toSavedPlayground(rows[0]) : null;
 }
 
-export async function deleteLab(db: ProgressDb, userId: string, id: string): Promise<boolean> {
+export async function openPlayground(
+  db: ProgressDb,
+  userId: string,
+  id: string,
+): Promise<SavedPlayground | null> {
+  const rows = await db
+    .update(sandboxes)
+    .set({ lastOpenedAt: new Date() })
+    .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
+    .returning();
+  return rows[0] ? toSavedPlayground(rows[0]) : null;
+}
+
+export async function duplicatePlayground(
+  db: ProgressDb,
+  userId: string,
+  id: string,
+  clientId: string,
+): Promise<SavedPlayground | null> {
+  const rows = await db
+    .select()
+    .from(sandboxes)
+    .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
+    .limit(1);
+  const source = rows[0];
+  if (!source) return null;
+
+  const now = Date.now();
+  return createPlayground(db, userId, {
+    clientId,
+    name: `${source.name} copy`,
+    templateId: source.templateId,
+    files: source.files as Record<string, string>,
+    description: source.description,
+    starred: false,
+    visibility: "private",
+    activeFilePath: source.activeFilePath,
+    createdAt: now,
+    updatedAt: now,
+    lastOpenedAt: now,
+  });
+}
+
+export async function deletePlayground(
+  db: ProgressDb,
+  userId: string,
+  id: string,
+): Promise<boolean> {
   const rows = await db
     .delete(sandboxes)
     .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
@@ -76,20 +140,35 @@ export async function deleteLab(db: ProgressDb, userId: string, id: string): Pro
   return rows.length > 0;
 }
 
-/** Claim browser-only guest labs for this account. Safe to retry by client id. */
-export async function mergeGuestLabs(
+/** Claim browser-only guest playgrounds for this account. Safe to retry by client id. */
+export async function mergeGuestPlaygrounds(
   db: ProgressDb,
   userId: string,
-  labs: readonly SavedLab[],
-): Promise<void> {
-  for (const lab of labs) {
-    await createLab(db, userId, {
-      clientId: `guest:${lab.id}`,
-      name: lab.name,
-      templateId: lab.templateId,
-      files: lab.files,
-      createdAt: lab.createdAt,
-      updatedAt: lab.updatedAt,
+  playgrounds: readonly SavedPlayground[],
+): Promise<Record<string, string>> {
+  const claimedIds: Record<string, string> = {};
+  for (const playground of playgrounds) {
+    const claimed = await createPlayground(db, userId, {
+      clientId: `guest:${playground.id}`,
+      name: playground.name,
+      templateId: playground.templateId,
+      files: playground.files,
+      description: playground.description,
+      starred: playground.starred,
+      visibility: playground.visibility,
+      activeFilePath: playground.activeFilePath,
+      createdAt: playground.createdAt,
+      updatedAt: playground.updatedAt,
+      lastOpenedAt: playground.lastOpenedAt,
     });
+    claimedIds[playground.id] = claimed.id;
   }
+  return claimedIds;
 }
+
+// Server compatibility for the legacy /api/labs route.
+export const readLabs = readPlaygrounds;
+export const createLab = createPlayground;
+export const updateLab = updatePlayground;
+export const deleteLab = deletePlayground;
+export const mergeGuestLabs = mergeGuestPlaygrounds;

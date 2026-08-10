@@ -8,6 +8,8 @@ interface PlaygroundState {
   /** Current editor contents keyed by file path. */
   files: Record<string, string>;
   activeFilePath: string;
+  /** Increments only when manifest contents change, for debounced persistence. */
+  contentRevision: number;
 
   initTemplate: (template: PlaygroundTemplate) => void;
   setFile: (path: string, content: string) => void;
@@ -15,7 +17,7 @@ interface PlaygroundState {
   removeFile: (path: string) => void;
   setActiveFile: (path: string) => void;
   resetToTemplate: () => void;
-  loadFiles: (files: Record<string, string>) => void;
+  loadFiles: (files: Record<string, string>, activeFilePath?: string) => void;
 }
 
 function filesFromTemplate(template: PlaygroundTemplate): Record<string, string> {
@@ -28,20 +30,31 @@ export const usePlaygroundStore = create<PlaygroundState>((set, get) => ({
   template: null,
   files: {},
   activeFilePath: "",
+  contentRevision: 0,
 
   initTemplate: (template) =>
     set({
       template,
       files: filesFromTemplate(template),
       activeFilePath: template.files[0]?.path ?? "",
+      contentRevision: 0,
     }),
 
-  setFile: (path, content) => set((s) => ({ files: { ...s.files, [path]: content } })),
+  setFile: (path, content) =>
+    set((s) =>
+      s.files[path] === content
+        ? s
+        : { files: { ...s.files, [path]: content }, contentRevision: s.contentRevision + 1 },
+    ),
 
   addFile: (path) => {
     const clean = path.trim();
     if (clean === "" || get().files[clean] !== undefined) return;
-    set((s) => ({ files: { ...s.files, [clean]: STARTER }, activeFilePath: clean }));
+    set((s) => ({
+      files: { ...s.files, [clean]: STARTER },
+      activeFilePath: clean,
+      contentRevision: s.contentRevision + 1,
+    }));
   },
 
   removeFile: (path) =>
@@ -52,6 +65,7 @@ export const usePlaygroundStore = create<PlaygroundState>((set, get) => ({
       return {
         files: next,
         activeFilePath: s.activeFilePath === path ? (remaining[0] ?? "") : s.activeFilePath,
+        contentRevision: s.contentRevision + 1,
       };
     }),
 
@@ -60,9 +74,21 @@ export const usePlaygroundStore = create<PlaygroundState>((set, get) => ({
   resetToTemplate: () => {
     const template = get().template;
     if (template) {
-      set({ files: filesFromTemplate(template), activeFilePath: template.files[0]?.path ?? "" });
+      set((s) => ({
+        files: filesFromTemplate(template),
+        activeFilePath: template.files[0]?.path ?? "",
+        contentRevision: s.contentRevision + 1,
+      }));
     }
   },
 
-  loadFiles: (files) => set({ files: { ...files }, activeFilePath: Object.keys(files)[0] ?? "" }),
+  loadFiles: (files, activeFilePath) =>
+    set({
+      files: { ...files },
+      activeFilePath:
+        activeFilePath && files[activeFilePath] !== undefined
+          ? activeFilePath
+          : (Object.keys(files)[0] ?? ""),
+      contentRevision: 0,
+    }),
 }));

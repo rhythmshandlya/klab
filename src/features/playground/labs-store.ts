@@ -1,36 +1,56 @@
 import { create } from "zustand";
 
+import type { PlaygroundPatch, SavedPlayground } from "@/lib/labs/contracts";
+import { parsePlaygroundsResponse } from "@/lib/labs/contracts";
+import {
+  clearPlaygrounds,
+  createPlayground as createLocalPlayground,
+  deletePlayground as deleteLocalPlayground,
+  duplicatePlayground as duplicateLocalPlayground,
+  loadPlaygrounds,
+  openPlayground as openLocalPlayground,
+  updatePlayground as updateLocalPlayground,
+} from "@/lib/storage/local-labs";
 import { createClientMutationId } from "@/lib/storage/progress-intent";
-import { clearLabs, createLab, deleteLab, loadLabs, updateLab } from "@/lib/storage/local-labs";
-import { parseLabsResponse, type SavedLab } from "@/lib/labs/contracts";
 
-type LabsIdentity = string | null | undefined;
+type PlaygroundsIdentity = string | null | undefined;
 
-interface LabsState {
-  labs: SavedLab[];
+interface PlaygroundsState {
+  playgrounds: SavedPlayground[];
+  /** Guest route id → server route id after a successful sign-in claim. */
+  claimedIds: Record<string, string>;
   /** `undefined` means the auth session is still resolving. */
-  identity: LabsIdentity;
+  identity: PlaygroundsIdentity;
   hydrated: boolean;
   error: string | null;
   setIdentity: (identity: string | null) => Promise<void>;
   hydrate: () => Promise<void>;
   create: (input: {
-    name: string;
+    name?: string;
     templateId: string;
     files: Record<string, string>;
-  }) => Promise<SavedLab>;
-  update: (
-    id: string,
-    patch: { name?: string; files?: Record<string, string> },
-  ) => Promise<SavedLab | undefined>;
+    activeFilePath?: string;
+  }) => Promise<SavedPlayground>;
+  update: (id: string, patch: PlaygroundPatch) => Promise<SavedPlayground | undefined>;
+  open: (id: string) => Promise<SavedPlayground | undefined>;
+  duplicate: (id: string) => Promise<SavedPlayground | undefined>;
   remove: (id: string) => Promise<void>;
   resetForAccountExit: () => void;
 }
 
 let identityEpoch = 0;
+const updateQueues = new Map<string, Promise<unknown>>();
 
-async function requestLabs(body?: unknown): Promise<{ labs: SavedLab[]; mutationId?: string }> {
-  const response = await fetch("/api/labs", {
+function byRecent(a: SavedPlayground, b: SavedPlayground): number {
+  return b.lastOpenedAt - a.lastOpenedAt || b.updatedAt - a.updatedAt;
+}
+
+function replaceOne(playgrounds: SavedPlayground[], next: SavedPlayground): SavedPlayground[] {
+  return [next, ...playgrounds.filter((playground) => playground.id !== next.id)].sort(byRecent);
+}
+
+async function requestPlaygrounds(body?: unknown) {
+  const response = await fetch("/api/playgrounds", {
     ...(body === undefined
       ? {}
       : {
@@ -39,46 +59,46 @@ async function requestLabs(body?: unknown): Promise<{ labs: SavedLab[]; mutation
           body: JSON.stringify(body),
         }),
   });
-  if (!response.ok) throw new Error(`Lab sync failed (${response.status}).`);
-  return parseLabsResponse(await response.json());
+  if (!response.ok) throw new Error(`Playground sync failed (${response.status}).`);
+  return parsePlaygroundsResponse(await response.json());
 }
 
-function localCreate(input: {
-  name: string;
-  templateId: string;
-  files: Record<string, string>;
-}): SavedLab {
-  return createLab(input);
-}
-
-export const useLabsStore = create<LabsState>((set, get) => {
+export const usePlaygroundsStore = create<PlaygroundsState>((set, get) => {
   async function hydrateFor(identity: string | null, epoch: number): Promise<void> {
     if (identity === null) {
-      if (epoch === identityEpoch) set({ labs: loadLabs(), hydrated: true, error: null });
+      if (epoch === identityEpoch) {
+        set({ playgrounds: loadPlaygrounds(), claimedIds: {}, hydrated: true, error: null });
+      }
       return;
     }
 
     try {
-      const guestLabs = loadLabs();
-      const result =
-        guestLabs.length > 0
-          ? await requestLabs({ action: "merge", labs: guestLabs })
-          : await requestLabs();
+      const guestPlaygrounds = loadPlaygrounds();
+      const result = guestPlaygrounds.length
+        ? await requestPlaygrounds({ action: "merge", playgrounds: guestPlaygrounds })
+        : await requestPlaygrounds();
       if (epoch !== identityEpoch || get().identity !== identity) return;
-      if (guestLabs.length > 0) clearLabs();
-      set({ labs: result.labs, hydrated: true, error: null });
+      if (guestPlaygrounds.length) clearPlaygrounds();
+      set({
+        playgrounds: result.playgrounds ?? [],
+        claimedIds: result.claimedIds ?? {},
+        hydrated: true,
+        error: null,
+      });
     } catch (error) {
       if (epoch !== identityEpoch || get().identity !== identity) return;
       set({
-        labs: [],
+        playgrounds: [],
+        claimedIds: {},
         hydrated: true,
-        error: error instanceof Error ? error.message : "Could not load saved labs.",
+        error: error instanceof Error ? error.message : "Could not load your playgrounds.",
       });
     }
   }
 
   return {
-    labs: [],
+    playgrounds: [],
+    claimedIds: {},
     identity: undefined,
     hydrated: false,
     error: null,
@@ -86,7 +106,7 @@ export const useLabsStore = create<LabsState>((set, get) => {
     async setIdentity(identity) {
       if (get().identity === identity && get().hydrated) return;
       const epoch = ++identityEpoch;
-      set({ identity, labs: [], hydrated: false, error: null });
+      set({ identity, playgrounds: [], claimedIds: {}, hydrated: false, error: null });
       await hydrateFor(identity, epoch);
     },
 
@@ -100,61 +120,125 @@ export const useLabsStore = create<LabsState>((set, get) => {
       const identity = get().identity;
       if (identity === undefined) throw new Error("Your account is still loading.");
       if (identity === null) {
-        const lab = localCreate(input);
-        set({ labs: loadLabs(), error: null });
-        return lab;
+        const playground = createLocalPlayground(input);
+        set({ playgrounds: loadPlaygrounds(), error: null });
+        return playground;
       }
 
       const now = Date.now();
-      const clientId = createClientMutationId();
-      const result = await requestLabs({
+      const result = await requestPlaygrounds({
         action: "create",
-        lab: {
-          clientId,
-          name: input.name.trim() || "untitled lab",
+        playground: {
+          clientId: createClientMutationId(),
+          name: input.name?.trim() || "Untitled Playground",
           templateId: input.templateId,
           files: input.files,
+          description: "",
+          starred: false,
+          visibility: "private",
+          activeFilePath: input.activeFilePath ?? Object.keys(input.files)[0] ?? "",
           createdAt: now,
           updatedAt: now,
+          lastOpenedAt: now,
         },
       });
-      const created = result.labs.find((lab) => lab.id === result.mutationId);
-      if (!created) throw new Error("The server did not return the saved lab.");
-      set({ labs: result.labs, error: null });
-      return created;
+      if (!result.playground) throw new Error("The server did not return the new playground.");
+      set((state) => ({
+        playgrounds: replaceOne(state.playgrounds, result.playground!),
+        error: null,
+      }));
+      return result.playground;
     },
 
     async update(id, patch) {
+      const perform = async () => {
+        const identity = get().identity;
+        if (identity === undefined) throw new Error("Your account is still loading.");
+        if (identity === null) {
+          const playground = updateLocalPlayground(id, patch);
+          set({ playgrounds: loadPlaygrounds(), error: null });
+          return playground;
+        }
+
+        try {
+          const result = await requestPlaygrounds({ action: "update", id, patch });
+          if (!result.playground) throw new Error("The server did not return the playground.");
+          set((state) => ({
+            playgrounds: replaceOne(state.playgrounds, result.playground!),
+            error: null,
+          }));
+          return result.playground;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : "Could not save playground." });
+          throw error;
+        }
+      };
+
+      const queued = (updateQueues.get(id) ?? Promise.resolve()).then(perform, perform);
+      updateQueues.set(
+        id,
+        queued.catch(() => undefined),
+      );
+      return queued;
+    },
+
+    async open(id) {
+      const identity = get().identity;
+      if (identity === undefined) return undefined;
+      const playground =
+        identity === null
+          ? openLocalPlayground(id)
+          : (await requestPlaygrounds({ action: "open", id })).playground;
+      if (playground) {
+        set((state) => ({ playgrounds: replaceOne(state.playgrounds, playground), error: null }));
+      }
+      return playground;
+    },
+
+    async duplicate(id) {
       const identity = get().identity;
       if (identity === undefined) throw new Error("Your account is still loading.");
-      if (identity === null) {
-        const updated = updateLab(id, patch);
-        set({ labs: loadLabs(), error: null });
-        return updated;
+      const playground =
+        identity === null
+          ? duplicateLocalPlayground(id)
+          : (
+              await requestPlaygrounds({
+                action: "duplicate",
+                id,
+                clientId: createClientMutationId(),
+              })
+            ).playground;
+      if (playground) {
+        set((state) => ({ playgrounds: replaceOne(state.playgrounds, playground), error: null }));
       }
-
-      const result = await requestLabs({ action: "update", id, patch });
-      set({ labs: result.labs, error: null });
-      return result.labs.find((lab) => lab.id === id);
+      return playground;
     },
 
     async remove(id) {
       const identity = get().identity;
       if (identity === undefined) throw new Error("Your account is still loading.");
-      if (identity === null) {
-        deleteLab(id);
-        set({ labs: loadLabs(), error: null });
-        return;
-      }
-
-      const result = await requestLabs({ action: "delete", id });
-      set({ labs: result.labs, error: null });
+      if (identity === null) deleteLocalPlayground(id);
+      else await requestPlaygrounds({ action: "delete", id });
+      set((state) => ({
+        playgrounds: state.playgrounds.filter((playground) => playground.id !== id),
+        error: null,
+      }));
     },
 
     resetForAccountExit() {
       identityEpoch += 1;
-      clearLabs();
-      set({ identity: undefined, labs: [], hydrated: false, error: null });
+      updateQueues.clear();
+      clearPlaygrounds();
+      set({
+        identity: undefined,
+        playgrounds: [],
+        claimedIds: {},
+        hydrated: false,
+        error: null,
+      });
     },
   };
 });
+
+/** @deprecated Prefer usePlaygroundsStore. */
+export const useLabsStore = usePlaygroundsStore;

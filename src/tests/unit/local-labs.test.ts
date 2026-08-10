@@ -28,9 +28,9 @@ describe("local-labs storage", () => {
 
   it("defaults a blank name and keeps the old name on blank rename", () => {
     const lab = createLab({ name: "   ", templateId: "empty", files: {} });
-    expect(lab.name).toBe("untitled lab");
+    expect(lab.name).toBe("Untitled Playground");
     updateLab(lab.id, { name: "  " });
-    expect(getLab(lab.id)?.name).toBe("untitled lab");
+    expect(getLab(lab.id)?.name).toBe("Untitled Playground");
   });
 
   it("sorts most recently updated first", () => {
