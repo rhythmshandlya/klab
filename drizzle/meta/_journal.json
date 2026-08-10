@@ -36,6 +36,13 @@
       "when": 1786375666513,
       "tag": "0004_slow_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786379524764,
+      "tag": "0005_groovy_black_queen",
+      "breakpoints": true
     }
   ]
 }

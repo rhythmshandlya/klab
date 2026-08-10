@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   updatePlayground: vi.fn(async () => null),
   openPlayground: vi.fn(async () => null),
   duplicatePlayground: vi.fn(async () => null),
+  publishPlaygroundSnapshot: vi.fn(async (): Promise<unknown> => ({ status: "not-found" })),
+  unpublishPlaygroundSnapshot: vi.fn(async () => null),
+  forkPublicPlayground: vi.fn(async () => null),
   deletePlayground: vi.fn(async () => false),
   mergeGuestPlaygrounds: vi.fn(async () => undefined),
 }));
@@ -37,6 +40,9 @@ vi.mock("@/lib/db/labs-repo", () => ({
   updatePlayground: mocks.updatePlayground,
   openPlayground: mocks.openPlayground,
   duplicatePlayground: mocks.duplicatePlayground,
+  publishPlaygroundSnapshot: mocks.publishPlaygroundSnapshot,
+  unpublishPlaygroundSnapshot: mocks.unpublishPlaygroundSnapshot,
+  forkPublicPlayground: mocks.forkPublicPlayground,
   deletePlayground: mocks.deletePlayground,
   mergeGuestPlaygrounds: mocks.mergeGuestPlaygrounds,
 }));
@@ -106,5 +112,30 @@ describe("playgrounds route authorization", () => {
       "123e4567-e89b-12d3-a456-426614174000",
       { name: "not yours" },
     );
+  });
+
+  it("returns actionable safety issues when a publication is blocked", async () => {
+    mocks.publishPlaygroundSnapshot.mockResolvedValueOnce({
+      status: "unsafe",
+      issues: [
+        { path: "secret.yaml", message: "Kubernetes Secret resources cannot be published." },
+      ],
+    });
+    const response = await POST(
+      new Request("http://test/api/playgrounds", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "publish",
+          id: "123e4567-e89b-12d3-a456-426614174000",
+          description: "unsafe example",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Remove possible secrets before publishing.",
+      issues: [{ path: "secret.yaml" }],
+    });
   });
 });

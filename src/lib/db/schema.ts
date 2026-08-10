@@ -206,6 +206,12 @@ export const sandboxes = pgTable(
     starred: boolean("starred").notNull().default(false),
     visibility: text("visibility").notNull().default("private"),
     activeFilePath: text("active_file_path").notNull().default(""),
+    /** Public snapshots point at the private source they were explicitly published from. */
+    publishedFromId: uuid("published_from_id"),
+    /** Private forks retain attribution to the public snapshot they came from. */
+    forkedFromId: uuid("forked_from_id"),
+    publishedAt: timestamp("published_at"),
+    forkCount: integer("fork_count").notNull().default(0),
     savedAt: timestamp("saved_at").notNull(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     lastOpenedAt: timestamp("last_opened_at").notNull().defaultNow(),
@@ -215,6 +221,9 @@ export const sandboxes = pgTable(
     index("sandboxes_user_updated_idx").on(t.userId, t.updatedAt),
     index("sandboxes_user_last_opened_idx").on(t.userId, t.lastOpenedAt),
     index("sandboxes_user_starred_idx").on(t.userId, t.starred, t.updatedAt),
+    uniqueIndex("sandboxes_user_published_from_key").on(t.userId, t.publishedFromId),
+    index("sandboxes_public_published_idx").on(t.visibility, t.publishedAt),
+    index("sandboxes_forked_from_idx").on(t.forkedFromId),
   ],
 );
 

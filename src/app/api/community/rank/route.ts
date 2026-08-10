@@ -1,6 +1,6 @@
 import { getAuth } from "@/lib/auth/server";
 import { getDb, hasDb } from "@/lib/db";
-import { readUserRank } from "@/lib/db/community-repo";
+import { readUserCommunityStatus } from "@/lib/db/community-repo";
 import { isAuthConfigured } from "@/lib/env";
 import { allowRequest } from "@/lib/rate-limit";
 
@@ -22,6 +22,5 @@ export async function GET(request: Request): Promise<Response> {
   if (!(await allowRequest(`community-rank:${userId}`, { limit: 30, windowSec: 60 }))) {
     return Response.json({ error: "rate limited" }, { status: 429 });
   }
-  const rank = await readUserRank(getDb(), userId);
-  return Response.json({ rank });
+  return Response.json(await readUserCommunityStatus(getDb(), userId));
 }

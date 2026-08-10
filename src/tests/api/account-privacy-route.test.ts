@@ -4,9 +4,11 @@ const mocks = vi.hoisted(() => {
   const where = vi.fn(async () => undefined);
   const set = vi.fn(() => ({ where }));
   const update = vi.fn(() => ({ set }));
-  return { userId: "user-B" as string | null, update, set, where };
+  const revalidatePath = vi.fn();
+  return { userId: "user-B" as string | null, update, set, where, revalidatePath };
 });
 
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/server", () => ({
   getAuth: () => ({
     api: { getSession: async () => (mocks.userId ? { user: { id: mocks.userId } } : null) },
@@ -51,5 +53,6 @@ describe("account privacy route", () => {
       expect.objectContaining({ publicProfile: true, updatedAt: expect.any(Date) }),
     );
     expect(mocks.where).toHaveBeenCalledOnce();
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/community");
   });
 });

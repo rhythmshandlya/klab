@@ -25,9 +25,9 @@ export function LevelRecords({ records }: { records: readonly LevelRecord[] }) {
       <div className="flex items-baseline gap-2">
         <Challenge className="text-purple size-4 self-center" aria-hidden />
         <h2 id="records-heading" className="text-foreground text-sm font-semibold">
-          Hall of records
+          Community bests
         </h2>
-        <span className="text-subtle text-xs">fastest solve per lab, self-timed</span>
+        <span className="text-subtle text-xs">informal, browser-timed records</span>
       </div>
 
       {claimed.length > 0 ? (

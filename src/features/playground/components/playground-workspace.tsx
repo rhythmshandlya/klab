@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorBoundary } from "@/components/app-shell/error-boundary";
+import { SignInDialog } from "@/components/auth/sign-in-dialog";
 import { EventsTimeline } from "@/components/events/events-timeline";
 import { icons } from "@/components/icons";
 import { ClusterExplorer } from "@/components/object-explorer/cluster-explorer";
@@ -31,6 +32,7 @@ import { usePlaygroundsStore } from "../labs-store";
 import { usePlaygroundStore } from "../playground-store";
 import { MultiFileEditor } from "./multi-file-editor";
 import { NetworkActivity } from "./network-activity";
+import { PublishPlaygroundDialog } from "./publish-playground-dialog";
 import { ResourceSummary } from "./resource-summary";
 import { TemplateSidebar } from "./template-sidebar";
 
@@ -61,6 +63,9 @@ export function PlaygroundWorkspace({
   const createPlayground = usePlaygroundsStore((state) => state.create);
   const updatePlayground = usePlaygroundsStore((state) => state.update);
   const duplicatePlayground = usePlaygroundsStore((state) => state.duplicate);
+  const publishPlayground = usePlaygroundsStore((state) => state.publish);
+  const unpublishPlayground = usePlaygroundsStore((state) => state.unpublish);
+  const identity = usePlaygroundsStore((state) => state.identity);
 
   const initializedKey = useRef<string | null>(null);
   useEffect(() => {
@@ -100,6 +105,8 @@ export function PlaygroundWorkspace({
   const [paused, setPaused] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>(playground ? "saved" : "idle");
   const [title, setTitle] = useState(playground?.name ?? "Untitled Playground");
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
   const creationPromise = useRef<Promise<SavedPlayground> | null>(null);
   const saveVersion = useRef(0);
   const lastSavedRevision = useRef(0);
@@ -287,6 +294,32 @@ export function PlaygroundWorkspace({
     URL.revokeObjectURL(url);
   }, [title]);
 
+  const openPublish = useCallback(() => {
+    if (!identity) {
+      setSignInOpen(true);
+      return;
+    }
+    setPublishOpen(true);
+  }, [identity]);
+
+  const handlePublish = useCallback(
+    async (description: string) => {
+      if (!playground) return;
+      const state = usePlaygroundStore.getState();
+      await updatePlayground(playground.id, {
+        files: state.files,
+        activeFilePath: state.activeFilePath,
+      });
+      await publishPlayground(playground.id, description);
+    },
+    [playground, publishPlayground, updatePlayground],
+  );
+
+  const handleUnpublish = useCallback(async () => {
+    if (!playground) return;
+    await unpublishPlayground(playground.id);
+  }, [playground, unpublishPlayground]);
+
   return (
     <div className="h-[calc(100dvh-3.5rem)] overflow-x-auto p-3">
       <ResizableGroup
@@ -364,6 +397,16 @@ export function PlaygroundWorkspace({
                           fill={playground.starred ? "currentColor" : "none"}
                           aria-hidden
                         />
+                      </ToolbarButton>
+                    ) : null}
+                    {playground ? (
+                      <ToolbarButton
+                        onClick={openPublish}
+                        disabled={identity === undefined}
+                        label={playground.publishedCopyId ? "Manage publication" : "Publish"}
+                      >
+                        <icons.community aria-hidden />
+                        {playground.publishedCopyId ? "Published" : "Publish"}
                       </ToolbarButton>
                     ) : null}
                     {playground ? (
@@ -514,6 +557,16 @@ export function PlaygroundWorkspace({
           </ResizableGroup>
         </ResizablePane>
       </ResizableGroup>
+      {playground ? (
+        <PublishPlaygroundDialog
+          open={publishOpen}
+          onOpenChange={setPublishOpen}
+          playground={playground}
+          onPublish={handlePublish}
+          onUnpublish={handleUnpublish}
+        />
+      ) : null}
+      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </div>
   );
 }

@@ -31,8 +31,18 @@ export const savedPlaygroundSchema = z
     files: filesSchema,
     description: z.string().max(500).default(""),
     starred: z.boolean().default(false),
-    visibility: z.enum(["private", "link"]).default("private"),
+    visibility: z.enum(["private", "link", "public"]).default("private"),
     activeFilePath: z.string().max(260).default(""),
+    publishedCopyId: z.string().nullable().default(null),
+    publishedAt: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullable()
+      .default(null),
+    forkCount: z.number().int().nonnegative().default(0),
+    forkedFromId: z.string().nullable().default(null),
     createdAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     updatedAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     lastOpenedAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
@@ -83,6 +93,17 @@ export const playgroundMutationSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), playground: playgroundDraftSchema }),
   z.object({ action: z.literal("update"), id: z.uuid(), patch: updatePatchSchema }),
   z.object({ action: z.literal("open"), id: z.uuid() }),
+  z.object({
+    action: z.literal("publish"),
+    id: z.uuid(),
+    description: z.string().trim().max(500),
+  }),
+  z.object({ action: z.literal("unpublish"), id: z.uuid() }),
+  z.object({
+    action: z.literal("fork-public"),
+    id: z.uuid(),
+    clientId: z.string().trim().min(1).max(128),
+  }),
   z.object({
     action: z.literal("duplicate"),
     id: z.uuid(),

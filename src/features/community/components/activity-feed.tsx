@@ -7,11 +7,15 @@ import type { RecentSolve } from "@/lib/db/community-repo";
 import { displayName, timeAgo } from "../format";
 import { PersonAvatar } from "./person";
 
-/**
- * Recent community solves, newest first. Level titles come from the in-code catalog;
- * solves for slugs no longer in the catalog are skipped rather than shown broken.
- */
-export function ActivityFeed({ solves, now }: { solves: readonly RecentSolve[]; now: Date }) {
+export function ActivityFeed({
+  solves,
+  now,
+  weeklySlug,
+}: {
+  solves: readonly RecentSolve[];
+  now: Date;
+  weeklySlug: string;
+}) {
   const Activity = icons.events;
   const titles = new Map(LEVEL_CATALOG.map((level) => [level.slug, level.title]));
   const visible = solves.filter((solve) => titles.has(solve.levelSlug));
@@ -21,15 +25,24 @@ export function ActivityFeed({ solves, now }: { solves: readonly RecentSolve[]; 
       <div className="flex items-baseline gap-2">
         <Activity className="text-blue size-4 self-center" aria-hidden />
         <h2 id="activity-heading" className="text-foreground text-sm font-semibold">
-          Recent activity
+          Latest wins
         </h2>
-        <span className="text-subtle text-xs">latest solves</span>
+        <span className="text-subtle text-xs">recent public solves</span>
       </div>
 
       {visible.length === 0 ? (
-        <p className="border-border bg-panel text-muted mt-3 rounded-lg border px-4 py-6 text-sm">
-          Quiet in here — the next solve shows up in this feed.
-        </p>
+        <div className="border-border bg-panel mt-3 rounded-lg border px-4 py-6">
+          <p className="text-foreground text-sm font-medium">No public solves yet this week</p>
+          <p className="text-muted mt-1 text-sm">
+            Take on the challenge and start the activity feed.
+          </p>
+          <Link
+            href={`/problems/${weeklySlug}`}
+            className="text-blue mt-3 inline-block text-sm font-medium hover:underline"
+          >
+            Try the weekly challenge
+          </Link>
+        </div>
       ) : (
         <ul className="mt-3 space-y-1.5">
           {visible.map((solve, i) => (

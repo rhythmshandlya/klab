@@ -1,44 +1,49 @@
 "use client";
 
+import Link from "next/link";
+
 import { icons } from "@/components/icons";
-import type { LeaderboardEntry } from "@/lib/db/community-repo";
 import { useSession } from "@/lib/auth/client";
+import type { LeaderboardEntry } from "@/lib/db/community-repo";
 import { cn } from "@/lib/utils/cn";
 
 import { Person } from "./person";
 
-/**
- * Ranked XP table. Each row carries a thin XP bar scaled against #1 so relative
- * standing reads at a glance (single-series magnitude → one hue; the exact value is
- * printed on the row, so the bar is decorative-redundant and aria-hidden). When auth
- * is on, the session user's row is highlighted with a "You" badge — the session hook
- * only mounts when auth is enabled, mirroring AppShell's pattern.
- */
 export function Leaderboard({
   entries,
   authEnabled,
+  weeklySlug,
 }: {
   entries: readonly LeaderboardEntry[];
   authEnabled: boolean;
+  weeklySlug: string;
 }) {
-  if (authEnabled) return <SessionAwareBoard entries={entries} />;
-  return <Board entries={entries} meId={null} signedIn={false} />;
+  if (authEnabled) return <SessionAwareBoard entries={entries} weeklySlug={weeklySlug} />;
+  return <Board entries={entries} meId={null} signedIn={false} weeklySlug={weeklySlug} />;
 }
 
-function SessionAwareBoard({ entries }: { entries: readonly LeaderboardEntry[] }) {
+function SessionAwareBoard({
+  entries,
+  weeklySlug,
+}: {
+  entries: readonly LeaderboardEntry[];
+  weeklySlug: string;
+}) {
   const { data: session } = useSession();
   const meId = session?.user?.id ?? null;
-  return <Board entries={entries} meId={meId} signedIn={Boolean(meId)} />;
+  return <Board entries={entries} meId={meId} signedIn={Boolean(meId)} weeklySlug={weeklySlug} />;
 }
 
 function Board({
   entries,
   meId,
   signedIn,
+  weeklySlug,
 }: {
   entries: readonly LeaderboardEntry[];
   meId: string | null;
   signedIn: boolean;
+  weeklySlug: string;
 }) {
   const Trophy = icons.trophy;
   const Xp = icons.xp;
@@ -50,21 +55,27 @@ function Board({
       <div className="flex items-baseline gap-2">
         <Trophy className="text-amber size-4 self-center" aria-hidden />
         <h2 id="leaderboard-heading" className="text-foreground text-sm font-semibold">
-          Leaderboard
+          Weekly leaderboard
         </h2>
-        <span className="text-subtle text-xs">top {entries.length} by total XP</span>
+        <span className="text-subtle text-xs">resets Monday</span>
       </div>
 
       {entries.length === 0 ? (
         <div className="border-border bg-panel mt-3 rounded-lg border px-4 py-8 text-center">
-          <p className="text-foreground text-sm font-medium">The board is empty</p>
-          <p className="text-muted mt-1 text-sm">Solve any incident lab to take #1.</p>
+          <p className="text-foreground text-sm font-medium">The first spot is open</p>
+          <p className="text-muted mt-1 text-sm">Complete the weekly challenge to claim it.</p>
+          <Link
+            href={`/problems/${weeklySlug}`}
+            className="text-blue mt-3 inline-block text-sm font-medium hover:underline"
+          >
+            Start the challenge
+          </Link>
         </div>
       ) : (
         <>
           <ol className="border-border bg-panel divide-border mt-3 divide-y overflow-hidden rounded-lg border">
-            {entries.map((entry, i) => {
-              const rank = i + 1;
+            {entries.map((entry) => {
+              const rank = entries.findIndex((candidate) => candidate.xp === entry.xp) + 1;
               const isMe = entry.userId === meId;
               const barPct = topXp > 0 ? Math.max(2, Math.round((entry.xp / topXp) * 100)) : 0;
               return (
@@ -115,7 +126,7 @@ function Board({
           </ol>
           {signedIn && !onBoard ? (
             <p className="text-subtle mt-2 text-xs">
-              You&apos;re not on the board yet — solve an incident lab to enter.
+              You&apos;re not on this week&apos;s board yet — complete a problem to enter.
             </p>
           ) : null}
         </>

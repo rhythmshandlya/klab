@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
 import { icons } from "@/components/icons";
 import { LEVEL_CATALOG } from "@/content/levels";
 import { useProgress } from "@/features/progress/use-progress";
 import { useSession } from "@/lib/auth/client";
-import { cn } from "@/lib/utils/cn";
 
-/**
- * "You" panel above the community lists. XP / streak / labs read from local progress
- * (identity-aware, works for guests), with a labs-completed meter against the catalog.
- * When signed in, the server rank arrives from /api/community/rank (skeleton while it
- * loads); guests get a sign-in action instead. The session hook only mounts when auth
- * is enabled, mirroring AppShell's ProgressSync pattern.
- */
-export function RankCard({ authEnabled }: { authEnabled: boolean }) {
+/** Personal progress plus the action needed to participate publicly. */
+export function RankCard({
+  authEnabled,
+  weeklySlug,
+}: {
+  authEnabled: boolean;
+  weeklySlug: string;
+}) {
   const progress = useProgress();
   const Xp = icons.xp;
   const Streak = icons.streak;
@@ -41,7 +42,7 @@ export function RankCard({ authEnabled }: { authEnabled: boolean }) {
       <div className="min-w-40">
         <p className="text-foreground text-lg leading-tight font-semibold">
           <span className="tabnums">{solved}</span>
-          <span className="text-subtle text-sm font-normal"> of {total} labs</span>
+          <span className="text-subtle text-sm font-normal"> of {total} problems</span>
         </p>
         <div
           className="bg-panel-elevated mt-1.5 h-1 w-full max-w-40 overflow-hidden rounded-full"
@@ -49,7 +50,7 @@ export function RankCard({ authEnabled }: { authEnabled: boolean }) {
           aria-valuemin={0}
           aria-valuemax={total}
           aria-valuenow={solved}
-          aria-label="Incident labs solved"
+          aria-label="Problems solved"
         >
           <div
             className="bg-green h-full rounded-full"
@@ -58,7 +59,9 @@ export function RankCard({ authEnabled }: { authEnabled: boolean }) {
         </div>
       </div>
 
-      <div className="ml-auto">{authEnabled ? <RankOrSignIn /> : null}</div>
+      <div className="ml-auto">
+        {authEnabled ? <CommunityStatus weeklySlug={weeklySlug} /> : null}
+      </div>
     </div>
   );
 }
@@ -75,34 +78,57 @@ function Stat({ icon, value, label }: { icon: React.ReactNode; value: number; la
   );
 }
 
-interface RankPayload {
+interface CommunityStatusPayload {
+  publicProfile: boolean;
+  solveCount: number;
   rank: { rank: number; totalRanked: number; xp: number } | null;
 }
 
-function RankOrSignIn() {
+function CommunityStatus({ weeklySlug }: { weeklySlug: string }) {
+  const router = useRouter();
   const { data: session, isPending } = useSession();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [payload, setPayload] = useState<RankPayload | null>(null);
+  const [payload, setPayload] = useState<CommunityStatusPayload | null>(null);
+  const [pendingJoin, setPendingJoin] = useState(false);
+  const [failed, setFailed] = useState(false);
   const signedIn = Boolean(session?.user);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/community/rank");
+      if (!response.ok) throw new Error("status unavailable");
+      setPayload((await response.json()) as CommunityStatusPayload);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!signedIn) return;
-    let cancelled = false;
-    void fetch("/api/community/rank")
-      .then((res) => (res.ok ? (res.json() as Promise<RankPayload>) : null))
-      .then((data) => {
-        if (!cancelled && data) setPayload(data);
-      })
-      .catch(() => {
-        // Rank is decoration — the local stats already rendered.
+    const timeout = window.setTimeout(() => void loadStatus(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadStatus, signedIn]);
+
+  const joinCommunity = async () => {
+    setPendingJoin(true);
+    try {
+      const response = await fetch("/api/account/privacy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ publicProfile: true }),
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [signedIn]);
+      if (!response.ok) throw new Error("join failed");
+      await loadStatus();
+      router.refresh();
+    } catch {
+      setFailed(true);
+    } finally {
+      setPendingJoin(false);
+    }
+  };
 
   if (isPending) return null;
-
   if (!signedIn) {
     return (
       <>
@@ -111,10 +137,22 @@ function RankOrSignIn() {
           onClick={() => setDialogOpen(true)}
           className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex h-8 items-center rounded-md px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
         >
-          Sign in to join the leaderboard
+          Sign in to join
         </button>
         <SignInDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       </>
+    );
+  }
+
+  if (failed) {
+    return (
+      <button
+        type="button"
+        onClick={() => void loadStatus()}
+        className="text-red text-xs hover:underline"
+      >
+        Retry community status
+      </button>
     );
   }
 
@@ -127,21 +165,53 @@ function RankOrSignIn() {
     );
   }
 
-  const rank = payload.rank;
-  if (!rank) {
-    return <p className="text-muted max-w-48 text-right text-sm">Solve one lab to get a rank.</p>;
+  if (!payload.publicProfile) {
+    return (
+      <div className="max-w-72 text-right">
+        <p className="text-foreground text-sm font-medium">Your profile is private</p>
+        <p className="text-subtle mt-0.5 text-xs">
+          Join to show your XP and explicit publications. Private Playgrounds stay private.
+        </p>
+        <button
+          type="button"
+          onClick={() => void joinCommunity()}
+          disabled={pendingJoin}
+          className="text-blue mt-1.5 text-xs font-semibold hover:underline disabled:opacity-60"
+        >
+          {pendingJoin ? "Joining…" : "Enable community profile"}
+        </button>
+      </div>
+    );
   }
 
-  const percentile = Math.max(1, Math.round((rank.rank / rank.totalRanked) * 100));
+  if (payload.solveCount === 0) {
+    return (
+      <div className="max-w-52 text-right">
+        <p className="text-foreground text-sm font-medium">You&apos;re in</p>
+        <Link
+          href={`/problems/${weeklySlug}`}
+          className="text-blue text-xs font-semibold hover:underline"
+        >
+          Complete the weekly challenge
+        </Link>
+      </div>
+    );
+  }
+
+  if (!payload.rank) {
+    return <p className="text-muted max-w-48 text-right text-sm">Your rank is being calculated.</p>;
+  }
+
+  const percentile = Math.max(1, Math.ceil((payload.rank.rank / payload.rank.totalRanked) * 100));
   return (
     <div className="text-right">
       <p className="text-foreground text-lg leading-tight font-semibold">
-        Rank <span className="tabnums">#{rank.rank}</span>
+        Rank <span className="tabnums">#{payload.rank.rank}</span>
       </p>
-      <p className={cn("text-subtle text-xs")}>
-        {rank.totalRanked >= 10
-          ? `of ${rank.totalRanked} · top ${percentile}%`
-          : `of ${rank.totalRanked} players`}
+      <p className="text-subtle text-xs">
+        {payload.rank.totalRanked >= 10
+          ? `of ${payload.rank.totalRanked} · top ${percentile}%`
+          : `of ${payload.rank.totalRanked} players`}
       </p>
     </div>
   );

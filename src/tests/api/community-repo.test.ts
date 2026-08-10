@@ -5,7 +5,10 @@ import {
   readLeaderboard,
   readLevelRecords,
   readRecentSolves,
+  readUserCommunityStatus,
   readUserRank,
+  readWeeklyChallengeCompletions,
+  readWeeklyLeaderboard,
 } from "@/lib/db/community-repo";
 import { progressSolved, submissions, user } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -212,6 +215,44 @@ describe("community-repo over pglite", () => {
       expect(await readUserRank(db, b)).toEqual({ rank: 2, totalRanked: 3, xp: 100 });
       expect(await readUserRank(db, c)).toEqual({ rank: 2, totalRanked: 3, xp: 100 });
       expect(await readUserRank(db, d)).toBeNull();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("scopes the weekly leaderboard and challenge completions to the UTC window", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      const a = await seedUser(db, "weeklyA");
+      const b = await seedUser(db, "weeklyB");
+      const start = at("2026-08-10T00:00:00Z");
+      const end = at("2026-08-17T00:00:00Z");
+
+      await seedSolve(db, a, "weekly-problem", 100, at("2026-08-10T10:00:00Z"));
+      await seedSolve(db, b, "other-problem", 250, at("2026-08-16T10:00:00Z"));
+      await seedSolve(db, a, "old-problem", 1_000, at("2026-08-09T23:59:00Z"));
+
+      expect(
+        (await readWeeklyLeaderboard(db, start, end, 10)).map((entry) => entry.userId),
+      ).toEqual([b, a]);
+      expect(await readWeeklyChallengeCompletions(db, "weekly-problem", start, end)).toBe(1);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("returns private users' progress without exposing a public rank", async () => {
+    const { db, client } = await createTestDb();
+    try {
+      const userId = await seedUser(db, "private-status");
+      await seedSolve(db, userId, "level-1", 100, at("2026-08-10T10:00:00Z"));
+      await db.update(user).set({ publicProfile: false }).where(eq(user.id, userId));
+
+      expect(await readUserCommunityStatus(db, userId)).toEqual({
+        publicProfile: false,
+        solveCount: 1,
+        rank: null,
+      });
     } finally {
       await client.close();
     }

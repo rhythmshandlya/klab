@@ -1,12 +1,17 @@
+import { revalidatePath } from "next/cache";
+
 import { getAuth } from "@/lib/auth/server";
 import { getDb, hasDb } from "@/lib/db";
 import {
   createPlayground,
   deletePlayground,
   duplicatePlayground,
+  forkPublicPlayground,
   mergeGuestPlaygrounds,
   openPlayground,
+  publishPlaygroundSnapshot,
   readPlaygrounds,
+  unpublishPlaygroundSnapshot,
   updatePlayground,
 } from "@/lib/db/labs-repo";
 import { isAuthConfigured } from "@/lib/env";
@@ -72,6 +77,52 @@ export async function POST(request: Request): Promise<Response> {
       return playground
         ? Response.json({ playground })
         : Response.json({ error: "playground not found" }, { status: 404 });
+    }
+    case "publish": {
+      const result = await publishPlaygroundSnapshot(
+        db,
+        userId,
+        parsed.data.id,
+        parsed.data.description,
+      );
+      if (result.status === "not-found") {
+        return Response.json({ error: "playground not found" }, { status: 404 });
+      }
+      if (result.status === "profile-private") {
+        return Response.json(
+          { error: "Enable your community profile before publishing." },
+          { status: 409 },
+        );
+      }
+      if (result.status === "unsafe") {
+        return Response.json(
+          { error: "Remove possible secrets before publishing.", issues: result.issues },
+          { status: 422 },
+        );
+      }
+      revalidatePath("/community");
+      return Response.json({ playground: result.playground });
+    }
+    case "unpublish": {
+      const playground = await unpublishPlaygroundSnapshot(db, userId, parsed.data.id);
+      if (!playground) {
+        return Response.json({ error: "playground not found" }, { status: 404 });
+      }
+      revalidatePath("/community");
+      return Response.json({ playground });
+    }
+    case "fork-public": {
+      const playground = await forkPublicPlayground(
+        db,
+        userId,
+        parsed.data.id,
+        parsed.data.clientId,
+      );
+      if (!playground) {
+        return Response.json({ error: "public playground not found" }, { status: 404 });
+      }
+      revalidatePath("/community");
+      return Response.json({ playground });
     }
     case "duplicate": {
       const playground = await duplicatePlayground(

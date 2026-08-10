@@ -13,6 +13,12 @@ test("autosaves, restores, finds, duplicates, and deletes a guest playground", a
     await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
   });
 
+  await test.step("publishing is gated behind an account", async () => {
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Sign in to klab" })).toBeVisible();
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+
   await test.step("inline rename and star persist", async () => {
     const title = page.getByRole("textbox", { name: "Playground name" });
     await title.fill("persistence devtools check");

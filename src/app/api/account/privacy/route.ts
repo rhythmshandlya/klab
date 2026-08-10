@@ -28,5 +28,7 @@ export async function POST(request: Request): Promise<Response> {
     .update(user)
     .set({ publicProfile: parsed.data.publicProfile, updatedAt: new Date() })
     .where(eq(user.id, userId));
+  revalidatePath("/community");
   return Response.json({ publicProfile: parsed.data.publicProfile });
 }
+import { revalidatePath } from "next/cache";

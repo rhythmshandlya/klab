@@ -1,11 +1,17 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { PlaygroundDraft, PlaygroundPatch, SavedPlayground } from "@/lib/labs/contracts";
+import {
+  checkPlaygroundPublishSafety,
+  type PublishSafetyIssue,
+} from "@/lib/playgrounds/publish-safety";
 
 import type { ProgressDb } from "./progress-repo";
-import { sandboxes } from "./schema";
+import { sandboxes, user } from "./schema";
 
-function toSavedPlayground(row: typeof sandboxes.$inferSelect): SavedPlayground {
+type SandboxRow = typeof sandboxes.$inferSelect;
+
+function toSavedPlayground(row: SandboxRow, publication?: SandboxRow): SavedPlayground {
   return {
     id: row.id,
     name: row.name,
@@ -13,8 +19,13 @@ function toSavedPlayground(row: typeof sandboxes.$inferSelect): SavedPlayground 
     files: row.files as Record<string, string>,
     description: row.description,
     starred: row.starred,
-    visibility: row.visibility === "link" ? "link" : "private",
+    visibility:
+      row.visibility === "public" ? "public" : row.visibility === "link" ? "link" : "private",
     activeFilePath: row.activeFilePath,
+    publishedCopyId: publication?.id ?? null,
+    publishedAt: publication?.publishedAt?.getTime() ?? null,
+    forkCount: publication?.forkCount ?? 0,
+    forkedFromId: row.forkedFromId,
     createdAt: row.savedAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
     lastOpenedAt: row.lastOpenedAt.getTime(),
@@ -22,12 +33,27 @@ function toSavedPlayground(row: typeof sandboxes.$inferSelect): SavedPlayground 
 }
 
 export async function readPlaygrounds(db: ProgressDb, userId: string): Promise<SavedPlayground[]> {
-  const rows = await db
-    .select()
-    .from(sandboxes)
-    .where(eq(sandboxes.userId, userId))
-    .orderBy(desc(sandboxes.lastOpenedAt), desc(sandboxes.updatedAt));
-  return rows.map(toSavedPlayground);
+  const [rows, publications] = await Promise.all([
+    db
+      .select()
+      .from(sandboxes)
+      .where(and(eq(sandboxes.userId, userId), isNull(sandboxes.publishedFromId)))
+      .orderBy(desc(sandboxes.lastOpenedAt), desc(sandboxes.updatedAt)),
+    db
+      .select()
+      .from(sandboxes)
+      .where(
+        and(
+          eq(sandboxes.userId, userId),
+          isNotNull(sandboxes.publishedFromId),
+          eq(sandboxes.visibility, "public"),
+        ),
+      ),
+  ]);
+  const bySource = new Map(
+    publications.map((publication) => [publication.publishedFromId!, publication]),
+  );
+  return rows.map((row) => toSavedPlayground(row, bySource.get(row.id)));
 }
 
 export async function createPlayground(
@@ -80,9 +106,23 @@ export async function updatePlayground(
   const rows = await db
     .update(sandboxes)
     .set({ ...patch, updatedAt: now, lastOpenedAt: now })
-    .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
+    .where(
+      and(eq(sandboxes.id, id), eq(sandboxes.userId, userId), isNull(sandboxes.publishedFromId)),
+    )
     .returning();
-  return rows[0] ? toSavedPlayground(rows[0]) : null;
+  if (!rows[0]) return null;
+  const publications = await db
+    .select()
+    .from(sandboxes)
+    .where(
+      and(
+        eq(sandboxes.userId, userId),
+        eq(sandboxes.publishedFromId, id),
+        eq(sandboxes.visibility, "public"),
+      ),
+    )
+    .limit(1);
+  return toSavedPlayground(rows[0], publications[0]);
 }
 
 export async function openPlayground(
@@ -93,9 +133,23 @@ export async function openPlayground(
   const rows = await db
     .update(sandboxes)
     .set({ lastOpenedAt: new Date() })
-    .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
+    .where(
+      and(eq(sandboxes.id, id), eq(sandboxes.userId, userId), isNull(sandboxes.publishedFromId)),
+    )
     .returning();
-  return rows[0] ? toSavedPlayground(rows[0]) : null;
+  if (!rows[0]) return null;
+  const publications = await db
+    .select()
+    .from(sandboxes)
+    .where(
+      and(
+        eq(sandboxes.userId, userId),
+        eq(sandboxes.publishedFromId, id),
+        eq(sandboxes.visibility, "public"),
+      ),
+    )
+    .limit(1);
+  return toSavedPlayground(rows[0], publications[0]);
 }
 
 export async function duplicatePlayground(
@@ -107,7 +161,9 @@ export async function duplicatePlayground(
   const rows = await db
     .select()
     .from(sandboxes)
-    .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
+    .where(
+      and(eq(sandboxes.id, id), eq(sandboxes.userId, userId), isNull(sandboxes.publishedFromId)),
+    )
     .limit(1);
   const source = rows[0];
   if (!source) return null;
@@ -128,14 +184,178 @@ export async function duplicatePlayground(
   });
 }
 
+export type PublishPlaygroundResult =
+  | { status: "published"; playground: SavedPlayground }
+  | { status: "not-found" }
+  | { status: "profile-private" }
+  | { status: "unsafe"; issues: PublishSafetyIssue[] };
+
+/** Create or refresh a public snapshot while leaving the working Playground private. */
+export async function publishPlaygroundSnapshot(
+  db: ProgressDb,
+  userId: string,
+  id: string,
+  description: string,
+): Promise<PublishPlaygroundResult> {
+  const [sources, profiles] = await Promise.all([
+    db
+      .select()
+      .from(sandboxes)
+      .where(
+        and(eq(sandboxes.id, id), eq(sandboxes.userId, userId), isNull(sandboxes.publishedFromId)),
+      )
+      .limit(1),
+    db.select({ publicProfile: user.publicProfile }).from(user).where(eq(user.id, userId)).limit(1),
+  ]);
+  const source = sources[0];
+  if (!source) return { status: "not-found" };
+  if (!profiles[0]?.publicProfile) return { status: "profile-private" };
+
+  const files = source.files as Record<string, string>;
+  const issues = checkPlaygroundPublishSafety(files);
+  if (issues.length) return { status: "unsafe", issues };
+
+  const now = new Date();
+  const cleanDescription = description.trim();
+  const updatedSources = await db
+    .update(sandboxes)
+    .set({ description: cleanDescription, updatedAt: now })
+    .where(and(eq(sandboxes.id, source.id), eq(sandboxes.userId, userId)))
+    .returning();
+  const updatedSource = updatedSources[0] ?? { ...source, description: cleanDescription };
+
+  const publications = await db
+    .insert(sandboxes)
+    .values({
+      userId,
+      clientId: `published:${source.id}`,
+      name: source.name,
+      templateId: source.templateId,
+      files,
+      description: cleanDescription,
+      starred: false,
+      visibility: "public",
+      activeFilePath: source.activeFilePath,
+      publishedFromId: source.id,
+      publishedAt: now,
+      savedAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [sandboxes.userId, sandboxes.clientId],
+      set: {
+        name: source.name,
+        templateId: source.templateId,
+        files,
+        description: cleanDescription,
+        visibility: "public",
+        activeFilePath: source.activeFilePath,
+        publishedAt: now,
+        updatedAt: now,
+      },
+    })
+    .returning();
+  return {
+    status: "published",
+    playground: toSavedPlayground(updatedSource, publications[0]),
+  };
+}
+
+export async function unpublishPlaygroundSnapshot(
+  db: ProgressDb,
+  userId: string,
+  id: string,
+): Promise<SavedPlayground | null> {
+  const sources = await db
+    .select()
+    .from(sandboxes)
+    .where(
+      and(eq(sandboxes.id, id), eq(sandboxes.userId, userId), isNull(sandboxes.publishedFromId)),
+    )
+    .limit(1);
+  const source = sources[0];
+  if (!source) return null;
+  await db
+    .update(sandboxes)
+    .set({ visibility: "private", publishedAt: null, updatedAt: new Date() })
+    .where(and(eq(sandboxes.userId, userId), eq(sandboxes.publishedFromId, id)));
+  return toSavedPlayground(source);
+}
+
+/** Idempotently fork a discoverable snapshot into the signed-in user's private library. */
+export async function forkPublicPlayground(
+  db: ProgressDb,
+  userId: string,
+  id: string,
+  clientId: string,
+): Promise<SavedPlayground | null> {
+  const rows = await db
+    .select({ playground: sandboxes })
+    .from(sandboxes)
+    .innerJoin(user, eq(user.id, sandboxes.userId))
+    .where(
+      and(
+        eq(sandboxes.id, id),
+        eq(sandboxes.visibility, "public"),
+        isNotNull(sandboxes.publishedFromId),
+        eq(user.publicProfile, true),
+      ),
+    )
+    .limit(1);
+  const source = rows[0]?.playground;
+  if (!source) return null;
+
+  const now = new Date();
+  const inserted = await db
+    .insert(sandboxes)
+    .values({
+      userId,
+      clientId,
+      name: `${source.name} fork`,
+      templateId: source.templateId,
+      files: source.files,
+      description: source.description,
+      starred: false,
+      visibility: "private",
+      activeFilePath: source.activeFilePath,
+      forkedFromId: source.id,
+      savedAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+    })
+    .onConflictDoNothing({ target: [sandboxes.userId, sandboxes.clientId] })
+    .returning();
+
+  if (inserted[0]) {
+    await db
+      .update(sandboxes)
+      .set({ forkCount: sql`${sandboxes.forkCount} + 1` })
+      .where(eq(sandboxes.id, source.id));
+    return toSavedPlayground(inserted[0]);
+  }
+
+  const existing = await db
+    .select()
+    .from(sandboxes)
+    .where(and(eq(sandboxes.userId, userId), eq(sandboxes.clientId, clientId)))
+    .limit(1);
+  return existing[0] ? toSavedPlayground(existing[0]) : null;
+}
+
 export async function deletePlayground(
   db: ProgressDb,
   userId: string,
   id: string,
 ): Promise<boolean> {
+  await db
+    .delete(sandboxes)
+    .where(and(eq(sandboxes.userId, userId), eq(sandboxes.publishedFromId, id)));
   const rows = await db
     .delete(sandboxes)
-    .where(and(eq(sandboxes.id, id), eq(sandboxes.userId, userId)))
+    .where(
+      and(eq(sandboxes.id, id), eq(sandboxes.userId, userId), isNull(sandboxes.publishedFromId)),
+    )
     .returning({ id: sandboxes.id });
   return rows.length > 0;
 }
@@ -155,7 +375,8 @@ export async function mergeGuestPlaygrounds(
       files: playground.files,
       description: playground.description,
       starred: playground.starred,
-      visibility: playground.visibility,
+      // Browser data can be edited by the user; claiming it must never publish it.
+      visibility: playground.visibility === "link" ? "link" : "private",
       activeFilePath: playground.activeFilePath,
       createdAt: playground.createdAt,
       updatedAt: playground.updatedAt,

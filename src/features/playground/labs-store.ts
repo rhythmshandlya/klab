@@ -34,6 +34,9 @@ interface PlaygroundsState {
   update: (id: string, patch: PlaygroundPatch) => Promise<SavedPlayground | undefined>;
   open: (id: string) => Promise<SavedPlayground | undefined>;
   duplicate: (id: string) => Promise<SavedPlayground | undefined>;
+  publish: (id: string, description: string) => Promise<SavedPlayground>;
+  unpublish: (id: string) => Promise<SavedPlayground>;
+  forkPublic: (id: string) => Promise<SavedPlayground>;
   remove: (id: string) => Promise<void>;
   resetForAccountExit: () => void;
 }
@@ -59,8 +62,30 @@ async function requestPlaygrounds(body?: unknown) {
           body: JSON.stringify(body),
         }),
   });
-  if (!response.ok) throw new Error(`Playground sync failed (${response.status}).`);
-  return parsePlaygroundsResponse(await response.json());
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const issue =
+      payload &&
+      typeof payload === "object" &&
+      "issues" in payload &&
+      Array.isArray(payload.issues) &&
+      payload.issues[0] &&
+      typeof payload.issues[0] === "object" &&
+      "message" in payload.issues[0] &&
+      typeof payload.issues[0].message === "string"
+        ? payload.issues[0].message
+        : null;
+    const message =
+      issue ??
+      (payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : `Playground sync failed (${response.status}).`);
+    throw new Error(message);
+  }
+  return parsePlaygroundsResponse(payload);
 }
 
 export const usePlaygroundsStore = create<PlaygroundsState>((set, get) => {
@@ -212,6 +237,43 @@ export const usePlaygroundsStore = create<PlaygroundsState>((set, get) => {
         set((state) => ({ playgrounds: replaceOne(state.playgrounds, playground), error: null }));
       }
       return playground;
+    },
+
+    async publish(id, description) {
+      if (!get().identity) throw new Error("Sign in before publishing a Playground.");
+      const result = await requestPlaygrounds({ action: "publish", id, description });
+      if (!result.playground) throw new Error("The server did not return the publication.");
+      set((state) => ({
+        playgrounds: replaceOne(state.playgrounds, result.playground!),
+        error: null,
+      }));
+      return result.playground;
+    },
+
+    async unpublish(id) {
+      if (!get().identity) throw new Error("Sign in before managing a publication.");
+      const result = await requestPlaygrounds({ action: "unpublish", id });
+      if (!result.playground) throw new Error("The server did not return the Playground.");
+      set((state) => ({
+        playgrounds: replaceOne(state.playgrounds, result.playground!),
+        error: null,
+      }));
+      return result.playground;
+    },
+
+    async forkPublic(id) {
+      if (!get().identity) throw new Error("Sign in to fork this Playground.");
+      const result = await requestPlaygrounds({
+        action: "fork-public",
+        id,
+        clientId: createClientMutationId(),
+      });
+      if (!result.playground) throw new Error("The public Playground is unavailable.");
+      set((state) => ({
+        playgrounds: replaceOne(state.playgrounds, result.playground!),
+        error: null,
+      }));
+      return result.playground;
     },
 
     async remove(id) {
