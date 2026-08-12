@@ -15,7 +15,7 @@ test("autosaves, restores, finds, duplicates, and deletes a guest playground", a
 
   await test.step("publishing is gated behind an account", async () => {
     await page.getByRole("button", { name: "Publish", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Sign in to klab" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
     await page.getByRole("button", { name: "Close" }).click();
   });
 
