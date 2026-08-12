@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils/cn";
 
 import { ChallengeBlock, SpotTheBugBlock } from "./docs-reveal-blocks";
 import { CopyButton } from "./copy-button";
-import { DocsFlowDiagram } from "./docs-flow-diagram";
 import { DocsQuiz } from "./docs-quiz";
 import { InteractiveLab } from "./interactive-lab";
 import { MissionEmbed } from "./mission-embed";
@@ -114,50 +113,36 @@ function Block({ block, lesson }: { block: DocsBlock; lesson: DocsLesson }) {
 
 function NativeDiagram({ block }: { block: DiagramBlock }) {
   switch (block.variant) {
-    // Flow-shaped concepts render on React Flow: real arrowheads, animated edges,
-    // one visual language shared with the live mission topology.
-    case "cluster-architecture":
-    case "api-object":
-    case "workload-hierarchy":
-    case "service-routing":
-      return (
-        <DiagramShell title={block.title} caption={block.caption}>
-          <DocsFlowDiagram variant={block.variant} />
-        </DiagramShell>
-      );
     case "control-loop":
       return (
         <DiagramShell title={block.title} caption={block.caption}>
-          <div className="relative min-h-64 overflow-hidden">
-            <LoopArrows />
-            <div className="relative z-10 grid gap-5 p-5 lg:grid-cols-[1fr_220px_1fr] lg:items-center">
-              <div>
-                <p className="text-foreground text-sm font-semibold">You declare</p>
-                <p className="text-subtle mt-1 text-xs">Desired state</p>
-                <CodeCard
-                  className="mt-3"
-                  title="deployment.yaml"
-                  code={"spec:\n  replicas: 3\n  selector:\n    app: web"}
-                />
+          <div className="grid gap-5 p-5 sm:p-6 @3xl:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)] @3xl:items-center">
+            <div>
+              <p className="text-foreground text-sm font-semibold">You declare</p>
+              <p className="text-subtle mt-1 text-xs">Desired state</p>
+              <CodeCard
+                className="mt-3"
+                title="deployment.yaml"
+                code={"spec:\n  replicas: 3\n  selector:\n    app: web"}
+              />
+            </div>
+            <div className="flex flex-col items-center justify-center py-5 text-center">
+              <div className="bg-blue/15 text-blue border-blue/40 flex size-20 items-center justify-center rounded-md border shadow-[0_0_40px_rgb(0_112_243/0.25)]">
+                <ClusterMark className="size-10" aria-hidden />
               </div>
-              <div className="flex flex-col items-center justify-center py-5 text-center">
-                <div className="bg-blue/15 text-blue border-blue/40 flex size-20 items-center justify-center rounded-md border shadow-[0_0_40px_rgb(0_112_243/0.25)]">
-                  <ClusterMark className="size-10" aria-hidden />
-                </div>
-                <p className="text-foreground mt-3 text-sm font-semibold">Control plane</p>
-                <p className="text-muted mt-1 max-w-40 text-xs leading-relaxed">
-                  Observe, diff, and act until the cluster matches the spec.
-                </p>
-              </div>
-              <div>
-                <p className="text-foreground text-sm font-semibold">Cluster runs</p>
-                <p className="text-subtle mt-1 text-xs">Actual state</p>
-                <CodeCard
-                  className="mt-3"
-                  title="status"
-                  code={"replicas: 3\nready: 3\nupdated: 3"}
-                />
-              </div>
+              <p className="text-foreground mt-3 text-sm font-semibold">Control plane</p>
+              <p className="text-muted mt-1 max-w-40 text-xs leading-relaxed">
+                Observe, diff, and act until the cluster matches the spec.
+              </p>
+            </div>
+            <div>
+              <p className="text-foreground text-sm font-semibold">Cluster runs</p>
+              <p className="text-subtle mt-1 text-xs">Actual state</p>
+              <CodeCard
+                className="mt-3"
+                title="status"
+                code={"replicas: 3\nready: 3\nupdated: 3"}
+              />
             </div>
           </div>
         </DiagramShell>
@@ -165,7 +150,7 @@ function NativeDiagram({ block }: { block: DiagramBlock }) {
     case "cluster-architecture":
       return (
         <DiagramShell title={block.title} caption={block.caption}>
-          <div className="grid gap-4 p-5 lg:grid-cols-[1fr_1.1fr]">
+          <div className="grid gap-5 p-5 sm:p-6 @3xl:grid-cols-[minmax(15rem,0.9fr)_minmax(22rem,1.4fr)]">
             <div className="space-y-3">
               <ObjectNode
                 tone="blue"
@@ -201,7 +186,7 @@ function NativeDiagram({ block }: { block: DiagramBlock }) {
     case "api-object":
       return (
         <DiagramShell title={block.title} caption={block.caption}>
-          <div className="grid gap-4 p-5 lg:grid-cols-[1fr_0.8fr]">
+          <div className="grid gap-5 p-5 sm:p-6 @3xl:grid-cols-[minmax(20rem,1.1fr)_minmax(18rem,0.9fr)]">
             <CodeCard
               title="Object"
               code={
@@ -392,11 +377,7 @@ function TakeawaysBlock({ items }: { items: string[] }) {
 
 type AnnotatedCodeBlock = Extract<DocsBlock, { type: "annotatedCode" }>;
 
-/**
- * A continuous code listing with numbered callouts. Keeping explanations out of the
- * code rows preserves indentation and line rhythm, while matching markers make the
- * relationship between a line and its teaching note explicit at every viewport.
- */
+/** A continuous source listing followed by a compact, explicitly keyed field guide. */
 function AnnotatedCode({ block }: { block: AnnotatedCodeBlock }) {
   const source = block.lines.map((line) => line.code).join("\n");
   const showIndentGuides = block.language === "yaml" || block.language === "json";
@@ -435,125 +416,132 @@ function AnnotatedCode({ block }: { block: AnnotatedCodeBlock }) {
         <CopyButton text={source} className="shrink-0" />
       </figcaption>
 
-      <div
-        className={cn(
-          annotations.length > 0 && "@3xl:grid @3xl:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]",
-        )}
-      >
-        <div className="bg-code/90 min-w-0">
-          <div className="border-border text-muted flex items-center justify-between border-b px-3 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase sm:px-4">
-            <span>Source</span>
-            {annotations.length > 0 ? <span>Markers map to callouts</span> : null}
-          </div>
-          <div
-            className="overflow-x-auto py-2.5"
-            role="region"
-            aria-label={`${block.language.toUpperCase()} source code`}
-            tabIndex={0}
-          >
-            <pre className="text-muted w-max min-w-full font-mono text-xs leading-6 [tab-size:2]">
-              <code>
-                {block.lines.map((line, lineIndex) => {
-                  const lineNumber = lineIndex + 1;
-                  const annotationNumber = annotationNumberByLine.get(lineNumber);
-                  const indentationDepth = showIndentGuides
-                    ? Math.floor((line.code.match(/^ */)?.[0].length ?? 0) / 2)
-                    : 0;
+      <div className="bg-code/90">
+        <div className="border-border text-muted flex items-center justify-between border-b px-3 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase sm:px-4">
+          <span>Source</span>
+          {annotations.length > 0 ? (
+            <span className="hidden sm:inline">Numbered lines are explained below</span>
+          ) : null}
+        </div>
 
-                  return (
+        <div
+          className="overflow-x-auto py-2.5"
+          role="region"
+          aria-label={block.language.toUpperCase() + " source code with numbered markers"}
+          tabIndex={0}
+        >
+          <pre className="text-muted w-max min-w-full font-mono text-xs leading-7 [tab-size:2]">
+            <code>
+              {block.lines.map((line, lineIndex) => {
+                const lineNumber = lineIndex + 1;
+                const annotationNumber = annotationNumberByLine.get(lineNumber);
+                const indentationDepth = showIndentGuides
+                  ? Math.floor((line.code.match(/^ */)?.[0].length ?? 0) / 2)
+                  : 0;
+
+                return (
+                  <span
+                    key={lineIndex}
+                    data-code-line={lineNumber}
+                    className={cn(
+                      "grid min-h-7 grid-cols-[2.75rem_2.5rem_minmax(max-content,1fr)] items-center border-l-2 px-2",
+                      annotationNumber
+                        ? "border-border-strong bg-panel-elevated/35 text-foreground"
+                        : "border-transparent",
+                    )}
+                  >
                     <span
-                      key={lineIndex}
-                      data-code-line={lineNumber}
-                      className={cn(
-                        "grid min-h-6 grid-cols-[2.75rem_minmax(max-content,1fr)_2.5rem] items-start border-l-2 px-2",
-                        annotationNumber
-                          ? "border-blue/70 bg-blue/[0.06] text-foreground"
-                          : "border-transparent",
-                      )}
+                      className="text-subtle/70 tabnums pr-3 text-right text-[10px] leading-7 select-none"
+                      aria-hidden
                     >
-                      <span
-                        className="text-subtle/70 tabnums pr-3 text-right text-[10px] leading-6 select-none"
-                        aria-hidden
-                      >
-                        {lineNumber}
-                      </span>
-                      <span className="relative pr-5 leading-6 whitespace-pre">
-                        {indentationDepth > 0 ? (
-                          <span
-                            className="pointer-events-none absolute inset-y-0 left-0 flex"
-                            data-indent-guides={indentationDepth}
-                            aria-hidden
-                          >
-                            {Array.from({ length: indentationDepth }, (_, guideIndex) => (
-                              <span
-                                key={guideIndex}
-                                className="border-border/60 block w-[2ch] border-r"
-                              />
-                            ))}
-                          </span>
-                        ) : null}
-                        <span className="relative">{line.code || " "}</span>
-                      </span>
+                      {lineNumber}
+                    </span>
+                    <span className="flex items-center justify-center" aria-hidden>
                       {annotationNumber ? (
                         <span
-                          className="border-blue/50 bg-blue/20 text-foreground mt-1 flex size-4 items-center justify-center rounded-full border text-[9px] leading-none font-bold select-none"
-                          aria-hidden
-                          title={`Callout ${annotationNumber}`}
+                          className="border-border-strong bg-panel-hover text-muted flex size-6 items-center justify-center rounded-full border text-[10px] leading-none font-bold select-none"
+                          title={"Callout " + annotationNumber}
                         >
                           {annotationNumber}
                         </span>
-                      ) : (
-                        <span aria-hidden />
-                      )}
+                      ) : null}
                     </span>
-                  );
-                })}
-              </code>
-            </pre>
-          </div>
-        </div>
-
-        {annotations.length > 0 ? (
-          <aside
-            className="border-border bg-panel-elevated/35 border-t @3xl:border-t-0 @3xl:border-l"
-            aria-label={`${block.title ?? block.language.toUpperCase()} callouts`}
-          >
-            <div className="border-border flex items-center justify-between border-b px-3 py-1.5 sm:px-4">
-              <p className="text-foreground text-xs font-semibold">Callouts</p>
-              <p className="text-muted text-[10px]">Linked to source lines</p>
-            </div>
-            <ol className="grid gap-2 p-3 @md:grid-cols-2 @3xl:grid-cols-1">
-              {annotations.map((annotation, annotationIndex) => (
-                <li
-                  key={annotation.lineNumber}
-                  className="border-border bg-panel grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2.5 rounded-md border p-2.5"
-                >
-                  <span
-                    className="border-blue/50 bg-blue/20 text-foreground flex size-6 items-center justify-center rounded-full border text-[10px] font-bold"
-                    aria-hidden
-                  >
-                    {annotationIndex + 1}
+                    <span className="relative block pr-5 leading-7 whitespace-pre">
+                      {indentationDepth > 0 ? (
+                        <span
+                          className="pointer-events-none absolute inset-y-0 left-0 flex"
+                          data-indent-guides={indentationDepth}
+                          aria-hidden
+                        >
+                          {Array.from({ length: indentationDepth }, (_, guideIndex) => (
+                            <span
+                              key={guideIndex}
+                              className="border-border/60 block w-[2ch] border-r"
+                            />
+                          ))}
+                        </span>
+                      ) : null}
+                      <span className="relative">{line.code || " "}</span>
+                    </span>
                   </span>
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="text-muted tabnums shrink-0 text-[10px] font-semibold tracking-[0.08em] uppercase">
-                        Line {annotation.lineNumber}
-                      </span>
-                      <code
-                        className="text-muted min-w-0 truncate font-mono text-[10px]"
-                        title={annotation.code.trim() || "Blank line"}
-                      >
-                        {annotation.code.trim() || "Blank line"}
-                      </code>
-                    </div>
-                    <p className="text-muted mt-1.5 text-xs leading-relaxed">{annotation.note}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </aside>
-        ) : null}
+                );
+              })}
+            </code>
+          </pre>
+        </div>
       </div>
+
+      {annotations.length > 0 ? (
+        <section
+          className="border-border bg-panel-elevated/25 border-t"
+          aria-label={(block.title ?? block.language.toUpperCase()) + " field guide"}
+        >
+          <div className="border-border flex items-end justify-between gap-3 border-b px-3 py-2.5 sm:px-4">
+            <div>
+              <p className="text-foreground text-xs font-semibold">Field guide</p>
+              <p className="text-muted mt-0.5 text-[11px]">
+                The exact source line is repeated in every note.
+              </p>
+            </div>
+            <span className="text-subtle hidden text-[10px] font-semibold tracking-[0.08em] uppercase sm:inline">
+              {annotations.length} key lines
+            </span>
+          </div>
+          <ol className="grid gap-3 p-3 sm:p-4 @3xl:grid-cols-2">
+            {annotations.map((annotation, annotationIndex) => (
+              <li
+                key={annotation.lineNumber}
+                className="border-border bg-panel flex h-full min-w-0 items-start gap-3 rounded-md border p-3"
+                data-callout-for-line={annotation.lineNumber}
+              >
+                <span
+                  className="border-border-strong bg-panel-hover text-muted flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] leading-none font-bold"
+                  aria-hidden
+                >
+                  {annotationIndex + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="sr-only">Callout {annotationIndex + 1}: </span>
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="text-subtle tabnums shrink-0 text-[10px] font-semibold tracking-[0.08em] uppercase">
+                      Line {annotation.lineNumber}
+                    </span>
+                    <code
+                      className="border-border bg-code text-foreground max-w-full overflow-x-auto rounded border px-1.5 py-0.5 font-mono text-[11px] leading-4 whitespace-pre"
+                      title={annotation.code.trim() || "Blank line"}
+                    >
+                      {annotation.code.trim() || "Blank line"}
+                    </code>
+                  </div>
+                  <p className="text-muted mt-2 text-[13px] leading-5 first-letter:uppercase">
+                    {annotation.note}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {block.caption ? (
         <p className="border-border bg-panel-elevated/60 text-muted border-t px-4 py-2.5 text-center text-xs leading-relaxed">
@@ -646,7 +634,7 @@ function DiagramShell({
   children: ReactNode;
 }) {
   return (
-    <figure className="border-border bg-panel overflow-hidden rounded-md border">
+    <figure className="border-border bg-panel @container w-full overflow-hidden rounded-md border">
       {title ? (
         <figcaption className="border-border text-subtle border-b px-4 py-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
           {title}
@@ -661,32 +649,6 @@ function DiagramShell({
         </p>
       ) : null}
     </figure>
-  );
-}
-
-function LoopArrows() {
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 hidden h-full w-full lg:block"
-      viewBox="0 0 900 260"
-      preserveAspectRatio="none"
-    >
-      <path
-        d="M240 64 C380 8 520 8 660 64"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-blue"
-      />
-      <path
-        d="M660 196 C520 252 380 252 240 196"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-green"
-      />
-    </svg>
   );
 }
 
@@ -729,7 +691,7 @@ function ObjectNode({
     purple: "border-purple/35 bg-purple/10",
   }[tone];
   return (
-    <div className={cn("rounded-md border p-3", toneClass)}>
+    <div className={cn("rounded-md border p-4", toneClass)}>
       <p className="text-foreground text-sm font-semibold">{title}</p>
       <p className="text-muted mt-1 text-xs leading-relaxed">{detail}</p>
     </div>

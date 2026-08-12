@@ -66,6 +66,16 @@ describe("docs content", () => {
     }
   });
 
+  it("keeps the introductory Kubernetes lesson focused on the mission", () => {
+    const lesson = DOCS_LESSONS.find(
+      (candidate) => candidate.slug.join("/") === "foundations/what-is-kubernetes",
+    );
+
+    expect(lesson).toBeDefined();
+    expect(lesson?.content.some((block) => block.type === "quiz")).toBe(false);
+    expect(lesson?.content.some((block) => block.type === "takeaways")).toBe(false);
+  });
+
   it("keeps decisionTable rows aligned with their columns", () => {
     for (const lesson of DOCS_LESSONS) {
       for (const block of lesson.content) {

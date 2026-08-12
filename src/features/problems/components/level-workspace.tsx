@@ -153,9 +153,8 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const [applyFeedback, setApplyFeedback] = useState<ApplyFeedback | null>(null);
 
   // Persisted, user-resizable pane layouts (drag the separators; arrow keys work too).
-  const columnsLayout = usePersistedLayout("klab:layout:level-workspace:columns");
+  const columnsLayout = usePersistedLayout("klab:layout:level-workspace:columns:v2");
   const centerLayout = usePersistedLayout("klab:layout:level-workspace:center:v2");
-  const rightLayout = usePersistedLayout("klab:layout:level-workspace:right");
   const explorerLayout = usePersistedLayout("klab:layout:level-workspace:explorer");
 
   const terminalRunnerRef = useRef<((line: string) => void) | null>(null);
@@ -738,22 +737,16 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
 
         <ResizableHandle orientation="vertical" aria-label="Resize cluster rail" />
 
-        {/* Right rail: explorer/details and topology, each resizable. */}
+        {/* A wider right rail keeps the topology square while leaving the explorer below it. */}
         <ResizablePane
           id="rail-right"
-          defaultSize="26%"
-          minSize="260px"
-          maxSize="45%"
+          defaultSize="33%"
+          minSize="320px"
+          maxSize="42%"
           className="h-full"
         >
-          <ResizableGroup
-            orientation="vertical"
-            id="level-right"
-            defaultLayout={rightLayout.defaultLayout}
-            onLayoutChanged={rightLayout.onLayoutChanged}
-            className="h-full"
-          >
-            <ResizablePane id="topology" defaultSize="34%" minSize="15%" className="h-full">
+          <div className="flex h-full min-h-0 flex-col gap-1">
+            <div className="aspect-square w-full shrink-0">
               <Panel className="h-full">
                 <PanelHeader
                   title={isBuild ? "Design Inventory" : "Service Topology"}
@@ -773,11 +766,9 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                   </ErrorBoundary>
                 </PanelBody>
               </Panel>
-            </ResizablePane>
+            </div>
 
-            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
-
-            <ResizablePane id="cluster" minSize="30%" className="h-full">
+            <div className="min-h-0 flex-1">
               <Panel className="h-full">
                 <PanelHeader
                   title={isBuild ? "Static Review Runtime" : "Cluster Explorer"}
@@ -813,8 +804,8 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                   </ResizablePane>
                 </ResizableGroup>
               </Panel>
-            </ResizablePane>
-          </ResizableGroup>
+            </div>
+          </div>
         </ResizablePane>
       </ResizableGroup>
 

@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils/cn";
 type LevelStatus = "solved" | "in-progress" | "unsolved";
 type StatusFilter = "all" | LevelStatus;
 type Tab = "all" | "architects" | "incidents" | "saved" | "completed";
-type Sort = "featured" | "xp" | "time" | "success" | "title";
+type Sort = "featured" | "xp" | "time" | "title";
 type PathFilter = "all" | ProblemLearningPath;
 
 const PAGE_SIZE = 20;
@@ -182,8 +182,7 @@ export function recommendProblems(
         (saved.has(level.slug) ? 8 : 0) +
         conceptAffinity * 3 +
         pathAffinity * 2 -
-        Math.abs(DIFFICULTY_RANK[level.difficulty] - targetDifficulty) * 4 +
-        level.successRate / 100;
+        Math.abs(DIFFICULTY_RANK[level.difficulty] - targetDifficulty) * 4;
       return { level, score };
     })
     .sort((a, b) => b.score - a.score || a.level.slug.localeCompare(b.level.slug))
@@ -205,11 +204,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     ),
   );
   const [sort, setSort] = useState<Sort>(() =>
-    readChoice(
-      searchParams.get("sort"),
-      ["featured", "xp", "time", "success", "title"],
-      "featured",
-    ),
+    readChoice(searchParams.get("sort"), ["featured", "xp", "time", "title"], "featured"),
   );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
     readChoice(searchParams.get("status"), ["all", "solved", "in-progress", "unsolved"], "all"),
@@ -312,7 +307,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     const sorted = [...entries];
     if (sort === "xp") sorted.sort((a, b) => b.level.xp - a.level.xp);
     if (sort === "time") sorted.sort((a, b) => a.level.estimatedMinutes - b.level.estimatedMinutes);
-    if (sort === "success") sorted.sort((a, b) => b.level.successRate - a.level.successRate);
     if (sort === "title") sorted.sort((a, b) => a.level.title.localeCompare(b.level.title));
     return sorted;
   }, [
@@ -344,11 +338,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
         ),
       );
       setSort(
-        readChoice<Sort>(
-          params.get("sort"),
-          ["featured", "xp", "time", "success", "title"],
-          "featured",
-        ),
+        readChoice<Sort>(params.get("sort"), ["featured", "xp", "time", "title"], "featured"),
       );
       setStatusFilter(
         readChoice<StatusFilter>(
@@ -605,7 +595,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                 <option value="featured">Featured</option>
                 <option value="xp">XP</option>
                 <option value="time">Est. time</option>
-                <option value="success">Success rate</option>
                 <option value="title">Title</option>
               </select>
             </label>
@@ -613,7 +602,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
 
           {/* Problem table */}
           <div className="border-border mt-4 overflow-x-auto rounded-xl border">
-            <table className="w-full min-w-[760px] border-collapse text-left">
+            <table className="w-full min-w-[660px] border-collapse text-left">
               <thead>
                 <tr className="border-border bg-panel border-b">
                   <Th className="w-12 pl-4">Status</Th>
@@ -621,7 +610,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                   <Th className="w-28">Difficulty</Th>
                   <Th className="hidden w-44 lg:table-cell">Topics</Th>
                   <Th className="w-16">XP</Th>
-                  <Th className="hidden w-36 md:table-cell">Success</Th>
                   <Th className="hidden w-20 md:table-cell">Est.</Th>
                   <Th className="w-10 pr-3">
                     <span className="sr-only">Save</span>
@@ -631,7 +619,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
               <tbody>
                 {pagedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-muted px-4 py-10 text-center text-sm">
+                    <td colSpan={7} className="text-muted px-4 py-10 text-center text-sm">
                       No problems match these filters.
                       <button
                         type="button"
@@ -1173,10 +1161,6 @@ function ProblemRow({
   onToggleSaved: () => void;
 }) {
   const meta = DIFFICULTY_META[level.difficulty];
-  const statsLabel =
-    level.statsSource === "client-validated"
-      ? `Client-validated telemetry, n=${level.statsSampleSize ?? 0}`
-      : "Authored estimate";
 
   const title = (
     <>
@@ -1228,34 +1212,6 @@ function ProblemRow({
         <span className="text-purple flex items-center gap-1 text-sm font-medium">
           <icons.xp className="size-3.5" aria-hidden />
           <span className="tabnums">{level.xp}</span>
-        </span>
-      </td>
-      <td className="hidden px-3 py-3 align-middle md:table-cell">
-        <span className="flex flex-col gap-1" title={statsLabel}>
-          <span className="flex items-center gap-2">
-            <span className="tabnums text-muted w-9 text-xs">
-              {level.statsSource === "authored-estimate" ? "~" : ""}
-              {level.successRate}%
-            </span>
-            <span className="bg-panel-elevated h-1 w-14 overflow-hidden rounded-full">
-              <span
-                className={cn(
-                  "block h-full rounded-full",
-                  level.successRate >= 60
-                    ? "bg-green"
-                    : level.successRate >= 45
-                      ? "bg-amber"
-                      : "bg-red",
-                )}
-                style={{ width: `${level.successRate}%` }}
-              />
-            </span>
-          </span>
-          <span className="text-subtle text-[10px] leading-none">
-            {level.statsSource === "client-validated"
-              ? `client n=${level.statsSampleSize ?? 0}`
-              : "estimate"}
-          </span>
         </span>
       </td>
       <td className="hidden px-3 py-3 align-middle md:table-cell">

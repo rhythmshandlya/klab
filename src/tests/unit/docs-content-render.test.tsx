@@ -28,22 +28,45 @@ const ANNOTATED_LESSON: DocsLesson = {
   labs: [],
 };
 
+const DIAGRAM_LESSON: DocsLesson = {
+  slug: ["test", "diagrams"],
+  title: "Diagrams",
+  description: "A diagram renderer fixture.",
+  section: "Test",
+  order: 2,
+  concepts: [],
+  content: [
+    { type: "diagram", variant: "control-loop", title: "The reconciliation loop" },
+    { type: "diagram", variant: "cluster-architecture", title: "Cluster building blocks" },
+  ],
+  labs: [],
+};
+
 describe("annotated docs code", () => {
-  it("keeps source lines in one scrollable code listing and separates the callouts", () => {
+  it("keeps the YAML uninterrupted and explicitly keys each field-guide note", () => {
     const { container } = render(<DocsContent lesson={ANNOTATED_LESSON} />);
 
-    const source = screen.getByRole("region", { name: "YAML source code" });
+    const source = screen.getByRole("region", {
+      name: "YAML source code with numbered markers",
+    });
     expect(source).toHaveAttribute("tabindex", "0");
     expect(container.querySelectorAll("pre")).toHaveLength(1);
     expect(container.querySelectorAll("[data-code-line]")).toHaveLength(3);
     expect(container.querySelectorAll("[data-indent-guides='1']")).toHaveLength(2);
 
-    const callouts = screen.getByRole("complementary", {
-      name: "One metadata block callouts",
-    });
-    expect(callouts.querySelectorAll("li")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-callout-for-line]")).toHaveLength(2);
+    expect(container.querySelector("[data-callout-for-line='1'] code")).toHaveTextContent(
+      "metadata:",
+    );
+    expect(container.querySelector("[data-callout-for-line='3'] code")).toHaveTextContent(
+      "labels:",
+    );
+    expect(container.querySelector("[title='Callout 1']")).toHaveClass("size-6", "text-[10px]");
+    expect(container.querySelector("[data-callout-for-line='1'] > span")).toHaveClass(
+      "size-6",
+      "text-[10px]",
+    );
     expect(screen.getByText("Line 1")).toBeInTheDocument();
-    expect(screen.getByText("Line 3")).toBeInTheDocument();
     expect(screen.getByText("Selectors match labels.")).toBeInTheDocument();
   });
 
@@ -67,5 +90,16 @@ describe("annotated docs code", () => {
     const results = await axe(container);
 
     expect(results.violations.map((violation) => violation.id)).toEqual([]);
+  });
+});
+
+describe("docs diagrams", () => {
+  it("uses the expanded native layout and omits the reconciliation overlay curves", () => {
+    const { container } = render(<DocsContent lesson={DIAGRAM_LESSON} />);
+
+    expect(screen.getByText("API server")).toBeInTheDocument();
+    expect(screen.getByText("Worker node")).toBeInTheDocument();
+    expect(screen.getByText("Container runtime")).toBeInTheDocument();
+    expect(container.querySelector("svg[viewBox='0 0 900 260']")).toBeNull();
   });
 });

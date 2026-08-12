@@ -22,6 +22,17 @@ const ServiceTopology = dynamic(
 );
 
 const NAMESPACE = "default";
+type CompactPane = "editor" | "terminal" | "cluster";
+
+const COMPACT_PANES: {
+  id: CompactPane;
+  label: string;
+  icon: keyof typeof icons;
+}[] = [
+  { id: "editor", label: "Editor", icon: "yaml" },
+  { id: "terminal", label: "Terminal", icon: "terminal" },
+  { id: "cluster", label: "Cluster", icon: "cluster" },
+];
 
 /**
  * The hands-on step: an editor + terminal (mirroring `LiveLab`'s layout) against a
@@ -34,10 +45,12 @@ export function DoStep({
   step,
   sim,
   onComplete,
+  compact = false,
 }: {
   step: Extract<MissionStep, { kind: "do" }>;
   sim: UseSimulator;
   onComplete: () => void;
+  compact?: boolean;
 }) {
   const [files, setFiles] = useState<Record<string, string>>(() =>
     Object.fromEntries(step.files.map((f) => [f.path, f.initialValue])),
@@ -45,6 +58,7 @@ export function DoStep({
   const [activePath, setActivePath] = useState(step.files[0]?.path ?? "");
   const [applying, setApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [compactPane, setCompactPane] = useState<CompactPane>("cluster");
   // Sticky success: once the goal has been met we keep it met, even if a later
   // snapshot flickers during convergence.
   const [goalMet, setGoalMet] = useState(false);
@@ -109,24 +123,101 @@ export function DoStep({
   const availableReplicas = deployment ? deploymentReadyReplicas(deployment) : readyPods;
 
   return (
-    <div className="space-y-4">
-      <div className="border-border bg-panel-elevated rounded-md border p-3">
-        <p className="text-foreground text-sm font-medium">{step.goal}</p>
-        {step.hint ? <p className="text-subtle mt-1 text-xs">{step.hint}</p> : null}
+    <div
+      className={cn(
+        "space-y-4 @5xl:grid @5xl:h-full @5xl:min-h-0 @5xl:grid-rows-[auto_minmax(0,1fr)_auto_auto] @5xl:gap-3 @5xl:space-y-0",
+        compact &&
+          "grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-2 space-y-0",
+      )}
+    >
+      <div
+        className={cn(
+          "border-border bg-panel-elevated rounded-md border px-3 py-2.5",
+          compact && "px-2.5 py-2",
+        )}
+      >
+        <div className="flex items-start gap-2.5">
+          <span className="border-blue/40 bg-blue/10 text-blue flex size-6 shrink-0 items-center justify-center rounded-full border">
+            <icons.yaml className="size-3.5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className={cn("text-foreground text-sm font-medium", compact && "truncate text-xs")}>
+              {step.goal}
+            </p>
+            {!compact ? (
+              <>
+                <p className="text-subtle mt-1 text-xs">
+                  Edit the manifest, apply it, then use the terminal and live state to verify the
+                  result.
+                </p>
+                {step.hint ? <p className="text-amber mt-1.5 text-xs">{step.hint}</p> : null}
+              </>
+            ) : null}
+          </div>
+        </div>
       </div>
+
+      {compact ? (
+        <div
+          className="border-border bg-panel-elevated grid grid-cols-3 rounded-md border p-1"
+          role="tablist"
+          aria-label="Mission companion view"
+        >
+          {COMPACT_PANES.map((pane) => {
+            const Icon = icons[pane.icon];
+            return (
+              <button
+                key={pane.id}
+                type="button"
+                role="tab"
+                aria-selected={compactPane === pane.id}
+                onClick={() => setCompactPane(pane.id)}
+                className={cn(
+                  "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                  compactPane === pane.id
+                    ? "bg-panel-hover text-foreground"
+                    : "text-subtle hover:text-muted",
+                )}
+              >
+                <Icon className="size-3.5" aria-hidden />
+                {pane.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {/* min-w-0 on every column: Monaco and xterm report large intrinsic widths, and
           without it the grid lets the terminal crush the editor to a sliver. */}
-      <div className="border-border bg-panel grid min-h-[24rem] grid-cols-1 overflow-hidden rounded-md border lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_280px]">
-        <div className="border-border flex min-h-[16rem] min-w-0 flex-col border-b lg:border-r lg:border-b-0">
-          <div className="border-border flex h-9 shrink-0 items-center gap-1 border-b px-2">
+      <div
+        className={cn(
+          "border-border bg-panel grid min-h-[54rem] grid-cols-1 overflow-hidden rounded-md border @5xl:h-full @5xl:min-h-0 @5xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(15rem,0.72fr)]",
+          compact && "h-full min-h-0 grid-cols-1",
+        )}
+        data-mission-workspace
+        data-compact={compact || undefined}
+      >
+        <div
+          className={cn(
+            "border-border flex min-h-[20rem] min-w-0 flex-col border-b @5xl:min-h-0 @5xl:border-r @5xl:border-b-0",
+            compact && "min-h-0 border-0",
+            compact && compactPane !== "editor" && "hidden",
+          )}
+        >
+          <div
+            className="border-border flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b px-2"
+            role="tablist"
+            aria-label="Mission files"
+          >
             {paths.map((path) => (
               <button
                 key={path}
                 type="button"
+                role="tab"
+                aria-selected={path === activePath}
                 onClick={() => setActivePath(path)}
                 className={cn(
-                  "h-7 rounded px-2 font-mono text-[11px]",
+                  "h-8 shrink-0 rounded px-2 font-mono text-[11px]",
                   path === activePath
                     ? "bg-panel-hover text-foreground"
                     : "text-subtle hover:text-muted",
@@ -136,19 +227,26 @@ export function DoStep({
               </button>
             ))}
           </div>
-          <div className="min-h-[14rem] flex-1">
+          <div className="min-h-0 flex-1" role="tabpanel">
             {activePath ? (
               <YamlEditor
                 path={`mission/${step.id}/${activePath}`}
                 value={files[activePath] ?? ""}
+                minimap={false}
                 onChange={(value) => setFiles((f) => ({ ...f, [activePath]: value }))}
               />
             ) : null}
           </div>
         </div>
 
-        <div className="bg-terminal flex min-h-[16rem] min-w-0 flex-col border-b lg:border-r lg:border-b-0">
-          <div className="border-border flex h-9 shrink-0 items-center gap-1.5 border-b px-3">
+        <div
+          className={cn(
+            "bg-terminal flex min-h-[20rem] min-w-0 flex-col border-b @5xl:min-h-0 @5xl:border-r @5xl:border-b-0",
+            compact && "min-h-0 border-0",
+            compact && compactPane !== "terminal" && "hidden",
+          )}
+        >
+          <div className="border-border flex h-10 shrink-0 items-center gap-1.5 border-b px-3">
             <icons.terminal className="text-green size-3.5" aria-hidden />
             <span className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
               Terminal
@@ -163,7 +261,13 @@ export function DoStep({
         </div>
 
         {/* Live cluster state: the diagram IS the running cluster, updating as changes apply. */}
-        <div className="bg-panel-elevated flex min-h-[16rem] min-w-0 flex-col overflow-y-auto">
+        <div
+          className={cn(
+            "bg-panel-elevated flex min-h-[14rem] min-w-0 flex-col overflow-hidden @5xl:min-h-0",
+            compact && "min-h-0",
+            compact && compactPane !== "cluster" && "hidden",
+          )}
+        >
           <div className="border-border grid grid-cols-3 gap-2 border-b p-3">
             <Metric label="Desired" value={desiredReplicas} />
             <Metric
@@ -173,11 +277,11 @@ export function DoStep({
             />
             <Metric label="Ready" value={readyPods} tone={readyPods > 0 ? "green" : "amber"} />
           </div>
-          <div className="p-3">
+          <div className="min-h-0 flex-1 p-3">
             <p className="text-subtle mb-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
               Topology
             </p>
-            <div className="h-40">
+            <div className="h-[calc(100%-1.5rem)] min-h-40">
               <ErrorBoundary label="Topology">
                 <ServiceTopology snapshot={sim.snapshot} namespace={NAMESPACE} />
               </ErrorBoundary>
@@ -186,7 +290,7 @@ export function DoStep({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="border-border bg-panel-elevated flex min-h-11 flex-wrap items-center gap-2 rounded-md border px-3 py-2">
         <Button
           variant="primary"
           size="sm"

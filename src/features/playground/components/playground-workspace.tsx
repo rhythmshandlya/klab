@@ -95,9 +95,8 @@ export function PlaygroundWorkspace({
       : template,
   );
   const sim = useSimulator(simulatorBootSpec);
-  const columnsLayout = usePersistedLayout("klab:layout:playground-workspace:columns");
+  const columnsLayout = usePersistedLayout("klab:layout:playground-workspace:columns:v2");
   const centerLayout = usePersistedLayout("klab:layout:playground-workspace:center");
-  const rightLayout = usePersistedLayout("klab:layout:playground-workspace:right");
   const [rightTab, setRightTab] = useState<RightTab>("explorer");
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [applying, setApplying] = useState(false);
@@ -479,19 +478,13 @@ export function PlaygroundWorkspace({
 
         <ResizablePane
           id="rail-right"
-          defaultSize="26%"
-          minSize="280px"
-          maxSize="45%"
+          defaultSize="33%"
+          minSize="320px"
+          maxSize="42%"
           className="h-full"
         >
-          <ResizableGroup
-            orientation="vertical"
-            id="playground-right"
-            defaultLayout={rightLayout.defaultLayout}
-            onLayoutChanged={rightLayout.onLayoutChanged}
-            className="h-full"
-          >
-            <ResizablePane id="topology" defaultSize="34%" minSize="15%" className="h-full">
+          <div className="flex h-full min-h-0 flex-col gap-1">
+            <div className="aspect-square w-full shrink-0">
               <Panel className="h-full">
                 <PanelHeader title="Cluster Topology" icon={<icons.cluster />} />
                 <PanelBody scroll={false} className="p-0">
@@ -504,11 +497,9 @@ export function PlaygroundWorkspace({
                   </ErrorBoundary>
                 </PanelBody>
               </Panel>
-            </ResizablePane>
+            </div>
 
-            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
-
-            <ResizablePane id="right-tabs" minSize="30%" className="h-full">
+            <div className="min-h-0 flex-1">
               <Panel className="h-full">
                 <div className="border-border flex h-10 shrink-0 items-center gap-1 border-b px-1.5">
                   {RIGHT_TABS.map((tab) => (
@@ -553,8 +544,8 @@ export function PlaygroundWorkspace({
                   )}
                 </div>
               </Panel>
-            </ResizablePane>
-          </ResizableGroup>
+            </div>
+          </div>
         </ResizablePane>
       </ResizableGroup>
       {playground ? (

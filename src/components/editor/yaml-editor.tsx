@@ -17,9 +17,16 @@ export interface YamlEditorProps {
   onChange?: (value: string) => void;
   path?: string;
   readOnly?: boolean;
+  minimap?: boolean;
 }
 
-export function YamlEditor({ value, onChange, path = "manifest.yaml", readOnly }: YamlEditorProps) {
+export function YamlEditor({
+  value,
+  onChange,
+  path = "manifest.yaml",
+  readOnly,
+  minimap = true,
+}: YamlEditorProps) {
   // Latest onChange in a ref so the onMount listener never goes stale.
   const onChangeRef = useRef(onChange);
   useEffect(() => {
@@ -36,13 +43,17 @@ export function YamlEditor({ value, onChange, path = "manifest.yaml", readOnly }
         fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
         fontSize: 13,
         lineHeight: 20,
-        minimap: { enabled: true, scale: 1 },
+        minimap: { enabled: minimap, scale: 1 },
         scrollBeyondLastLine: false,
         smoothScrolling: true,
         padding: { top: 12, bottom: 12 },
         tabSize: 2,
         renderLineHighlight: "line",
-        scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+        scrollbar: {
+          verticalScrollbarSize: 10,
+          horizontalScrollbarSize: 10,
+          alwaysConsumeMouseWheel: false,
+        },
         automaticLayout: true,
         fixedOverflowWidgets: true,
         readOnly: readOnly ?? false,
