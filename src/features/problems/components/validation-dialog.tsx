@@ -2,8 +2,11 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
+import { useMemo } from "react";
 
 import { icons } from "@/components/icons";
+import { getLevelBySlug } from "@/content/levels";
+import { useProgress } from "@/features/progress/use-progress";
 import type { ProblemLevel } from "@/lib/domain/types";
 import type { ValidationReport } from "@/lib/kube/validators";
 import { cn } from "@/lib/utils/cn";
@@ -23,6 +26,20 @@ export function ValidationDialog({
   const Cross = icons.error;
   const Trophy = icons.trophy;
   const passed = report?.passed ?? false;
+  const isBuild = level.challengeMode === "build";
+  const progress = useProgress();
+  const recommendedNext = useMemo(() => {
+    if (!passed) return [];
+    const solved = new Set([...progress.solvedLevelSlugs, level.slug]);
+    return level.postSolveExplanation.recommendedNextSlugs
+      .map((slug) => getLevelBySlug(slug))
+      .filter(
+        (candidate): candidate is ProblemLevel =>
+          candidate !== undefined &&
+          !solved.has(candidate.slug) &&
+          candidate.prerequisites.every((slug) => solved.has(slug)),
+      );
+  }, [level, passed, progress.solvedLevelSlugs]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -44,12 +61,22 @@ export function ValidationDialog({
             </span>
             <div>
               <Dialog.Title className="text-foreground text-lg font-semibold tracking-tight">
-                {passed ? "Incident resolved" : "Not passing yet"}
+                {passed
+                  ? isBuild
+                    ? "Static review passed"
+                    : "Incident resolved"
+                  : isBuild
+                    ? "Design needs revision"
+                    : "Not passing yet"}
               </Dialog.Title>
               <Dialog.Description className="text-muted text-sm">
                 {passed
-                  ? `You restored ${level.title.toLowerCase()}.`
-                  : "Some checks are still failing. Keep investigating."}
+                  ? isBuild
+                    ? `Your submitted manifests satisfy KLab's static checks for ${level.title.toLowerCase()}. This does not prove the design in a live cluster.`
+                    : `You restored ${level.title.toLowerCase()}.`
+                  : isBuild
+                    ? "Some static architecture checks are not satisfied yet. Review the feedback and revise the design."
+                    : "Some checks are still failing. Keep investigating."}
               </Dialog.Description>
             </div>
           </div>
@@ -75,10 +102,22 @@ export function ValidationDialog({
 
           {passed ? (
             <div className="border-border bg-panel mt-5 space-y-3 rounded-lg border p-4">
-              <Explain label="Root cause" body={level.postSolveExplanation.rootCause} />
-              <Explain label="Why it failed" body={level.postSolveExplanation.whyItFailed} />
-              <Explain label="What fixed it" body={level.postSolveExplanation.whatFixedIt} />
-              <Explain label="Prevention" body={level.postSolveExplanation.prevention} />
+              <Explain
+                label={isBuild ? "Design intent" : "Root cause"}
+                body={level.postSolveExplanation.rootCause}
+              />
+              <Explain
+                label={isBuild ? "Failure model" : "Why it failed"}
+                body={level.postSolveExplanation.whyItFailed}
+              />
+              <Explain
+                label={isBuild ? "Reference approach" : "What fixed it"}
+                body={level.postSolveExplanation.whatFixedIt}
+              />
+              <Explain
+                label={isBuild ? "Tradeoffs and operations" : "Prevention"}
+                body={level.postSolveExplanation.prevention}
+              />
               {level.postSolveExplanation.relatedConcepts.length > 0 ? (
                 <div>
                   <p className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
@@ -105,19 +144,19 @@ export function ValidationDialog({
                   Open the related lesson
                 </Link>
               ) : null}
-              {level.postSolveExplanation.recommendedNextSlugs.length > 0 ? (
+              {recommendedNext.length > 0 ? (
                 <div>
                   <p className="text-subtle text-[11px] font-semibold tracking-[0.08em] uppercase">
                     Continue with
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-2">
-                    {level.postSolveExplanation.recommendedNextSlugs.map((slug) => (
+                    {recommendedNext.map((candidate) => (
                       <Link
-                        key={slug}
-                        href={`/problems/${slug}`}
+                        key={candidate.slug}
+                        href={`/problems/${candidate.slug}`}
                         className="border-border bg-panel-elevated text-foreground hover:border-border-strong inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors"
                       >
-                        {slug.replaceAll("-", " ")}
+                        {candidate.title}
                         <icons.arrowRight className="size-3.5" aria-hidden />
                       </Link>
                     ))}
@@ -133,7 +172,7 @@ export function ValidationDialog({
                 type="button"
                 className="border-border bg-panel text-foreground hover:bg-panel-hover focus-visible:ring-ring inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
-                {passed ? "Done" : "Keep investigating"}
+                {passed ? "Done" : isBuild ? "Revise design" : "Keep investigating"}
               </button>
             </Dialog.Close>
           </div>

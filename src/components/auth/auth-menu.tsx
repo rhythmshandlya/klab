@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { useLabsStore } from "@/features/playground/labs-store";
 import { signOut, useSession } from "@/lib/auth/client";
@@ -27,6 +28,7 @@ export function AuthMenu({
   capabilities?: AuthCapabilities;
 }) {
   const { data: session, isPending } = useSession();
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signOutPending, setSignOutPending] = useState(false);
@@ -74,6 +76,8 @@ export function AuthMenu({
     useLabsStore.getState().resetForAccountExit();
     setMenuOpen(false);
     setSignOutPending(false);
+    router.replace("/");
+    router.refresh();
   };
 
   return (

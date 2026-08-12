@@ -5,8 +5,8 @@ import { assertNever } from "@/lib/utils/exhaustive";
  * Evidence is collected by matching declarative `EvidenceRule`s against
  * `InvestigationSignal`s the learner produces while investigating (terminal output,
  * network probes, viewed events). This module is pure and unit-tested: given rules
- * and signals, it reports which rules newly fired. The UX rule — never spoon-feed the
- * fix — lives in the level content (evidence labels state facts, not solutions).
+ * and signals, it reports which rules newly fired. The UX rule: never spoon-feed the
+ * fix: lives in the level content (evidence labels state facts, not solutions).
  */
 
 export type InvestigationSignal =

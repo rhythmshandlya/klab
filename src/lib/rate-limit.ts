@@ -1,7 +1,7 @@
 import { getRateLimitConfig, isRateLimitConfigured } from "@/lib/env";
 
 /**
- * Best-effort rate limiting via Upstash Redis (sliding window). No-op — always allows —
+ * Best-effort rate limiting via Upstash Redis (sliding window). No-op: always allows:
  * when Upstash isn't configured, so guests and unconfigured/local deploys are
  * unaffected and the build never depends on it. The Upstash SDK is imported dynamically
  * so it only loads when actually used.

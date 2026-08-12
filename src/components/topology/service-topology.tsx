@@ -2,8 +2,15 @@
 
 import "@xyflow/react/dist/style.css";
 
-import { Background, ReactFlow, type Edge, type Node } from "@xyflow/react";
-import { useMemo } from "react";
+import {
+  Background,
+  ReactFlow,
+  type Edge,
+  type FitViewOptions,
+  type Node,
+  type ReactFlowInstance,
+} from "@xyflow/react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { isPodReady, podRestarts, readyEndpointCount } from "@/lib/kube/kubectl/format";
 import type { ClusterSnapshot } from "@/lib/kube/simulator";
@@ -20,6 +27,19 @@ interface TopologyProps {
   onSelect?: (object: SelectedObject) => void;
 }
 
+const FIT_VIEW_OPTIONS = {
+  padding: 0.16,
+  minZoom: 0.2,
+  // A small graph should remain readable without being enlarged beyond its natural size.
+  maxZoom: 1,
+} satisfies FitViewOptions<Node>;
+
+const RESIZE_FIT_DELAY_MS = 120;
+const COLUMN_GAP = 12;
+const NODE_WIDTH = 176;
+const DEPLOYMENT_ROW_Y = 108;
+const POD_ROW_Y = 220;
+
 function nodeStyle(ok: boolean): React.CSSProperties {
   return {
     background: palette.panelElevated,
@@ -28,7 +48,7 @@ function nodeStyle(ok: boolean): React.CSSProperties {
     color: palette.text,
     fontSize: 11,
     padding: "8px 10px",
-    width: 176,
+    width: NODE_WIDTH,
   };
 }
 
@@ -80,12 +100,17 @@ function matches(
 
 /**
  * Live Service → Deployment → Pod graph built from the snapshot, edges derived from
- * label selectors (the actual routing mechanism — so a zombie pod that matches a
+ * label selectors (the actual routing mechanism, so a zombie pod that matches a
  * Service but belongs to no Deployment shows up exactly as the anomaly it is).
  * Renders ALL matching objects across the given namespaces; node subtitles teach the
  * selector/label relationships. Clicking a node selects it in the object explorer.
  */
 export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: TopologyProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const flowRef = useRef<ReactFlowInstance<Node, Edge> | null>(null);
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fittedTopologyRef = useRef("");
+
   const { nodes, edges } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
@@ -107,7 +132,7 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
     const deployments = inScope(snapshot.deployments);
     const pods = inScope(snapshot.pods);
 
-    const X_STEP = 200;
+    const xStep = NODE_WIDTH + COLUMN_GAP;
     const displayName = (name: string, ns: string) => (showNs ? `${name} · ${ns}` : name);
 
     services.forEach((service, index) => {
@@ -117,7 +142,7 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
       const ok = endpoints > 0;
       nodes.push({
         id: `svc/${ns}/${name}`,
-        position: { x: index * X_STEP, y: 0 },
+        position: { x: index * xStep, y: 0 },
         data: {
           label: nodeLabel(`⬢ ${displayName(name, ns)}`, [
             { text: `selector ${formatLabels(service.spec?.selector)}` },
@@ -136,7 +161,7 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
       const ok = desired > 0 && ready >= desired;
       nodes.push({
         id: `deploy/${ns}/${name}`,
-        position: { x: index * X_STEP, y: 130 },
+        position: { x: index * xStep, y: DEPLOYMENT_ROW_Y },
         data: {
           label: nodeLabel(`▣ ${displayName(name, ns)}`, [
             { text: `template ${formatLabels(deployment.spec?.template?.metadata?.labels)}` },
@@ -176,7 +201,7 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
         rows.push({ text: `${restarts} restart${restarts === 1 ? "" : "s"}`, ok: false });
       nodes.push({
         id: `pod/${ns}/${name}`,
-        position: { x: index * X_STEP, y: 270 },
+        position: { x: index * xStep, y: POD_ROW_Y },
         data: { label: nodeLabel(`● ${displayName(name, ns)}`, rows) },
         style: nodeStyle(ready),
       });
@@ -198,7 +223,7 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
         }
       }
 
-      // Service → Pod directly when a Service selects a pod NO deployment owns —
+      // Service → Pod directly when a Service selects a pod NO deployment owns:
       // that's how an orphaned/zombie workload shows up in the graph.
       if (!owned) {
         for (const service of services) {
@@ -222,26 +247,95 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
     return { nodes, edges };
   }, [snapshot, namespace, namespaces]);
 
+  // Status updates change labels frequently, but only structural changes affect the bounds.
+  const topologyKey = useMemo(
+    () =>
+      nodes
+        .map((node) => node.id)
+        .sort()
+        .join("|"),
+    [nodes],
+  );
+
+  const scheduleFit = useCallback(
+    (delay = 0, duration = 180) => {
+      if (nodes.length === 0) return;
+      if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+
+      fitTimerRef.current = setTimeout(() => {
+        fitTimerRef.current = null;
+        void flowRef.current?.fitView({ ...FIT_VIEW_OPTIONS, duration });
+      }, delay);
+    },
+    [nodes.length],
+  );
+
+  const handleInit = useCallback(
+    (instance: ReactFlowInstance<Node, Edge>) => {
+      flowRef.current = instance;
+      // Let React Flow measure its nodes before calculating the first viewport.
+      scheduleFit(0, 0);
+    },
+    [scheduleFit],
+  );
+
+  useEffect(() => {
+    if (!topologyKey || fittedTopologyRef.current === topologyKey) return;
+    fittedTopologyRef.current = topologyKey;
+    scheduleFit();
+  }, [scheduleFit, topologyKey]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+
+    let width = container.clientWidth;
+    let height = container.clientHeight;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const nextWidth = entry.contentRect.width;
+      const nextHeight = entry.contentRect.height;
+      if (nextWidth === width && nextHeight === height) return;
+
+      width = nextWidth;
+      height = nextHeight;
+      scheduleFit(RESIZE_FIT_DELAY_MS);
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scheduleFit]);
+
+  useEffect(
+    () => () => {
+      if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+    },
+    [],
+  );
+
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      fitView
-      fitViewOptions={{ padding: 0.2 }}
-      nodesDraggable={false}
-      nodesConnectable={false}
-      proOptions={{ hideAttribution: true }}
-      onNodeClick={(_event, node) => {
-        if (!onSelect) return;
-        const [kind, namespace, ...rest] = node.id.split("/");
-        const name = rest.join("/");
-        if (!kind || !namespace || !name) return;
-        const kindName = kind === "svc" ? "Service" : kind === "deploy" ? "Deployment" : "Pod";
-        onSelect({ kind: kindName, name, namespace });
-      }}
-      style={{ background: palette.panel }}
-    >
-      <Background color={palette.border} gap={16} />
-    </ReactFlow>
+    <div ref={containerRef} className="h-full w-full">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        fitView
+        fitViewOptions={FIT_VIEW_OPTIONS}
+        onInit={handleInit}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        proOptions={{ hideAttribution: true }}
+        onNodeClick={(_event, node) => {
+          if (!onSelect) return;
+          const [kind, namespace, ...rest] = node.id.split("/");
+          const name = rest.join("/");
+          if (!kind || !namespace || !name) return;
+          const kindName = kind === "svc" ? "Service" : kind === "deploy" ? "Deployment" : "Pod";
+          onSelect({ kind: kindName, name, namespace });
+        }}
+        style={{ background: palette.panel }}
+      >
+        <Background color={palette.border} gap={16} />
+      </ReactFlow>
+    </div>
   );
 }

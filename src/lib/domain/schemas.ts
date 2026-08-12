@@ -78,6 +78,8 @@ const manifestValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 const manifestAssertionSchema = z.discriminatedUnion("operator", [
   z.object({ path: z.string().min(1), operator: z.literal("present") }),
   z.object({ path: z.string().min(1), operator: z.literal("absent") }),
+  z.object({ path: z.string().min(1), operator: z.literal("empty-object") }),
+  z.object({ path: z.string().min(1), operator: z.literal("base64") }),
   z.object({
     path: z.string().min(1),
     operator: z.literal("equals"),
@@ -93,6 +95,21 @@ const manifestAssertionSchema = z.discriminatedUnion("operator", [
   z.object({
     path: z.string().min(1),
     operator: z.literal("matches"),
+    value: manifestValueSchema,
+  }),
+  z.object({
+    path: z.string().min(1),
+    operator: z.literal("not-matches"),
+    value: manifestValueSchema,
+  }),
+  z.object({
+    path: z.string().min(1),
+    operator: z.literal("array-contains"),
+    value: manifestValueSchema,
+  }),
+  z.object({
+    path: z.string().min(1),
+    operator: z.literal("array-not-contains"),
     value: manifestValueSchema,
   }),
 ]);
@@ -393,6 +410,7 @@ export const problemLevelSchema = z.object({
   files: z.array(problemFileSchema).min(1),
   bootSequence: z.array(problemBootStepSchema).min(1).optional(),
   quickCommands: z.array(quickCommandSchema),
+  referenceCommands: z.array(z.string().min(1)).optional(),
   probeTargets: z.array(z.string()),
   validators: z.array(levelValidatorSchema).min(1),
   hints: z.array(hintSchema),
@@ -546,7 +564,7 @@ export const docsLessonSchema = z.object({
 /**
  * Parse-or-throw helpers. The domain-type return annotations double as a
  * compile-time guarantee that each schema's inferred output stays assignable to the
- * hand-written type in `./types.ts` — if they drift, this file fails to typecheck.
+ * hand-written type in `./types.ts`: if they drift, this file fails to typecheck.
  */
 export function parseLevel(input: unknown): ProblemLevel {
   return problemLevelSchema.parse(input);

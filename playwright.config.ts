@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { GUEST_ENTRY_COOKIE, GUEST_ENTRY_VALUE } from "./src/lib/auth/entry";
+
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+const baseURL = externalBaseURL ?? "http://localhost:3000";
+const parsedBaseURL = new URL(baseURL);
 
 /**
  * Playwright E2E config. Tests live in `src/tests/e2e`. Reuses a running dev server
@@ -17,7 +21,22 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: externalBaseURL ?? "http://localhost:3000",
+    baseURL,
+    storageState: {
+      cookies: [
+        {
+          name: GUEST_ENTRY_COOKIE,
+          value: GUEST_ENTRY_VALUE,
+          domain: parsedBaseURL.hostname,
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: parsedBaseURL.protocol === "https:",
+          sameSite: "Lax",
+        },
+      ],
+      origins: [],
+    },
     trace: "on-first-retry",
   },
   projects: [

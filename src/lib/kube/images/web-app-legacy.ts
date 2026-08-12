@@ -4,10 +4,10 @@ import { textResponse } from "./http";
 import { logSink } from "./log-sink";
 
 /**
- * `klab/web-app:0.9.0` — the deprecated legacy build of web-app. NOT a real OCI image.
+ * `klab/web-app:0.9.0`: the deprecated legacy build of web-app. NOT a real OCI image.
  *
  * Deliberately insidious: its /healthz still answers 200, so a pod running it becomes
- * READY and joins any matching Service — but every real request (GET /) answers 500.
+ * READY and joins any matching Service, but every real request (GET /) answers 500.
  * Powers the Zombie ReplicaSet level, where an orphaned ReplicaSet keeps one of these
  * alive and poisons a share of production traffic.
  */
@@ -30,7 +30,7 @@ export class WebAppLegacyImage extends BaseImage {
       });
 
     log(`web-app v${WebAppLegacyImage.imageVersion} (legacy build) starting`);
-    log(`listening on :${port} — this version is deprecated`);
+    log(`listening on :${port}: this version is deprecated`);
 
     ctx.listenHttp(port, async (_ctx, request) => {
       const path = request.url.pathname;

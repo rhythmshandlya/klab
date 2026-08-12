@@ -16,7 +16,7 @@ import {
 /**
  * Merge a guest's localStorage Progress into a signed-in account. Idempotent by
  * construction (keyed upserts with GREATEST / DO NOTHING), so a repeated merge can't
- * double-count — the client also guards with a per-user marker.
+ * double-count: the client also guards with a per-user marker.
  *
  * The guest blob stores only a TOTAL xp, not per-solve awards, so we reconstruct each
  * solve's awarded xp from the code catalog (gross level xp − imported hint penalty).

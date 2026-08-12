@@ -38,7 +38,7 @@ describe("mergeGuestProgress over pglite", () => {
     }
   });
 
-  it("is idempotent — merging twice equals once", async () => {
+  it("is idempotent: merging twice equals once", async () => {
     const { db, client } = await createTestDb();
     try {
       const uid = await seedUser(db);

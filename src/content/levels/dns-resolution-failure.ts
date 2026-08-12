@@ -5,7 +5,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
 /**
  * Level: DNS Resolution Failure.
  *
- * orders-api calls its upstream at `http://web-scv/` — a one-letter typo of `web-svc`.
+ * orders-api calls its upstream at `http://web-scv/`: a one-letter typo of `web-svc`.
  * The name simply doesn't exist in DNS, so every upstream call fails and orders-svc
  * answers 502. Teaches dig/NXDOMAIN debugging. Fix: correct the URL in the env var.
  */
@@ -113,7 +113,7 @@ export const dnsResolutionFailure = {
   concepts: ["dns", "networking", "services", "debugging"],
   blurb: "The orders API can't resolve an internal service that clearly exists.",
   story:
-    "Orders stopped processing after this morning's 'no-op' config refactor. The orders-api pods are healthy, web-svc is healthy, and yet orders-svc answers nothing but 502s. The API swears it can't find its upstream — a service you can see right there in the cluster.",
+    "Orders stopped processing after this morning's 'no-op' config refactor. The orders-api pods are healthy, web-svc is healthy, and yet orders-svc answers nothing but 502s. The API swears it can't find its upstream: a service you can see right there in the cluster.",
   objective: "Make orders-svc return HTTP 200 by restoring its upstream connection.",
   learningObjectives: [
     "Distinguish NXDOMAIN from connection and application failures.",
@@ -226,7 +226,7 @@ export const dnsResolutionFailure = {
     {
       id: "hint-1",
       title: "Believe the logs",
-      body: "The orders pods are healthy; their OUTBOUND calls are not. `kubectl logs <orders-pod>` — what exactly does it say it's calling?",
+      body: "The orders pods are healthy; their OUTBOUND calls are not. `kubectl logs <orders-pod>`: what exactly does it say it's calling?",
       xpPenalty: 25,
     },
     {
@@ -239,7 +239,7 @@ export const dnsResolutionFailure = {
     {
       id: "hint-3",
       title: "svc, not scv",
-      body: "The UPSTREAM_URL says web-scv — a typo of web-svc. Fix the env var in orders-api.yaml and Apply.",
+      body: "The UPSTREAM_URL says web-scv: a typo of web-svc. Fix the env var in orders-api.yaml and Apply.",
       xpPenalty: 60,
       unlockAfter: ["r-nxdomain"],
     },
@@ -283,9 +283,9 @@ export const dnsResolutionFailure = {
     },
   ],
   postSolveExplanation: {
-    rootCause: "UPSTREAM_URL pointed at web-scv — a typo. That name doesn't exist in DNS.",
+    rootCause: "UPSTREAM_URL pointed at web-scv: a typo. That name doesn't exist in DNS.",
     whyItFailed:
-      "Service discovery in Kubernetes is DNS. A typo'd name isn't 'slow' or 'flaky' — it's NXDOMAIN, every single time. The orders-api's fetch failed resolution before a connection was ever attempted, and the API surfaced that as 502.",
+      "Service discovery in Kubernetes is DNS. A typo'd name isn't 'slow' or 'flaky': it's NXDOMAIN, every single time. The orders-api's fetch failed resolution before a connection was ever attempted, and the API surfaced that as 502.",
     whatFixedIt:
       "Correcting the env var to http://web-svc/ let DNS resolve to the Service's cluster IP, and the proxied requests immediately succeeded.",
     prevention:

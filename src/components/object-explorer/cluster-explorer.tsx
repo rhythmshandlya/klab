@@ -97,7 +97,7 @@ export function ClusterExplorer({
             {group.label}
           </p>
           {group.rows.length === 0 ? (
-            <p className="text-subtle/70 px-2 text-xs">—</p>
+            <p className="text-subtle/70 px-2 text-xs">None</p>
           ) : (
             <ul>
               {group.rows.map((row) => {

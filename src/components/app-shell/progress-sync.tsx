@@ -23,6 +23,7 @@ export function ProgressSync() {
   useEffect(() => {
     if (isPending) return;
     void Promise.all([setIdentity(userId), useLabsStore.getState().setIdentity(userId)]);
+    if (userId) void fetch("/api/entry/guest", { method: "DELETE" });
   }, [isPending, userId]);
 
   return null;

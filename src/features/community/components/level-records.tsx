@@ -10,7 +10,7 @@ import { Person } from "./person";
 /**
  * Fastest solve per incident lab, in catalog order. Durations are browser-measured
  * telemetry (same caveat as the catalog stats), so the heading says so. Labs with a
- * record get a full card; unclaimed labs collapse into one "open challenges" strip —
+ * record get a full card; unclaimed labs collapse into one "open challenges" strip:
  * an invitation to set the first time, not a grid of empty cards.
  */
 export function LevelRecords({ records }: { records: readonly LevelRecord[] }) {
@@ -69,7 +69,7 @@ export function LevelRecords({ records }: { records: readonly LevelRecord[] }) {
         <div className="border-border bg-panel mt-3 rounded-lg border px-4 py-8 text-center">
           <p className="text-foreground text-sm font-medium">No records yet</p>
           <p className="text-muted mt-1 text-sm">
-            Every lab below is unclaimed — the first timed solve sets the record.
+            Every lab below is unclaimed: the first timed solve sets the record.
           </p>
         </div>
       )}
@@ -77,7 +77,7 @@ export function LevelRecords({ records }: { records: readonly LevelRecord[] }) {
       {open.length > 0 ? (
         <div className="mt-4">
           <p className="text-subtle text-xs font-semibold tracking-[0.08em] uppercase">
-            Open challenges — no record yet
+            Open challenges: no record yet
           </p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {open.map((level) => (

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Local progress persistence (localStorage). No account required — progress lives in
+ * Local progress persistence (localStorage). No account required: progress lives in
  * the browser. Writes are throttled to avoid thrashing during rapid updates. SSR-safe:
  * all access is guarded so it is inert on the server.
  */
@@ -79,7 +79,7 @@ let pendingKey: string | null = null;
 
 /**
  * Persist progress to a specific key. `delayMs <= 0` writes synchronously so the very
- * next `readProgressAt` sees it — this keeps localStorage the single source of truth,
+ * next `readProgressAt` sees it: this keeps localStorage the single source of truth,
  * lets rapid sequential mutations compose without lost updates, and makes the live UI
  * update immediately. `delayMs > 0` keeps the trailing-edge throttle for chatty writes.
  */
@@ -90,7 +90,7 @@ export function writeProgressAt(key: string, progress: Progress, delayMs = 400):
       window.localStorage.setItem(key, JSON.stringify(progress));
       window.dispatchEvent(new Event(PROGRESS_EVENT));
     } catch {
-      // Storage full or unavailable — progress is best-effort, so ignore.
+      // Storage full or unavailable: progress is best-effort, so ignore.
     }
     return;
   }
@@ -104,7 +104,7 @@ export function writeProgressAt(key: string, progress: Progress, delayMs = 400):
         window.localStorage.setItem(pendingKey, JSON.stringify(pendingValue));
         window.dispatchEvent(new Event(PROGRESS_EVENT));
       } catch {
-        // Storage full or unavailable — progress is best-effort, so ignore.
+        // Storage full or unavailable: progress is best-effort, so ignore.
       }
     }
   }, delayMs);

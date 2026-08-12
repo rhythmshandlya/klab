@@ -23,7 +23,7 @@ export const apiObjects: Mission = {
     {
       kind: "teach",
       id: "spec-vs-status",
-      idea: "You author apiVersion, kind, metadata, and spec. You never write status — controllers and the kubelet do. Any status you type into a manifest is discarded on apply.",
+      idea: "You author apiVersion, kind, metadata, and spec. You never write status: controllers and the kubelet do. Any status you type into a manifest is discarded on apply.",
       visual: { mode: "concept", variant: "api-object", buildToStep: 1 },
     },
     {
@@ -44,7 +44,7 @@ export const apiObjects: Mission = {
             text: "spec",
             correct: true,
             explain:
-              "spec is the desired state you declare — the one part of the object you are meant to author.",
+              "spec is the desired state you declare: the one part of the object you are meant to author.",
           },
           {
             id: "c",
@@ -58,7 +58,7 @@ export const apiObjects: Mission = {
     {
       kind: "teach",
       id: "gvk",
-      idea: "apiVersion + kind form the GroupVersionKind that routes your request. Core resources (Pod, Service, ConfigMap) use bare 'v1'; named groups carry a prefix — a Deployment is apps/v1. Get this wrong and the API server cannot even find the type.",
+      idea: "apiVersion + kind form the GroupVersionKind that routes your request. Core resources (Pod, Service, ConfigMap) use bare 'v1'; named groups carry a prefix: a Deployment is apps/v1. Get this wrong and the API server cannot even find the type.",
       visual: { mode: "concept", variant: "api-object", buildToStep: 2 },
     },
     {
@@ -79,7 +79,7 @@ export const apiObjects: Mission = {
             id: "b",
             text: "You must also set status.readyReplicas: 3 in the manifest",
             correct: false,
-            explain: "status is never authored — a value you type there is stripped on apply.",
+            explain: "status is never authored: a value you type there is stripped on apply.",
           },
         ],
         reveal:
@@ -99,9 +99,9 @@ export const apiObjects: Mission = {
         },
       ],
       check: { kind: "deployment-available", name: "web", minAvailable: 3 },
-      hint: "Find spec.replicas, change 2 to 3, and apply. You never touch status — the controller updates it for you.",
+      hint: "Find spec.replicas, change 2 to 3, and apply. You never touch status: the controller updates it for you.",
       debrief:
-        "You changed one number in spec and the controller did the rest. status.readyReplicas is a readout of reality, not a knob — you moved the intent and the observed state followed.",
+        "You changed one number in spec and the controller did the rest. status.readyReplicas is a readout of reality, not a knob: you moved the intent and the observed state followed.",
     },
     {
       kind: "debrief",
@@ -111,7 +111,7 @@ export const apiObjects: Mission = {
       takeaways: [
         "Every resource shares the same top-level fields: apiVersion, kind, metadata, spec, and (usually) status.",
         "apiVersion + kind form the GVK that routes your request; a Deployment is apps/v1, a Pod is bare v1.",
-        "You author metadata and spec; you never write status — controllers report it.",
+        "You author metadata and spec; you never write status: controllers report it.",
         "To change behavior, edit spec and apply; status then reports whether reality caught up.",
       ],
     },

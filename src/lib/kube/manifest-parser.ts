@@ -4,7 +4,7 @@ import { err, ok, type Result } from "@/lib/utils/result";
 
 /**
  * Parses Kubernetes YAML (multi-document, `---`-separated) into lightweight typed
- * manifests. Deliberately independent of Webernetes — the simulator casts these to
+ * manifests. Deliberately independent of Webernetes: the simulator casts these to
  * its apply type at the boundary. Validation here is structural (kind/apiVersion/
  * name); Webernetes performs the deep spec validation when the manifest is applied.
  *
@@ -37,6 +37,19 @@ export interface ParsedManifest {
   raw: Record<string, unknown>;
 }
 
+/**
+ * A structurally valid Kubernetes object that may use an API the in-browser
+ * control plane cannot execute. Policy and architecture labs use this wider form
+ * so resources such as HPAs, PDBs, NetworkPolicies, and CRDs can still be assessed.
+ */
+export interface ParsedKubernetesManifest {
+  apiVersion: string;
+  kind: string;
+  name: string;
+  namespace: string;
+  raw: Record<string, unknown>;
+}
+
 export interface ManifestParseError {
   message: string;
   /** 0-based index of the offending document within a multi-doc file, when known. */
@@ -48,7 +61,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function parseManifests(yamlText: string): Result<ParsedManifest[], ManifestParseError> {
+export function parseKubernetesManifests(
+  yamlText: string,
+): Result<ParsedKubernetesManifest[], ManifestParseError> {
   if (yamlText.trim() === "") {
     return ok([]);
   }
@@ -66,11 +81,11 @@ export function parseManifests(yamlText: string): Result<ParsedManifest[], Manif
     return err({ message: `Failed to parse YAML: ${(error as Error).message}` });
   }
 
-  const manifests: ParsedManifest[] = [];
+  const manifests: ParsedKubernetesManifest[] = [];
 
   for (let index = 0; index < documents.length; index++) {
     const doc = documents[index];
-    // Empty documents (e.g. trailing `---`) parse to null/undefined — skip them.
+    // Empty documents (e.g. trailing `---`) parse to null/undefined: skip them.
     if (doc === null || doc === undefined) {
       continue;
     }
@@ -88,13 +103,6 @@ export function parseManifests(yamlText: string): Result<ParsedManifest[], Manif
         documentIndex: index,
       });
     }
-    if (!isSupportedKind(kind)) {
-      return err({
-        message: `Unsupported kind "${kind}". The simulator supports: ${SUPPORTED_KINDS.join(", ")}.`,
-        documentIndex: index,
-      });
-    }
-
     const apiVersion = doc.apiVersion;
     if (typeof apiVersion !== "string" || apiVersion === "") {
       return err({
@@ -120,6 +128,30 @@ export function parseManifests(yamlText: string): Result<ParsedManifest[], Manif
     manifests.push({ apiVersion, kind, name, namespace, raw: doc });
   }
 
+  return ok(manifests);
+}
+
+/** Parse manifests that the live in-browser simulator can execute. */
+export function parseManifests(yamlText: string): Result<ParsedManifest[], ManifestParseError> {
+  const parsed = parseKubernetesManifests(yamlText);
+  if (!parsed.ok) return parsed;
+
+  const manifests: ParsedManifest[] = [];
+  for (const [index, manifest] of parsed.value.entries()) {
+    if (!isSupportedKind(manifest.kind)) {
+      return err({
+        message: `Unsupported kind "${manifest.kind}". The simulator supports: ${SUPPORTED_KINDS.join(", ")}.`,
+        documentIndex: index,
+      });
+    }
+    manifests.push({
+      apiVersion: manifest.apiVersion,
+      kind: manifest.kind,
+      name: manifest.name,
+      namespace: manifest.namespace,
+      raw: manifest.raw,
+    });
+  }
   return ok(manifests);
 }
 

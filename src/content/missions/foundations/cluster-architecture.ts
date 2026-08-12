@@ -23,7 +23,7 @@ export const clusterArchitecture: Mission = {
     {
       kind: "teach",
       id: "one-gateway",
-      idea: "The API server is the single source of truth — the only component that reads and writes etcd. The scheduler, controllers, and kubelets never call each other; they watch the API server and react.",
+      idea: "The API server is the single source of truth: the only component that reads and writes etcd. The scheduler, controllers, and kubelets never call each other; they watch the API server and react.",
       visual: { mode: "concept", variant: "cluster-architecture", buildToStep: 1 },
     },
     {
@@ -46,7 +46,7 @@ export const clusterArchitecture: Mission = {
             text: "The kubelet on whichever node has room",
             correct: false,
             explain:
-              "The kubelet only acts after a node is assigned — it runs containers, it does not choose placement.",
+              "The kubelet only acts after a node is assigned: it runs containers, it does not choose placement.",
           },
           {
             id: "c",
@@ -109,7 +109,7 @@ export const clusterArchitecture: Mission = {
       check: { kind: "pods-ready", selector: { app: "web" }, minReady: 2 },
       hint: "Apply as-is, then watch the second Pod go Pending (waiting on the scheduler) and then Ready (the kubelet started it). No edits needed.",
       debrief:
-        "Nothing ran the instant you applied. The object was stored, the scheduler bound it to a node, and only then did a kubelet start the container — the same chain every Pod flows through.",
+        "Nothing ran the instant you applied. The object was stored, the scheduler bound it to a node, and only then did a kubelet start the container: the same chain every Pod flows through.",
     },
     {
       kind: "debrief",
@@ -118,7 +118,7 @@ export const clusterArchitecture: Mission = {
       commands: ["kubectl get pods -o wide", "kubectl get events --sort-by=.lastTimestamp"],
       takeaways: [
         "The control plane decides (apiserver, etcd, scheduler, controllers); nodes do the work (kubelet, kube-proxy, runtime).",
-        "The API server is the only component that touches etcd — everything else watches and writes through it.",
+        "The API server is the only component that touches etcd: everything else watches and writes through it.",
         "A Pod flows apiserver+etcd store it -> scheduler assigns a node -> kubelet runs it and reports status.",
         "Match a symptom to the component that owns that step: Pending with no node points at the scheduler, not the kubelet.",
       ],

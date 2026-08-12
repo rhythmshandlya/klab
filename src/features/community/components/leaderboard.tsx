@@ -126,7 +126,7 @@ function Board({
           </ol>
           {signedIn && !onBoard ? (
             <p className="text-subtle mt-2 text-xs">
-              You&apos;re not on this week&apos;s board yet — complete a problem to enter.
+              You&apos;re not on this week&apos;s board yet: complete a problem to enter.
             </p>
           ) : null}
         </>

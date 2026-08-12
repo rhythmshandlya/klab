@@ -18,7 +18,7 @@ const HOP_TONE: Record<NetworkActivityEvent["hops"][number]["kind"], string> = {
 /**
  * Live feed of requests on the simulated cluster network: every curl, pod-to-pod
  * call, and (optionally) kubelet health probe, with its hop chain and latency.
- * This surfaces Webernetes' in-memory network — traffic that is otherwise invisible.
+ * This surfaces Webernetes' in-memory network: traffic that is otherwise invisible.
  */
 export function NetworkActivity({ simulator }: { simulator: KubeSimulator }) {
   const subscribe = useCallback(
@@ -55,7 +55,7 @@ export function NetworkActivity({ simulator }: { simulator: KubeSimulator }) {
           <icons.cluster className="size-5" aria-hidden />
           <p>
             No traffic yet. Try{" "}
-            <code className="text-blue font-mono">curl http://&lt;svc&gt;/</code> in the terminal —
+            <code className="text-blue font-mono">curl http://&lt;svc&gt;/</code> in the terminal:
             every request&apos;s path through the cluster shows up here.
           </p>
         </div>

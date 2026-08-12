@@ -8,7 +8,7 @@ export interface SectionPlaceholderProps {
   eyebrow: string;
   title: string;
   description: string;
-  /** Which build phase delivers the full experience — shown as an honest status badge. */
+  /** Which build phase delivers the full experience: shown as an honest status badge. */
   phase: string;
   planned: string[];
   cta?: { href: string; label: string };

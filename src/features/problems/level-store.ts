@@ -22,7 +22,7 @@ interface LevelState {
   validation: ValidationReport | null;
   /**
    * Quietly refreshed check results (on boot, after Apply/Reset) that power the
-   * "Failing checks" card and the challenge-status chip — separate from `validation`,
+   * "Failing checks" card and the challenge-status chip: separate from `validation`,
    * which is the formal Run Validation submission that can win the level.
    */
   checks: ValidationReport | null;

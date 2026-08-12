@@ -1,7 +1,7 @@
 import { BaseImage, type ProcessContext } from "@ngrok/webernetes";
 
 /**
- * `klab/debug-tools:1.0.0` — a long-running toolbox pod for hands-on debugging.
+ * `klab/debug-tools:1.0.0`: a long-running toolbox pod for hands-on debugging.
  * NOT a real OCI image. Its default command sleeps so learners can `kubectl exec`
  * into it. When exec'd with `curl <url>`, it performs a simulated in-cluster request
  * via the pod's network context and prints the response body.

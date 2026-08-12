@@ -4,16 +4,18 @@ import { GeistSans } from "geist/font/sans";
 
 import { AppShell } from "@/components/app-shell/app-shell";
 import { getAuthCapabilities, isAuthConfigured } from "@/lib/env";
+import { SITE_ORIGIN } from "@/lib/seo";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_ORIGIN),
   title: {
-    default: "klab — learn Kubernetes by doing",
+    default: "klab: learn Kubernetes by doing",
     template: "%s · klab",
   },
   description:
-    "A gamified, hands-on Kubernetes learning platform. Debug broken clusters, experiment in a sandbox, and study interactive lessons — all simulated in your browser.",
+    "A gamified, hands-on Kubernetes learning platform. Debug broken clusters, experiment in a sandbox, and study interactive lessons: all simulated in your browser.",
   applicationName: "klab",
   keywords: ["kubernetes", "k8s", "learning", "debugging", "sandbox", "devtools"],
 };

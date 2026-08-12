@@ -59,7 +59,7 @@ export function TopNav({
 function Brand() {
   return (
     <Link
-      href="/"
+      href="/problems"
       className="text-foreground flex items-center gap-2 rounded-md pr-2 transition-opacity hover:opacity-80"
     >
       <ClusterMark className="text-blue size-6" />

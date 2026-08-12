@@ -4,7 +4,7 @@ import type { PlaygroundTemplate } from "@/lib/domain/types";
 /**
  * Playground starter templates. Each is validated against the Zod schema at module
  * load (build-time validation). Templates ship HEALTHY manifests so the cluster
- * reconciles cleanly — a never-Ready Deployment would make the simulator churn pods
+ * reconciles cleanly: a never-Ready Deployment would make the simulator churn pods
  * (see PROGRESS.md), so probe paths point at the app's real endpoints.
  */
 
@@ -210,7 +210,7 @@ spec:
         periodSeconds: 3
 `;
 
-const EMPTY_FILE = `# Empty cluster — only the control plane is running.
+const EMPTY_FILE = `# Empty cluster: only the control plane is running.
 # Add manifests here (or open a template from the sidebar) and click Apply.
 #
 # Try:

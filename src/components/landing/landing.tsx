@@ -1,13 +1,12 @@
-import Link from "next/link";
-
-import { ClusterMark, icons } from "@/components/icons";
+import { ClusterMark } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import type { AuthCapabilities } from "@/lib/env";
 
 import { AreaCard } from "./area-card";
+import { EntryActions } from "./entry-actions";
 
 const AREAS = [
   {
-    href: "/problems",
     icon: "problems",
     title: "Problems",
     description:
@@ -15,15 +14,13 @@ const AREAS = [
     accent: "blue",
   },
   {
-    href: "/playground",
     icon: "playground",
     title: "Playground",
     description:
-      "A free sandbox to create infra, run kubectl-style commands, apply manifests, and watch the control plane reconcile — break things and learn.",
+      "A free sandbox to create infra, run kubectl-style commands, apply manifests, and watch the control plane reconcile: break things and learn.",
     accent: "green",
   },
   {
-    href: "/docs",
     icon: "docs",
     title: "Learn",
     description:
@@ -32,12 +29,26 @@ const AREAS = [
   },
 ] as const;
 
-export function Landing() {
-  const Run = icons.run;
+export function Landing({
+  authEnabled,
+  authCapabilities,
+  destination,
+}: {
+  authEnabled: boolean;
+  authCapabilities: AuthCapabilities;
+  destination: string;
+}) {
   return (
     <div className="relative isolate overflow-hidden">
       <BackgroundDecor />
-      <section className="mx-auto w-full max-w-5xl px-6 pt-20 pb-24 sm:pt-28">
+      <header className="border-border/80 mx-auto flex h-16 w-full max-w-5xl items-center border-b px-6">
+        <div className="text-foreground flex items-center gap-2">
+          <ClusterMark className="text-blue size-7" />
+          <span className="text-base font-semibold tracking-tight">klab</span>
+        </div>
+        <p className="text-subtle ml-auto hidden text-xs sm:block">Learn. Debug. Experiment.</p>
+      </header>
+      <section className="mx-auto w-full max-w-5xl px-6 pt-16 pb-24 sm:pt-24">
         <Badge tone="neutral" className="gap-2">
           <ClusterMark className="text-blue size-3.5" />
           Kubernetes, simulated in your browser
@@ -47,29 +58,21 @@ export function Landing() {
           Learn Kubernetes by debugging real clusters, not slides.
         </h1>
         <p className="text-muted mt-5 max-w-2xl text-lg leading-relaxed text-pretty">
-          klab drops you into broken infrastructure and asks you to fix it — with a live cluster, a
+          klab drops you into broken infrastructure and asks you to fix it: with a live cluster, a
           real terminal, and an editable manifest. No install, no cloud bill, no risk.
         </p>
 
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link
-            href="/problems/broken-readiness-probe"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring focus-visible:ring-offset-app inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-          >
-            <Run className="size-4" aria-hidden />
-            Start the reference incident
-          </Link>
-          <Link
-            href="/docs"
-            className="border-border bg-panel text-foreground hover:border-border-strong hover:bg-panel-hover focus-visible:ring-ring focus-visible:ring-offset-app inline-flex h-11 items-center gap-2 rounded-md border px-5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-          >
-            Start learning
-          </Link>
+        <div className="mt-8">
+          <EntryActions
+            authEnabled={authEnabled}
+            authCapabilities={authCapabilities}
+            destination={destination}
+          />
         </div>
 
         <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {AREAS.map((area) => (
-            <AreaCard key={area.href} {...area} />
+            <AreaCard key={area.title} {...area} />
           ))}
         </div>
       </section>

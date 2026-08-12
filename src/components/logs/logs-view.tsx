@@ -7,7 +7,7 @@ import type { ClusterSnapshot } from "@/lib/kube/simulator";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Structured log viewer: one row per line with timestamp, source pod, and message —
+ * Structured log viewer: one row per line with timestamp, source pod, and message:
  * plus quick filters (All / HTTP / Errors, and per-pod). Subscribes to the shared
  * log sink so new lines stream in live.
  */
@@ -53,7 +53,7 @@ export function LogsView({
           namespace: p.metadata?.namespace ?? "default",
           containers: (p.spec?.containers ?? []).map((container) => container.name),
         }))
-        // Control-plane (kube-*) pods never write to the klab log sink — skip them.
+        // Control-plane (kube-*) pods never write to the klab log sink: skip them.
         .filter((p) => p.name !== "" && !p.namespace.startsWith("kube-")),
     [snapshot.pods],
   );

@@ -1,6 +1,6 @@
 import type { LevelConstraint, ManifestAssertion, ProblemLevel } from "@/lib/domain/types";
 
-import { parseManifests } from "./manifest-parser";
+import { parseKubernetesManifests } from "./manifest-parser";
 import type { ValidatorResult } from "./validators";
 
 export function evaluateLevelConstraints(
@@ -63,7 +63,9 @@ function evaluateManifestConstraint(
     return { passed: false, detail: `Authored file ${constraint.file} is missing` };
   }
 
-  const parsed = parseManifests(currentFiles[constraint.file] ?? authoredFile.initialValue);
+  const parsed = parseKubernetesManifests(
+    currentFiles[constraint.file] ?? authoredFile.initialValue,
+  );
   if (!parsed.ok) {
     return { passed: false, detail: `${constraint.file}: ${parsed.error.message}` };
   }
@@ -105,7 +107,13 @@ function evaluateManifestConstraint(
 }
 
 function valueAtPath(root: unknown, path: string): unknown {
-  return path.split(".").reduce<unknown>((value, segment) => {
+  const segments = path.startsWith("/")
+    ? path
+        .slice(1)
+        .split("/")
+        .map((segment) => segment.replaceAll("~1", "/").replaceAll("~0", "~"))
+    : path.split(".");
+  return segments.reduce<unknown>((value, segment) => {
     if (Array.isArray(value) && /^\d+$/.test(segment)) return value[Number(segment)];
     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
       return (value as Record<string, unknown>)[segment];
@@ -120,6 +128,20 @@ function assertionPasses(assertion: ManifestAssertion, actual: unknown): boolean
       return actual !== undefined && actual !== null;
     case "absent":
       return actual === undefined || actual === null;
+    case "empty-object":
+      return (
+        typeof actual === "object" &&
+        actual !== null &&
+        !Array.isArray(actual) &&
+        Object.keys(actual).length === 0
+      );
+    case "base64":
+      return (
+        typeof actual === "string" &&
+        actual.length > 0 &&
+        actual.length % 4 === 0 &&
+        /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(actual)
+      );
     case "equals":
       return actual === assertion.value;
     case "not-equals":
@@ -134,6 +156,16 @@ function assertionPasses(assertion: ManifestAssertion, actual: unknown): boolean
       } catch {
         return false;
       }
+    case "not-matches":
+      try {
+        return typeof actual === "string" && !new RegExp(String(assertion.value)).test(actual);
+      } catch {
+        return false;
+      }
+    case "array-contains":
+      return Array.isArray(actual) && actual.includes(assertion.value);
+    case "array-not-contains":
+      return Array.isArray(actual) && !actual.includes(assertion.value);
   }
 }
 
@@ -143,6 +175,10 @@ function formatExpectation(assertion: ManifestAssertion): string {
       return "must be present";
     case "absent":
       return "must be absent";
+    case "empty-object":
+      return "must be an empty object";
+    case "base64":
+      return "must be valid base64 data";
     case "equals":
       return `must equal ${formatValue(assertion.value)}`;
     case "not-equals":
@@ -153,6 +189,12 @@ function formatExpectation(assertion: ManifestAssertion): string {
       return `must be at most ${formatValue(assertion.value)}`;
     case "matches":
       return `must match ${formatValue(assertion.value)}`;
+    case "not-matches":
+      return `must not match ${formatValue(assertion.value)}`;
+    case "array-contains":
+      return `must contain ${formatValue(assertion.value)}`;
+    case "array-not-contains":
+      return `must not contain ${formatValue(assertion.value)}`;
   }
 }
 

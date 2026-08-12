@@ -19,7 +19,7 @@ async function waitFor(
   return predicate();
 }
 
-describe("Broken Readiness Probe — full solve path", () => {
+describe("Broken Readiness Probe: full solve path", () => {
   let sim: KubeSimulator | undefined;
   afterEach(async () => {
     await sim?.close();

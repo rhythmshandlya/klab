@@ -34,14 +34,14 @@ const rollingUpdates: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Deployment never edits Pods in place. When you change anything under spec.template — usually the container image — Kubernetes computes a new hash, creates a fresh ReplicaSet for that template, and then shifts capacity: it scales the new ReplicaSet up and the old one down, a few Pods at a time. Readiness decides the pace. A new Pod only counts toward the rollout once its readiness probe passes, so a rollout is really a controlled hand-off gated by health, not a bulk restart.",
+      text: "A Deployment never edits Pods in place. When you change anything under spec.template: usually the container image: Kubernetes computes a new hash, creates a fresh ReplicaSet for that template, and then shifts capacity: it scales the new ReplicaSet up and the old one down, a few Pods at a time. Readiness decides the pace. A new Pod only counts toward the rollout once its readiness probe passes, so a rollout is really a controlled hand-off gated by health, not a bulk restart.",
     },
     {
       type: "diagram",
       variant: "rollout",
       title: "Old ReplicaSet to new ReplicaSet",
       caption:
-        "The Deployment scales the new ReplicaSet up as fast as readiness allows and drains the old one down. The old ReplicaSet is not deleted — it is scaled to zero and kept for rollback.",
+        "The Deployment scales the new ReplicaSet up as fast as readiness allows and drains the old one down. The old ReplicaSet is not deleted: it is scaled to zero and kept for rollback.",
     },
     {
       type: "heading",
@@ -76,7 +76,7 @@ const rollingUpdates: DocsLesson = {
         },
         {
           code: "  replicas: 4",
-          note: "desired steady-state count — the number the rollout math is relative to",
+          note: "desired steady-state count: the number the rollout math is relative to",
         },
         {
           code: "  strategy:",
@@ -94,11 +94,11 @@ const rollingUpdates: DocsLesson = {
         },
         {
           code: "      maxUnavailable: 0",
-          note: "never drop below 4 available Pods — full capacity is preserved throughout",
+          note: "never drop below 4 available Pods: full capacity is preserved throughout",
         },
         {
           code: "  minReadySeconds: 5",
-          note: "a new Pod must stay Ready this long before it counts as Available — catches crash-on-startup",
+          note: "a new Pod must stay Ready this long before it counts as Available: catches crash-on-startup",
         },
         {
           code: "  progressDeadlineSeconds: 120",
@@ -144,7 +144,7 @@ const rollingUpdates: DocsLesson = {
         },
         {
           code: "          readinessProbe:",
-          note: "the gate — until this passes, the new Pod is not counted as available",
+          note: "the gate: until this passes, the new Pod is not counted as available",
         },
         {
           code: "            httpGet:",
@@ -161,13 +161,13 @@ const rollingUpdates: DocsLesson = {
       type: "concept",
       term: "maxSurge and maxUnavailable",
       definition:
-        "maxSurge is the ceiling of extra Pods above replicas during a rollout; maxUnavailable is the floor of missing Pods below replicas. They cannot both be 0 — that would give the rollout no room to move. maxUnavailable: 0 with maxSurge > 0 is the zero-downtime setting (add before removing); maxUnavailable > 0 with maxSurge: 0 replaces in place without ever exceeding the replica count.",
+        "maxSurge is the ceiling of extra Pods above replicas during a rollout; maxUnavailable is the floor of missing Pods below replicas. They cannot both be 0: that would give the rollout no room to move. maxUnavailable: 0 with maxSurge > 0 is the zero-downtime setting (add before removing); maxUnavailable > 0 with maxSurge: 0 replaces in place without ever exceeding the replica count.",
     },
     {
       type: "callout",
       tone: "key",
       title: "The two knobs set the pace, readiness sets the timing",
-      text: "maxSurge and maxUnavailable define the WINDOW the controller may operate in. But the controller only advances a step once new Pods actually become Ready. If Pods never go Ready, the strategy math is irrelevant — the rollout simply waits inside its allowed window.",
+      text: "maxSurge and maxUnavailable define the WINDOW the controller may operate in. But the controller only advances a step once new Pods actually become Ready. If Pods never go Ready, the strategy math is irrelevant: the rollout simply waits inside its allowed window.",
     },
     {
       type: "heading",
@@ -198,7 +198,7 @@ const rollingUpdates: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "RollingUpdate keeps the app available by overlapping old and new Pods. Recreate does the opposite: it terminates every old Pod first, then creates the new ones — a deliberate gap with zero running Pods. Recreate exists for cases where two versions must never run at the same time.",
+      text: "RollingUpdate keeps the app available by overlapping old and new Pods. Recreate does the opposite: it terminates every old Pod first, then creates the new ones: a deliberate gap with zero running Pods. Recreate exists for cases where two versions must never run at the same time.",
     },
     {
       type: "decisionTable",
@@ -217,7 +217,7 @@ const rollingUpdates: DocsLesson = {
           label: "Recreate",
           cells: [
             "Kills all old Pods, then starts new ones",
-            "Yes — a full gap",
+            "Yes: a full gap",
             "Incompatible schema/versions, single-writer apps, or when two versions must not coexist",
           ],
         },
@@ -274,7 +274,7 @@ const rollingUpdates: DocsLesson = {
         {
           label: "Watch it progress",
           detail:
-            "status streams each step and returns 0 only when every new Pod is available. It exits non-zero on ProgressDeadlineExceeded — useful in CI.",
+            "status streams each step and returns 0 only when every new Pod is available. It exits non-zero on ProgressDeadlineExceeded: useful in CI.",
           command: "kubectl rollout status deploy/web",
           output:
             'Waiting for deployment "web" rollout to finish: 2 of 4 updated replicas are available...\ndeployment "web" successfully rolled out',
@@ -289,7 +289,7 @@ const rollingUpdates: DocsLesson = {
         {
           label: "Roll back a bad release",
           detail:
-            "undo re-scales the previous revision's ReplicaSet up and the current one down — the same rolling mechanism, in reverse. It does not delete the failed ReplicaSet.",
+            "undo re-scales the previous revision's ReplicaSet up and the current one down: the same rolling mechanism, in reverse. It does not delete the failed ReplicaSet.",
           command: "kubectl rollout undo deploy/web",
           output: "deployment.apps/web rolled back",
         },
@@ -299,7 +299,7 @@ const rollingUpdates: DocsLesson = {
       type: "concept",
       term: "Pause and resume",
       definition:
-        "kubectl rollout pause deploy/web freezes the Deployment so template edits accumulate without triggering Pods — the basis of a canary or batching several changes into one rollout. kubectl rollout resume deploy/web releases all accumulated changes as a single rollout. Each superseded template is kept as a scaled-to-zero ReplicaSet up to revisionHistoryLimit (default 10), which is exactly the set of revisions undo can return to.",
+        "kubectl rollout pause deploy/web freezes the Deployment so template edits accumulate without triggering Pods: the basis of a canary or batching several changes into one rollout. kubectl rollout resume deploy/web releases all accumulated changes as a single rollout. Each superseded template is kept as a scaled-to-zero ReplicaSet up to revisionHistoryLimit (default 10), which is exactly the set of revisions undo can return to.",
     },
     {
       type: "heading",
@@ -314,7 +314,7 @@ const rollingUpdates: DocsLesson = {
         'This Deployment was updated to a new image. kubectl rollout status hangs on "2 of 4 updated replicas are available" and never completes, yet the app keeps serving traffic the whole time. The new Pods show Running but 0/1 READY. What is wrong, and why does the app stay up?',
       code: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 4\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 1\n      maxUnavailable: 0\n  selector:\n    matchLabels:\n      app: web\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:2.0.0\n          ports:\n            - containerPort: 8080\n          readinessProbe:\n            httpGet:\n              path: /readyz\n              port: 8080",
       answer:
-        "The readiness probe targets /readyz, which this image answers with 404. The probe therefore never passes, so the new Pods stay 0/1 READY and are never counted as available. Because maxUnavailable is 0, the Deployment refuses to scale the old ReplicaSet down past its allowed window — so the old, healthy Pods keep serving and there is zero downtime while the rollout is stuck. After progressDeadlineSeconds the Deployment is marked ProgressDeadlineExceeded, but it does NOT auto-roll-back. Fix the probe path to /healthz (which returns 200) or ship an image that actually serves /readyz; then run kubectl rollout undo if you want to abandon the bad revision. The same symptom appears with a genuinely bad image (ImagePullBackOff / crash) — the new Pods never reach Ready, so the rollout stalls rather than taking the service down.",
+        "The readiness probe targets /readyz, which this image answers with 404. The probe therefore never passes, so the new Pods stay 0/1 READY and are never counted as available. Because maxUnavailable is 0, the Deployment refuses to scale the old ReplicaSet down past its allowed window, so the old, healthy Pods keep serving and there is zero downtime while the rollout is stuck. After progressDeadlineSeconds the Deployment is marked ProgressDeadlineExceeded, but it does NOT auto-roll-back. Fix the probe path to /healthz (which returns 200) or ship an image that actually serves /readyz; then run kubectl rollout undo if you want to abandon the bad revision. The same symptom appears with a genuinely bad image (ImagePullBackOff / crash): the new Pods never reach Ready, so the rollout stalls rather than taking the service down.",
     },
     {
       type: "lab",
@@ -343,11 +343,11 @@ const rollingUpdates: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "Changing spec.template creates a new ReplicaSet; the Deployment scales it up and the old one down — old ReplicaSets are kept, not deleted.",
+        "Changing spec.template creates a new ReplicaSet; the Deployment scales it up and the old one down: old ReplicaSets are kept, not deleted.",
         "maxSurge is the ceiling of extra Pods, maxUnavailable is the floor of missing Pods; maxUnavailable: 0 with maxSurge > 0 gives zero downtime.",
         "Readiness gates every step: a new Pod counts only after its readiness probe passes, so a broken version stalls the rollout instead of taking the app down.",
         "Recreate deliberately trades availability for a clean version cut-over; RollingUpdate is the default and preserves capacity.",
-        "kubectl rollout status watches, history audits, undo reverts, and pause/resume enable canaries — a stuck rollout hits progressDeadlineSeconds but never auto-rolls-back.",
+        "kubectl rollout status watches, history audits, undo reverts, and pause/resume enable canaries: a stuck rollout hits progressDeadlineSeconds but never auto-rolls-back.",
       ],
     },
     {
@@ -467,7 +467,7 @@ const resourceManagement: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "Two numbers, two audiences",
-      text: "requests answer 'does this Pod fit on the node?' — read at schedule time, once. limits answer 'how much may this container consume right now?' — enforced continuously by the kernel. Confusing the two is the root of most resource incidents.",
+      text: "requests answer 'does this Pod fit on the node?': read at schedule time, once. limits answer 'how much may this container consume right now?': enforced continuously by the kernel. Confusing the two is the root of most resource incidents.",
     },
     {
       type: "heading",
@@ -483,7 +483,7 @@ const resourceManagement: DocsLesson = {
       language: "yaml",
       title: "A fully specified container",
       caption:
-        "requests and limits set for both CPU and memory — this is what makes a Pod Guaranteed.",
+        "requests and limits set for both CPU and memory: this is what makes a Pod Guaranteed.",
       lines: [
         {
           code: "apiVersion: v1",
@@ -525,7 +525,7 @@ const resourceManagement: DocsLesson = {
         },
         {
           code: '          cpu: "250m"',
-          note: "reserve 0.25 of a core — becomes the container's CPU share weight",
+          note: "reserve 0.25 of a core: becomes the container's CPU share weight",
         },
         {
           code: '          memory: "128Mi"',
@@ -537,11 +537,11 @@ const resourceManagement: DocsLesson = {
         },
         {
           code: '          cpu: "500m"',
-          note: "CPU beyond this is THROTTLED, never killed — CPU is compressible",
+          note: "CPU beyond this is THROTTLED, never killed: CPU is compressible",
         },
         {
           code: '          memory: "256Mi"',
-          note: "memory beyond this triggers an OOM kill — memory is incompressible",
+          note: "memory beyond this triggers an OOM kill: memory is incompressible",
         },
       ],
     },
@@ -557,7 +557,7 @@ const resourceManagement: DocsLesson = {
       stages: [
         {
           label: "No resources (BestEffort)",
-          note: "A container with no requests or limits. The scheduler assumes it needs ~nothing, so it can land anywhere — and it is first in line to be evicted when the node runs low on memory.",
+          note: "A container with no requests or limits. The scheduler assumes it needs ~nothing, so it can land anywhere, and it is first in line to be evicted when the node runs low on memory.",
           code: "spec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
         },
         {
@@ -567,7 +567,7 @@ const resourceManagement: DocsLesson = {
         },
         {
           label: "Add matching limits (Guaranteed)",
-          note: "Set limits equal to requests for BOTH cpu and memory on every container. Kubernetes now derives QoS class Guaranteed — the last Pods evicted under pressure.",
+          note: "Set limits equal to requests for BOTH cpu and memory on every container. Kubernetes now derives QoS class Guaranteed: the last Pods evicted under pressure.",
           code: 'spec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      resources:\n        requests:\n          cpu: "250m"\n          memory: "128Mi"\n        limits:\n          cpu: "250m"\n          memory: "128Mi"',
         },
       ],
@@ -579,23 +579,23 @@ const resourceManagement: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The single most important idea in resource management is that CPU and memory fail differently. CPU is compressible: the kernel can hand a container less of it at any instant with no lasting harm — the app just runs slower. Memory is incompressible: once a byte is allocated, the kernel cannot politely take it back. So exceeding a CPU limit throttles the container, while exceeding a memory limit kills it.",
+      text: "The single most important idea in resource management is that CPU and memory fail differently. CPU is compressible: the kernel can hand a container less of it at any instant with no lasting harm: the app just runs slower. Memory is incompressible: once a byte is allocated, the kernel cannot politely take it back. So exceeding a CPU limit throttles the container, while exceeding a memory limit kills it.",
     },
     {
       type: "concept",
       term: "Compressible resource",
       definition:
-        "A resource that can be reclaimed from a container gradually and without terminating it. CPU is compressible (the scheduler throttles it via CFS quota). Memory is not — the only way to reclaim it is to kill the process, which is why over-limit memory ends in OOMKilled.",
+        "A resource that can be reclaimed from a container gradually and without terminating it. CPU is compressible (the scheduler throttles it via CFS quota). Memory is not: the only way to reclaim it is to kill the process, which is why over-limit memory ends in OOMKilled.",
     },
     {
       type: "callout",
       tone: "warning",
       title: "Over-limit behavior is not symmetric",
-      text: "Exceed the CPU limit and your container is throttled: it keeps running but stalls, which you'll see as latency spikes, not restarts. Exceed the memory limit and the kernel OOM killer terminates the process; the container's last state shows reason: OOMKilled and it restarts per restartPolicy — often into CrashLoopBackOff.",
+      text: "Exceed the CPU limit and your container is throttled: it keeps running but stalls, which you'll see as latency spikes, not restarts. Exceed the memory limit and the kernel OOM killer terminates the process; the container's last state shows reason: OOMKilled and it restarts per restartPolicy: often into CrashLoopBackOff.",
     },
     {
       type: "compare",
-      caption: "Same idea — a limit was exceeded — but the outcome depends on which resource.",
+      caption: "Same idea: a limit was exceeded, but the outcome depends on which resource.",
       left: {
         title: "CPU over limit -> throttled",
         code: "# limits.cpu: 500m, app wants 900m\n# kernel caps it at 500m\n# result: slow responses, no restart\n# kubectl top pod shows CPU pinned at the cap",
@@ -612,7 +612,7 @@ const resourceManagement: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "You never set a Pod's QoS class directly — Kubernetes derives it from the requests and limits you wrote. The class then decides who gets killed first when a node runs out of memory. There are exactly three classes. Guaranteed: every container in the Pod sets requests equal to limits for both CPU and memory. BestEffort: no container sets any request or limit at all. Burstable: anything in between — at least one request or limit is set, but the Pod doesn't meet the Guaranteed bar.",
+      text: "You never set a Pod's QoS class directly: Kubernetes derives it from the requests and limits you wrote. The class then decides who gets killed first when a node runs out of memory. There are exactly three classes. Guaranteed: every container in the Pod sets requests equal to limits for both CPU and memory. BestEffort: no container sets any request or limit at all. Burstable: anything in between: at least one request or limit is set, but the Pod doesn't meet the Guaranteed bar.",
     },
     {
       type: "decisionTable",
@@ -632,7 +632,7 @@ const resourceManagement: DocsLesson = {
           cells: [
             "At least one request or limit set, but not all equal (doesn't meet Guaranteed)",
             "Evicted after BestEffort; Pods using memory above their request go first",
-            "Typical apps that idle low but burst — set a request floor, allow headroom",
+            "Typical apps that idle low but burst: set a request floor, allow headroom",
           ],
         },
         {
@@ -649,7 +649,7 @@ const resourceManagement: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "QoS is a consequence, not a setting",
-      text: "Check a running Pod with kubectl get pod NAME -o jsonpath='{.status.qosClass}'. If you wanted Guaranteed but see Burstable, a container is missing a limit or a request, or a value doesn't match — check every container, since one BestEffort sidecar can drag the whole Pod down.",
+      text: "Check a running Pod with kubectl get pod NAME -o jsonpath='{.status.qosClass}'. If you wanted Guaranteed but see Burstable, a container is missing a limit or a request, or a value doesn't match: check every container, since one BestEffort sidecar can drag the whole Pod down.",
     },
     {
       type: "heading",
@@ -663,7 +663,7 @@ const resourceManagement: DocsLesson = {
         "This web app starts, serves a few requests, then restarts over and over into CrashLoopBackOff. kubectl describe shows lastState.terminated.reason: OOMKilled. The image needs about 200Mi of memory at steady state. What's wrong, and how do you fix it?",
       code: 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      resources:\n        requests:\n          cpu: "250m"\n          memory: "64Mi"\n        limits:\n          cpu: "500m"\n          memory: "96Mi"',
       answer:
-        "The memory limit (96Mi) is far below what the app actually uses (~200Mi). Memory is incompressible, so when the container grows past 96Mi the kernel OOM killer terminates it — hence reason: OOMKilled and the restart loop. The CPU numbers are irrelevant here; a low CPU limit would only throttle, not kill. Fix: raise limits.memory (and usually requests.memory) above the real working set, e.g. requests 256Mi / limits 320Mi, then confirm the restarts stop.",
+        "The memory limit (96Mi) is far below what the app actually uses (~200Mi). Memory is incompressible, so when the container grows past 96Mi the kernel OOM killer terminates it: hence reason: OOMKilled and the restart loop. The CPU numbers are irrelevant here; a low CPU limit would only throttle, not kill. Fix: raise limits.memory (and usually requests.memory) above the real working set, e.g. requests 256Mi / limits 320Mi, then confirm the restarts stop.",
     },
     {
       type: "heading",
@@ -684,7 +684,7 @@ const resourceManagement: DocsLesson = {
       type: "takeaways",
       items: [
         "Requests are read once by the scheduler to place the Pod; limits are enforced continuously by the kernel.",
-        "CPU is compressible — over-limit means throttling. Memory is incompressible — over-limit means OOMKilled.",
+        "CPU is compressible: over-limit means throttling. Memory is incompressible: over-limit means OOMKilled.",
         "QoS class is derived from your requests and limits, never set directly.",
         "Guaranteed (limits == requests everywhere) is evicted last; BestEffort (nothing set) is evicted first.",
         "A restart loop with reason OOMKilled means the memory limit is below the app's real working set.",
@@ -736,7 +736,7 @@ const resourceManagement: DocsLesson = {
           text: "Raise the CPU limit.",
           correct: false,
           explanation:
-            "CPU is compressible — an over-limit CPU only throttles the container, it never triggers an OOM kill.",
+            "CPU is compressible: an over-limit CPU only throttles the container, it never triggers an OOM kill.",
         },
         {
           id: "c",
@@ -759,7 +759,7 @@ const resourceManagement: DocsLesson = {
       ],
       initialManifests: [],
       registeredImages: [WEB_IMAGE],
-      tryChanging: "Remove the limits block and re-apply — the QoS class drops to Burstable.",
+      tryChanging: "Remove the limits block and re-apply: the QoS class drops to Burstable.",
       tasks: [
         "Apply the Deployment.",
         "Describe a Pod and find its QoS Class.",
@@ -805,7 +805,7 @@ const namespaces: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Most objects you create every day are namespaced: their name only has to be unique within their namespace. A Service called web-svc can exist in team-a and team-b at the same time. Some objects are cluster-scoped instead — they exist once for the whole cluster and cannot live inside a namespace.",
+      text: "Most objects you create every day are namespaced: their name only has to be unique within their namespace. A Service called web-svc can exist in team-a and team-b at the same time. Some objects are cluster-scoped instead: they exist once for the whole cluster and cannot live inside a namespace.",
     },
     {
       type: "concept",
@@ -848,7 +848,7 @@ const namespaces: DocsLesson = {
       language: "yaml",
       title: "A governed namespace",
       caption:
-        "The Namespace object itself is tiny — the labels are what turn it into a policy target.",
+        "The Namespace object itself is tiny: the labels are what turn it into a policy target.",
       lines: [
         {
           code: "apiVersion: v1",
@@ -858,7 +858,7 @@ const namespaces: DocsLesson = {
         },
         {
           code: "metadata:",
-          note: "cluster-scoped object — no namespace field of its own",
+          note: "cluster-scoped object: no namespace field of its own",
         },
         {
           code: "  name: team-a",
@@ -911,7 +911,7 @@ const namespaces: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Cluster DNS gives every Service a fully qualified name of the form <service>.<namespace>.svc.cluster.local. A short name works too, but only because the resolver appends search domains — and the caller's own namespace is tried first. That single fact is the source of most cross-namespace call bugs.",
+      text: "Cluster DNS gives every Service a fully qualified name of the form <service>.<namespace>.svc.cluster.local. A short name works too, but only because the resolver appends search domains, and the caller's own namespace is tried first. That single fact is the source of most cross-namespace call bugs.",
     },
     {
       type: "code",
@@ -943,7 +943,7 @@ const namespaces: DocsLesson = {
       type: "concept",
       term: "Soft multi-tenancy",
       definition:
-        "Separating trusted-ish teams by namespace with policy layered on top. It is not a strong security boundary against hostile tenants — the shared kernel, nodes, and control plane remain. For hostile isolation you reach for separate clusters or stronger runtime sandboxing.",
+        "Separating trusted-ish teams by namespace with policy layered on top. It is not a strong security boundary against hostile tenants: the shared kernel, nodes, and control plane remain. For hostile isolation you reach for separate clusters or stronger runtime sandboxing.",
     },
     {
       type: "heading",
@@ -969,7 +969,7 @@ const namespaces: DocsLesson = {
       language: "yaml",
       prompt:
         "Author a Namespace named payments, and a ResourceQuota in it that caps the namespace to 10 Pods and 2 CPUs of requests.",
-      hint: "The Namespace is cluster-scoped (no namespace field). The ResourceQuota is namespaced — set metadata.namespace: payments and put the caps under spec.hard.",
+      hint: "The Namespace is cluster-scoped (no namespace field). The ResourceQuota is namespaced: set metadata.namespace: payments and put the caps under spec.hard.",
       solution:
         'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: payments\n---\napiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: payments-quota\n  namespace: payments\nspec:\n  hard:\n    pods: "10"\n    requests.cpu: "2"',
     },
@@ -979,7 +979,7 @@ const namespaces: DocsLesson = {
     },
     {
       type: "compare",
-      caption: "The same intent — call a Service in another namespace — written wrong and right.",
+      caption: "The same intent: call a Service in another namespace: written wrong and right.",
       left: {
         title: "Wrong (short name)",
         code: "env:\n  - name: UPSTREAM_URL\n    value: http://web-svc/\n# resolves in the caller's namespace",
@@ -994,7 +994,7 @@ const namespaces: DocsLesson = {
       items: [
         "A namespace scopes names inside one cluster; it is not a separate cluster and does not isolate the network by default.",
         "Namespaced objects are addressed as namespace/name; cluster-scoped objects (Node, PersistentVolume, ClusterRole, Namespace itself) are not.",
-        "Quotas, RBAC Roles, and NetworkPolicy attach to a namespace — that is what makes it a useful boundary.",
+        "Quotas, RBAC Roles, and NetworkPolicy attach to a namespace: that is what makes it a useful boundary.",
         "Short Service names resolve in the caller's namespace; cross-namespace calls need <service>.<namespace>.svc.cluster.local.",
         "Real isolation requires NetworkPolicy, scoped RBAC, quotas, and Pod Security on top of the namespace.",
       ],
@@ -1043,7 +1043,7 @@ const namespaces: DocsLesson = {
           id: "b",
           text: "ConfigMap",
           correct: false,
-          explanation: "ConfigMaps are namespaced — each lives in exactly one namespace.",
+          explanation: "ConfigMaps are namespaced: each lives in exactly one namespace.",
         },
         {
           id: "c",
@@ -1154,7 +1154,7 @@ const configuration: DocsLesson = {
         },
         {
           code: "  namespace: default",
-          note: "a ConfigMap is namespaced — a Pod can only mount one from its own namespace",
+          note: "a ConfigMap is namespaced: a Pod can only mount one from its own namespace",
         },
         {
           code: "data:",
@@ -1162,14 +1162,14 @@ const configuration: DocsLesson = {
         },
         {
           code: "  LOG_LEVEL: info",
-          note: "a scalar — natural as an env var OR a file named LOG_LEVEL",
+          note: "a scalar: natural as an env var OR a file named LOG_LEVEL",
         },
         {
           code: "  API_URL: http://api-svc/",
         },
         {
           code: "  app.conf: |",
-          note: "a multi-line value — ideal mounted as a file, awkward as an env var",
+          note: "a multi-line value: ideal mounted as a file, awkward as an env var",
         },
         {
           code: "    timeout=30",
@@ -1339,7 +1339,7 @@ const configuration: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "Config changes do not auto-restart Pods",
-      text: "Editing a ConfigMap or Secret never restarts anything. Env-var consumers keep the values they captured at start until the Pod is recreated. Volume-mounted consumers see files updated by the kubelet after a delay (up to about a minute) — but NOT when mounted with subPath and NOT if the object is immutable. To make an env-var change take effect deliberately, run kubectl rollout restart deployment/web, or bump a checksum annotation on the Pod template so the Deployment rolls.",
+      text: "Editing a ConfigMap or Secret never restarts anything. Env-var consumers keep the values they captured at start until the Pod is recreated. Volume-mounted consumers see files updated by the kubelet after a delay (up to about a minute), but NOT when mounted with subPath and NOT if the object is immutable. To make an env-var change take effect deliberately, run kubectl rollout restart deployment/web, or bump a checksum annotation on the Pod template so the Deployment rolls.",
     },
     {
       type: "decisionTable",
@@ -1349,8 +1349,8 @@ const configuration: DocsLesson = {
         {
           label: "Live updates to running Pods",
           cells: [
-            "No — fixed at container start",
-            "Yes — kubelet refreshes files (not subPath, not immutable)",
+            "No: fixed at container start",
+            "Yes: kubelet refreshes files (not subPath, not immutable)",
           ],
         },
         {
@@ -1366,11 +1366,11 @@ const configuration: DocsLesson = {
         },
         {
           label: "How the app reads it",
-          cells: ["From process environment", "From the filesystem — ideally re-reading on change"],
+          cells: ["From process environment", "From the filesystem: ideally re-reading on change"],
         },
         {
           label: "Binary / large data",
-          cells: ["Awkward — env values are strings", "Natural — binaryData and file bytes"],
+          cells: ["Awkward: env values are strings", "Natural: binaryData and file bytes"],
         },
       ],
     },
@@ -1381,7 +1381,7 @@ const configuration: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Secret looks like a ConfigMap whose values are base64-encoded. That base64 is only an encoding for transporting arbitrary bytes as JSON strings — it is trivially reversible and provides zero confidentiality. Anyone who can get the Secret can decode it in one command.",
+      text: "A Secret looks like a ConfigMap whose values are base64-encoded. That base64 is only an encoding for transporting arbitrary bytes as JSON strings: it is trivially reversible and provides zero confidentiality. Anyone who can get the Secret can decode it in one command.",
     },
     {
       type: "code",
@@ -1409,10 +1409,10 @@ const configuration: DocsLesson = {
       type: "spotTheBug",
       language: "yaml",
       prompt:
-        "A team set LOG_LEVEL: debug in the ConfigMap and ran kubectl apply. Minutes later the running web Pods still log at info. The ConfigMap really does say debug now. Given this Deployment, why didn't the change take effect — and how do you make it apply?",
+        "A team set LOG_LEVEL: debug in the ConfigMap and ran kubectl apply. Minutes later the running web Pods still log at info. The ConfigMap really does say debug now. Given this Deployment, why didn't the change take effect, and how do you make it apply?",
       code: "spec:\n  template:\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          envFrom:\n            - configMapRef:\n                name: app-config",
       answer:
-        "The ConfigMap is consumed via envFrom, so LOG_LEVEL is copied into the process environment ONCE when each container starts. Editing the ConfigMap afterwards does not touch the environment of a container that is already running, and nothing restarts the Pods automatically. The new value only appears in a freshly created Pod. Fix: trigger a rollout with kubectl rollout restart deployment/web (or bump a checksum annotation on the Pod template). If you needed the value to update without a restart, you would mount the ConfigMap as a volume instead of importing it as env vars — and have the app re-read the file.",
+        "The ConfigMap is consumed via envFrom, so LOG_LEVEL is copied into the process environment ONCE when each container starts. Editing the ConfigMap afterwards does not touch the environment of a container that is already running, and nothing restarts the Pods automatically. The new value only appears in a freshly created Pod. Fix: trigger a rollout with kubectl rollout restart deployment/web (or bump a checksum annotation on the Pod template). If you needed the value to update without a restart, you would mount the ConfigMap as a volume instead of importing it as env vars, and have the app re-read the file.",
     },
     {
       type: "heading",
@@ -1423,7 +1423,7 @@ const configuration: DocsLesson = {
       type: "challenge",
       language: "yaml",
       prompt:
-        'Author a ConfigMap named feature-flags with one key, features.json, holding {"beta": true}. Then write the Pod volume and volumeMount snippet that exposes that key as the file /etc/features/features.json so the app can re-read it after an edit — without a restart.',
+        'Author a ConfigMap named feature-flags with one key, features.json, holding {"beta": true}. Then write the Pod volume and volumeMount snippet that exposes that key as the file /etc/features/features.json so the app can re-read it after an edit: without a restart.',
       hint: "A whole file belongs in a mounted volume, not an env var. Reference the ConfigMap under spec.volumes, then point a volumeMount at a mountPath. Avoid subPath, or the file will stop auto-updating.",
       solution:
         'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: feature-flags\ndata:\n  features.json: |\n    {"beta": true}\n---\n# in the Pod spec:\n    volumeMounts:\n      - name: flags\n        mountPath: /etc/features\n    volumes:\n      - name: flags\n        configMap:\n          name: feature-flags',
@@ -1432,9 +1432,9 @@ const configuration: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "ConfigMaps hold ordinary config; Secrets hold sensitive data — same shape, stricter defaults for Secrets.",
+        "ConfigMaps hold ordinary config; Secrets hold sensitive data: same shape, stricter defaults for Secrets.",
         "Env-var config is captured at container start and needs a rollout to change; volume-mounted config is refreshed on disk by the kubelet (unless subPath or immutable).",
-        "Editing a ConfigMap or Secret never restarts Pods by itself — use kubectl rollout restart or a template checksum to apply env changes.",
+        "Editing a ConfigMap or Secret never restarts Pods by itself: use kubectl rollout restart or a template checksum to apply env changes.",
         "A Secret's base64 is encoding, not encryption; enable encryption at rest and RBAC to make it actually confidential.",
         "immutable: true prevents edits and lowers API-server load, at the cost of having to recreate the object to change it.",
       ],
@@ -1489,7 +1489,7 @@ const configuration: DocsLesson = {
         },
         {
           id: "c",
-          text: "Env vars always live-update, so the cache is just slow — wait longer.",
+          text: "Env vars always live-update, so the cache is just slow: wait longer.",
           correct: false,
           explanation:
             "Env vars never live-update from a ConfigMap change; waiting will not help. Only volume-mounted files refresh over time.",
@@ -1543,7 +1543,7 @@ const storage: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Containers are cattle, not pets. A container's writable layer lives and dies with that container instance — a crash-restart or a reschedule to another node wipes it. Kubernetes solves this with Volumes: a Volume is a directory mounted into one or more containers in a Pod, and its lifetime is governed by the Volume type, not the container. Choosing storage is really about choosing a lifetime: does the data die with the container, with the Pod, or does it outlive both?",
+      text: "Containers are cattle, not pets. A container's writable layer lives and dies with that container instance: a crash-restart or a reschedule to another node wipes it. Kubernetes solves this with Volumes: a Volume is a directory mounted into one or more containers in a Pod, and its lifetime is governed by the Volume type, not the container. Choosing storage is really about choosing a lifetime: does the data die with the container, with the Pod, or does it outlive both?",
     },
     {
       type: "heading",
@@ -1552,13 +1552,13 @@ const storage: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Ephemeral volumes are tied to the Pod's lifecycle. An emptyDir is created when the Pod is assigned to a node and deleted forever when the Pod is removed — great for scratch space, caches, or sharing files between containers in the same Pod. Persistent volumes live in the cluster independently of any Pod: a PersistentVolume (PV) survives Pod deletion, rescheduling, and even node loss (depending on the backend), so a database re-attaching after a restart finds its data intact.",
+      text: "Ephemeral volumes are tied to the Pod's lifecycle. An emptyDir is created when the Pod is assigned to a node and deleted forever when the Pod is removed: great for scratch space, caches, or sharing files between containers in the same Pod. Persistent volumes live in the cluster independently of any Pod: a PersistentVolume (PV) survives Pod deletion, rescheduling, and even node loss (depending on the backend), so a database re-attaching after a restart finds its data intact.",
     },
     {
       type: "concept",
       term: "emptyDir",
       definition:
-        "An ephemeral volume created empty when a Pod lands on a node and deleted with the Pod. Shared by all containers in the Pod. Use it for scratch and inter-container handoff — never for data you cannot lose.",
+        "An ephemeral volume created empty when a Pod lands on a node and deleted with the Pod. Shared by all containers in the Pod. Use it for scratch and inter-container handoff: never for data you cannot lose.",
     },
     {
       type: "compare",
@@ -1580,7 +1580,7 @@ const storage: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Persistent storage is split into three objects so that users and administrators stay decoupled. A PersistentVolume (PV) is a piece of real storage in the cluster — an actual disk. A PersistentVolumeClaim (PVC) is a user's request for storage of a given size and access mode; it does not know or care which disk backs it. A StorageClass describes a 'kind' of storage and names the provisioner that can create PVs on demand. Binding is Kubernetes matching a PVC to a suitable PV.",
+      text: "Persistent storage is split into three objects so that users and administrators stay decoupled. A PersistentVolume (PV) is a piece of real storage in the cluster: an actual disk. A PersistentVolumeClaim (PVC) is a user's request for storage of a given size and access mode; it does not know or care which disk backs it. A StorageClass describes a 'kind' of storage and names the provisioner that can create PVs on demand. Binding is Kubernetes matching a PVC to a suitable PV.",
     },
     {
       type: "diagram",
@@ -1593,13 +1593,13 @@ const storage: DocsLesson = {
       type: "concept",
       term: "Dynamic provisioning",
       definition:
-        "Instead of an admin pre-creating PVs (static provisioning), a PVC names a StorageClass and the class's provisioner creates a matching PV on demand at bind time. This is how most managed clusters work — the PVC is all you write.",
+        "Instead of an admin pre-creating PVs (static provisioning), a PVC names a StorageClass and the class's provisioner creates a matching PV on demand at bind time. This is how most managed clusters work: the PVC is all you write.",
     },
     {
       type: "callout",
       tone: "info",
       title: "WaitForFirstConsumer",
-      text: "A StorageClass with volumeBindingMode: WaitForFirstConsumer delays PV creation until a Pod actually uses the PVC. This lets the scheduler pick a node first, so the disk is provisioned in the same zone as the Pod — critical for zonal block storage that cannot cross availability zones.",
+      text: "A StorageClass with volumeBindingMode: WaitForFirstConsumer delays PV creation until a Pod actually uses the PVC. This lets the scheduler pick a node first, so the disk is provisioned in the same zone as the Pod: critical for zonal block storage that cannot cross availability zones.",
     },
     {
       type: "heading",
@@ -1634,7 +1634,7 @@ const storage: DocsLesson = {
         },
         {
           code: "    - ReadWriteOnce",
-          note: "read-write by Pods on a single node — the common default for a block disk",
+          note: "read-write by Pods on a single node: the common default for a block disk",
         },
         {
           code: "  storageClassName: standard",
@@ -1648,7 +1648,7 @@ const storage: DocsLesson = {
         },
         {
           code: "      storage: 1Gi",
-          note: "the minimum capacity you need — the bound PV must be at least this big",
+          note: "the minimum capacity you need: the bound PV must be at least this big",
         },
         {
           code: "---",
@@ -1738,7 +1738,7 @@ const storage: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "An access mode declares how many nodes (or Pods) may mount a volume and whether writes are allowed. It is a constraint the storage backend must be able to honour — asking for ReadWriteMany on a plain cloud block disk will simply fail to bind. Note the subtlety: ReadWriteOnce is per-node, not per-Pod, so several Pods on the same node can share it.",
+      text: "An access mode declares how many nodes (or Pods) may mount a volume and whether writes are allowed. It is a constraint the storage backend must be able to honour: asking for ReadWriteMany on a plain cloud block disk will simply fail to bind. Note the subtlety: ReadWriteOnce is per-node, not per-Pod, so several Pods on the same node can share it.",
     },
     {
       type: "decisionTable",
@@ -1779,7 +1779,7 @@ const storage: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "The backend must support the mode",
-      text: "Access modes are not magic. ReadWriteMany requires a shared filesystem (NFS, CephFS, EFS); a standard cloud block volume only offers ReadWriteOnce. If a PVC asks for a mode the class cannot provide, the PVC stays Pending and any Pod using it stays Pending too — with no obvious error until you describe the PVC.",
+      text: "Access modes are not magic. ReadWriteMany requires a shared filesystem (NFS, CephFS, EFS); a standard cloud block volume only offers ReadWriteOnce. If a PVC asks for a mode the class cannot provide, the PVC stays Pending and any Pod using it stays Pending too: with no obvious error until you describe the PVC.",
     },
     {
       type: "heading",
@@ -1788,25 +1788,25 @@ const storage: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A reclaim policy decides what happens to a PV (and its backing disk) when its PVC is deleted. Delete removes both the PV object and the real storage — convenient, and the default for dynamically provisioned volumes. Retain keeps the PV and the data, moving the PV to a Released state that an admin must reclaim by hand. The old Recycle policy is deprecated; use Retain or Delete.",
+      text: "A reclaim policy decides what happens to a PV (and its backing disk) when its PVC is deleted. Delete removes both the PV object and the real storage: convenient, and the default for dynamically provisioned volumes. Retain keeps the PV and the data, moving the PV to a Released state that an admin must reclaim by hand. The old Recycle policy is deprecated; use Retain or Delete.",
     },
     {
       type: "compare",
       caption:
         "The reclaimPolicy on the PV (usually inherited from the StorageClass) decides whether deleting a PVC destroys your data.",
       left: {
-        title: "Retain — keep the data",
+        title: "Retain: keep the data",
         code: "persistentVolumeReclaimPolicy: Retain\n# PVC delete -> PV goes Released\n# disk + data kept; admin reclaims manually",
       },
       right: {
-        title: "Delete — clean up",
+        title: "Delete: clean up",
         code: "persistentVolumeReclaimPolicy: Delete\n# PVC delete -> PV + backing disk deleted\n# default for dynamic provisioning",
       },
     },
     {
       type: "callout",
       tone: "key",
-      title: "Delete is the default — protect real data",
+      title: "Delete is the default: protect real data",
       text: "Dynamically provisioned volumes usually inherit reclaimPolicy: Delete from their StorageClass, so deleting a PVC can permanently destroy the disk. For anything you cannot lose, use a StorageClass (or patch the PV) with Retain.",
     },
     {
@@ -1816,7 +1816,7 @@ const storage: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Deployment's replicas are interchangeable and share nothing, so they cannot each own a distinct disk. A StatefulSet gives every replica a stable identity and, via volumeClaimTemplates, its own PVC. Kubernetes creates one PVC per replica named <template>-<statefulset>-<ordinal> (for example data-web-0, data-web-1), and a rescheduled Pod re-attaches to the same PVC — so web-0 always gets web-0's data.",
+      text: "A Deployment's replicas are interchangeable and share nothing, so they cannot each own a distinct disk. A StatefulSet gives every replica a stable identity and, via volumeClaimTemplates, its own PVC. Kubernetes creates one PVC per replica named <template>-<statefulset>-<ordinal> (for example data-web-0, data-web-1), and a rescheduled Pod re-attaches to the same PVC, so web-0 always gets web-0's data.",
     },
     {
       type: "annotatedCode",
@@ -1891,7 +1891,7 @@ const storage: DocsLesson = {
         },
         {
           code: "  volumeClaimTemplates:",
-          note: "NOT under template.spec.volumes — it is a top-level StatefulSet field",
+          note: "NOT under template.spec.volumes: it is a top-level StatefulSet field",
         },
         {
           code: "    - metadata:",
@@ -1924,7 +1924,7 @@ const storage: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "PVCs outlive their StatefulSet",
-      text: "By default the PVCs created from volumeClaimTemplates are NOT deleted when you scale down or delete the StatefulSet — this protects data, but leaves orphaned PVCs (and disks, and bills) behind. Kubernetes 1.27+ adds persistentVolumeClaimRetentionPolicy to opt into automatic cleanup on scale-down or delete.",
+      text: "By default the PVCs created from volumeClaimTemplates are NOT deleted when you scale down or delete the StatefulSet: this protects data, but leaves orphaned PVCs (and disks, and bills) behind. Kubernetes 1.27+ adds persistentVolumeClaimRetentionPolicy to opt into automatic cleanup on scale-down or delete.",
     },
     {
       type: "heading",
@@ -1960,7 +1960,7 @@ const storage: DocsLesson = {
         "Choosing storage means choosing a lifetime: emptyDir dies with the Pod; a PV outlives it.",
         "PVC = a request, PV = the real disk, StorageClass = the factory that mints PVs on demand.",
         "Access modes constrain sharing (RWO per-node, ROX read-only many, RWX read-write many, RWOP one Pod) and the backend must support the mode or the PVC hangs Pending.",
-        "reclaimPolicy: Delete (the dynamic default) can destroy your disk when the PVC is deleted — use Retain for data you cannot lose.",
+        "reclaimPolicy: Delete (the dynamic default) can destroy your disk when the PVC is deleted: use Retain for data you cannot lose.",
         "StatefulSet volumeClaimTemplates give each replica its own stable PVC, and those PVCs are not auto-deleted before 1.27's retention policy.",
       ],
     },
@@ -2074,7 +2074,7 @@ const accessControl: DocsLesson = {
         },
         {
           code: "metadata:",
-          note: "the identity object itself — namespaced, so it lives in exactly one namespace",
+          note: "the identity object itself: namespaced, so it lives in exactly one namespace",
         },
         {
           code: "  name: inspector",
@@ -2105,7 +2105,7 @@ const accessControl: DocsLesson = {
         },
         {
           code: "  serviceAccountName: inspector",
-          note: "run as this identity — without this the Pod uses the namespace 'default' ServiceAccount",
+          note: "run as this identity: without this the Pod uses the namespace 'default' ServiceAccount",
         },
         {
           code: "  containers:",
@@ -2126,7 +2126,7 @@ const accessControl: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "The default ServiceAccount is not special",
-      text: "Every namespace has a 'default' ServiceAccount, and Pods that omit serviceAccountName use it. It has no extra powers — it is just an unnamed identity. Give workloads their own named ServiceAccount so you can grant and audit permissions per workload.",
+      text: "Every namespace has a 'default' ServiceAccount, and Pods that omit serviceAccountName use it. It has no extra powers: it is just an unnamed identity. Give workloads their own named ServiceAccount so you can grant and audit permissions per workload.",
     },
     {
       type: "heading",
@@ -2157,7 +2157,7 @@ const accessControl: DocsLesson = {
         },
         {
           code: "kind: Role",
-          note: "a namespaced permission set — only valid inside its own namespace",
+          note: "a namespaced permission set: only valid inside its own namespace",
         },
         {
           code: "metadata:",
@@ -2171,7 +2171,7 @@ const accessControl: DocsLesson = {
         },
         {
           code: "rules:",
-          note: "an allow-list — RBAC has no deny rules, so anything not listed is forbidden",
+          note: "an allow-list: RBAC has no deny rules, so anything not listed is forbidden",
         },
         {
           code: '  - apiGroups: [""]',
@@ -2220,7 +2220,7 @@ const accessControl: DocsLesson = {
         },
         {
           code: "roleRef:",
-          note: "WHICH permission set — this reference is immutable after creation",
+          note: "WHICH permission set: this reference is immutable after creation",
         },
         {
           code: "  kind: Role",
@@ -2267,7 +2267,7 @@ const accessControl: DocsLesson = {
       stages: [
         {
           label: "Empty allow-list",
-          note: "A valid Role with no rules. It grants nothing — a subject bound to it is still fully denied.",
+          note: "A valid Role with no rules. It grants nothing: a subject bound to it is still fully denied.",
           code: "apiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: pod-reader\n  namespace: dev\nrules: []",
         },
         {
@@ -2297,7 +2297,7 @@ const accessControl: DocsLesson = {
         },
         {
           title: "Build the attributes",
-          text: "The request is described as (subject, verb, apiGroup, resource, namespace, name) — for example inspector wants to 'list' 'pods' in 'dev'.",
+          text: "The request is described as (subject, verb, apiGroup, resource, namespace, name): for example inspector wants to 'list' 'pods' in 'dev'.",
         },
         {
           title: "Check RBAC rules",
@@ -2305,7 +2305,7 @@ const accessControl: DocsLesson = {
         },
         {
           title: "Allow or deny",
-          text: "If at least one rule matches, the request is allowed. If none match, it is denied — RBAC never has explicit deny rules, so absence of a grant is the denial.",
+          text: "If at least one rule matches, the request is allowed. If none match, it is denied: RBAC never has explicit deny rules, so absence of a grant is the denial.",
         },
       ],
     },
@@ -2368,11 +2368,11 @@ const accessControl: DocsLesson = {
         "Both bind to the same ServiceAccount. Only one limits the blast radius if that Pod is compromised.",
       left: {
         title: "Too broad",
-        code: 'rules:\n  - apiGroups: ["*"]\n    resources: ["*"]\n    verbs: ["*"]\n# cluster-admin over everything —\n# a leaked token owns the cluster',
+        code: 'rules:\n  - apiGroups: ["*"]\n    resources: ["*"]\n    verbs: ["*"]\n# cluster-admin over everything: \n# a leaked token owns the cluster',
       },
       right: {
         title: "Scoped to the job",
-        code: 'rules:\n  - apiGroups: [""]\n    resources: ["pods"]\n    verbs: ["get", "list", "watch"]\n# read-only pods, one namespace —\n# a leaked token can only look',
+        code: 'rules:\n  - apiGroups: [""]\n    resources: ["pods"]\n    verbs: ["get", "list", "watch"]\n# read-only pods, one namespace: \n# a leaked token can only look',
       },
     },
     {
@@ -2388,7 +2388,7 @@ const accessControl: DocsLesson = {
         "The inspector ServiceAccount in the dev namespace still gets 'forbidden' when it lists pods, even though this RoleBinding was applied successfully. The Role pod-reader was created in the prod namespace. What is wrong?",
       code: "apiVersion: rbac.authorization.k8s.io/v1\nkind: RoleBinding\nmetadata:\n  name: read-pods\n  namespace: dev\nsubjects:\n  - kind: ServiceAccount\n    name: inspector\n    namespace: dev\nroleRef:\n  kind: Role\n  name: pod-reader\n  apiGroup: rbac.authorization.k8s.io",
       answer:
-        "A RoleBinding always resolves a Role reference in its OWN namespace. This binding lives in dev, so it looks for a Role named pod-reader in dev — but the Role only exists in prod, so roleRef matches nothing and grants nothing. Kubernetes does not error on the dangling reference. Fix it by either creating the pod-reader Role in dev, or converting pod-reader to a ClusterRole and referencing it (a RoleBinding can bind a ClusterRole, limiting it to dev).",
+        "A RoleBinding always resolves a Role reference in its OWN namespace. This binding lives in dev, so it looks for a Role named pod-reader in dev, but the Role only exists in prod, so roleRef matches nothing and grants nothing. Kubernetes does not error on the dangling reference. Fix it by either creating the pod-reader Role in dev, or converting pod-reader to a ClusterRole and referencing it (a RoleBinding can bind a ClusterRole, limiting it to dev).",
     },
     {
       type: "heading",
@@ -2409,7 +2409,7 @@ const accessControl: DocsLesson = {
       items: [
         "A ServiceAccount is a Pod's identity; RBAC decides what that identity may do. Authentication and authorization are separate steps.",
         "Role and RoleBinding are namespaced; ClusterRole and ClusterRoleBinding are not. A RoleBinding always resolves a Role in its own namespace.",
-        "A rule is the intersection of apiGroups, resources, and verbs — a request is allowed only if all three match one rule.",
+        "A rule is the intersection of apiGroups, resources, and verbs: a request is allowed only if all three match one rule.",
         "RBAC is deny-by-default and purely additive: no explicit deny exists, so a missing grant is the denial.",
         "Prefer narrow Roles over wildcards, and give each workload its own named ServiceAccount so access is auditable.",
       ],
@@ -2481,7 +2481,7 @@ const accessControl: DocsLesson = {
           text: 'A wildcard Role with verbs: ["*"].',
           correct: false,
           explanation:
-            "A Role is still namespaced even with wildcards, so it cannot cover cluster-scoped Nodes — and wildcards violate least privilege.",
+            "A Role is still namespaced even with wildcards, so it cannot cover cluster-scoped Nodes, and wildcards violate least privilege.",
         },
       ],
     },
@@ -2630,7 +2630,7 @@ const podSecurity: DocsLesson = {
       stages: [
         {
           label: "Unrestricted",
-          note: "A plain Pod with no securityContext. It runs as whatever user the image declares — frequently root (UID 0) — with the full default capability set and a writable root filesystem. This is the blast radius you are trying to shrink.",
+          note: "A plain Pod with no securityContext. It runs as whatever user the image declares: frequently root (UID 0): with the full default capability set and a writable root filesystem. This is the blast radius you are trying to shrink.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers:\n    - name: app\n      image: klab/web-app:1.0.0",
         },
         {
@@ -2649,7 +2649,7 @@ const podSecurity: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "runAsNonRoot is a check, runAsUser is a setting",
-      text: "runAsNonRoot: true does not choose a UID — it tells the kubelet to refuse the container if it would resolve to UID 0. runAsUser: 1000 actually sets the UID. If the image's default user is root and you set runAsNonRoot: true without runAsUser, the container fails to start with 'container has runAsNonRoot and image will run as root'. Set both, or bake a non-root USER into the image.",
+      text: "runAsNonRoot: true does not choose a UID: it tells the kubelet to refuse the container if it would resolve to UID 0. runAsUser: 1000 actually sets the UID. If the image's default user is root and you set runAsNonRoot: true without runAsUser, the container fails to start with 'container has runAsNonRoot and image will run as root'. Set both, or bake a non-root USER into the image.",
     },
     {
       type: "callout",
@@ -2664,7 +2664,7 @@ const podSecurity: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Setting a good securityContext is voluntary — nothing forces a team to do it. Pod Security Admission (PSA) is the built-in admission controller that makes it mandatory per namespace. It checks every incoming Pod against one of three Pod Security Standards and can reject, audit, or warn. You turn it on with labels on the Namespace; no extra install, no webhook.",
+      text: "Setting a good securityContext is voluntary: nothing forces a team to do it. Pod Security Admission (PSA) is the built-in admission controller that makes it mandatory per namespace. It checks every incoming Pod against one of three Pod Security Standards and can reject, audit, or warn. You turn it on with labels on the Namespace; no extra install, no webhook.",
     },
     {
       type: "diagram",
@@ -2731,7 +2731,7 @@ const podSecurity: DocsLesson = {
         {
           label: "privileged",
           cells: [
-            "Everything — no restrictions at all. Permits privileged containers, host namespaces, host paths, and any capability.",
+            "Everything: no restrictions at all. Permits privileged containers, host namespaces, host paths, and any capability.",
             "System and infrastructure namespaces (CNI, storage, monitoring agents) that genuinely need node-level access.",
           ],
         },
@@ -2754,7 +2754,7 @@ const podSecurity: DocsLesson = {
     {
       type: "compare",
       caption:
-        "The same container, before and after hardening — the left form is rejected by a restricted namespace.",
+        "The same container, before and after hardening: the left form is rejected by a restricted namespace.",
       left: {
         title: "Rejected by restricted",
         code: "containers:\n  - name: app\n    image: klab/web-app:1.0.0\n    # no securityContext\n    # runs as root, keeps all caps",
@@ -2776,7 +2776,7 @@ const podSecurity: DocsLesson = {
         "This Pod is rejected at create time in namespace prod, which is labeled pod-security.kubernetes.io/enforce: restricted. kubectl apply returns an admission error before any Pod object is created. What violates the policy, and what does restricted require instead?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: legacy\n  namespace: prod\nspec:\n  containers:\n    - name: app\n      image: klab/web-app:1.0.0\n      securityContext:\n        privileged: true",
       answer:
-        'privileged: true is a hard violation — restricted (and even baseline) forbid privileged containers outright. But this Pod fails on more than that: restricted also requires runAsNonRoot: true (the image would otherwise run as root), allowPrivilegeEscalation: false, capabilities.drop of ALL, and a seccompProfile of RuntimeDefault or Localhost. PSA rejects the whole Pod at admission, so it never appears in kubectl get pods. Fix: remove privileged, add pod-level runAsNonRoot: true with a non-zero runAsUser and seccompProfile.type: RuntimeDefault, and container-level allowPrivilegeEscalation: false plus capabilities.drop ["ALL"].',
+        'privileged: true is a hard violation: restricted (and even baseline) forbid privileged containers outright. But this Pod fails on more than that: restricted also requires runAsNonRoot: true (the image would otherwise run as root), allowPrivilegeEscalation: false, capabilities.drop of ALL, and a seccompProfile of RuntimeDefault or Localhost. PSA rejects the whole Pod at admission, so it never appears in kubectl get pods. Fix: remove privileged, add pod-level runAsNonRoot: true with a non-zero runAsUser and seccompProfile.type: RuntimeDefault, and container-level allowPrivilegeEscalation: false plus capabilities.drop ["ALL"].',
     },
     {
       type: "heading",
@@ -2801,9 +2801,9 @@ const podSecurity: DocsLesson = {
       type: "takeaways",
       items: [
         "securityContext narrows runtime privileges; pod-level sets defaults and volume ownership, container-level owns filesystem and capabilities.",
-        "runAsNonRoot: true only refuses UID 0 — pair it with runAsUser (non-zero) or a non-root image USER to actually set the identity.",
+        "runAsNonRoot: true only refuses UID 0: pair it with runAsUser (non-zero) or a non-root image USER to actually set the identity.",
         "The restricted standard wants runAsNonRoot, allowPrivilegeEscalation: false, drop ALL capabilities, and seccompProfile RuntimeDefault.",
-        "Pod Security Admission enforces a standard (privileged, baseline, or restricted) per namespace via labels — enforce blocks, audit logs, warn notifies.",
+        "Pod Security Admission enforces a standard (privileged, baseline, or restricted) per namespace via labels: enforce blocks, audit logs, warn notifies.",
         "readOnlyRootFilesystem: true is a strong hardening step but not required by restricted; give writable paths an emptyDir volume.",
       ],
     },
@@ -2839,7 +2839,7 @@ const podSecurity: DocsLesson = {
           text: "readOnlyRootFilesystem: true",
           correct: false,
           explanation:
-            "This makes the root filesystem immutable — valuable, but it limits writes, not privilege escalation.",
+            "This makes the root filesystem immutable: valuable, but it limits writes, not privilege escalation.",
         },
       ],
     },
@@ -2854,7 +2854,7 @@ const podSecurity: DocsLesson = {
           text: "Add the label pod-security.kubernetes.io/enforce: restricted to the prod Namespace.",
           correct: true,
           explanation:
-            "Pod Security Admission reads the enforce label off the Namespace and blocks non-compliant Pods at admission — no webhook or install needed.",
+            "Pod Security Admission reads the enforce label off the Namespace and blocks non-compliant Pods at admission: no webhook or install needed.",
         },
         {
           id: "b",
@@ -2872,7 +2872,7 @@ const podSecurity: DocsLesson = {
         },
         {
           id: "d",
-          text: "Use the warn label — it blocks non-compliant Pods.",
+          text: "Use the warn label: it blocks non-compliant Pods.",
           correct: false,
           explanation:
             "The warn mode only surfaces a client-visible warning and still allows the Pod; enforce is the mode that blocks.",
@@ -2905,7 +2905,7 @@ const networkPolicies: DocsLesson = {
       type: "concept",
       term: "Default-allow, then default-deny",
       definition:
-        "A namespace starts default-allow. The moment ANY NetworkPolicy selects a Pod for a direction (Ingress or Egress), that direction flips to default-deny for that Pod: only traffic matching an allow rule is permitted, everything else is dropped. Policies are additive allow-lists — there is no explicit 'deny' rule.",
+        "A namespace starts default-allow. The moment ANY NetworkPolicy selects a Pod for a direction (Ingress or Egress), that direction flips to default-deny for that Pod: only traffic matching an allow rule is permitted, everything else is dropped. Policies are additive allow-lists: there is no explicit 'deny' rule.",
     },
     {
       type: "diagram",
@@ -2918,7 +2918,7 @@ const networkPolicies: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "The CNI must enforce NetworkPolicy",
-      text: "A NetworkPolicy is only a declaration. Enforcement is the job of the cluster's CNI plugin (Calico, Cilium, Antrea, Weave, and others). If the installed CNI does not implement NetworkPolicy — plain flannel, for example — the API server accepts your object and reports success, but zero packets are ever filtered. A 'working' policy that does nothing is almost always an unsupported CNI.",
+      text: "A NetworkPolicy is only a declaration. Enforcement is the job of the cluster's CNI plugin (Calico, Cilium, Antrea, Weave, and others). If the installed CNI does not implement NetworkPolicy: plain flannel, for example: the API server accepts your object and reports success, but zero packets are ever filtered. A 'working' policy that does nothing is almost always an unsupported CNI.",
     },
     {
       type: "heading",
@@ -2927,7 +2927,7 @@ const networkPolicies: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A policy governs two independent directions. Ingress rules describe who may connect INTO the selected Pods; egress rules describe where the selected Pods may connect OUT to. The policyTypes list declares which directions this policy is responsible for — and this is where the most useful behavior lives.",
+      text: "A policy governs two independent directions. Ingress rules describe who may connect INTO the selected Pods; egress rules describe where the selected Pods may connect OUT to. The policyTypes list declares which directions this policy is responsible for, and this is where the most useful behavior lives.",
     },
     {
       type: "concept",
@@ -2953,7 +2953,7 @@ const networkPolicies: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "podSelector: {} selects all Pods",
-      text: "An empty podSelector ({}) is not 'select nothing' — it matches every Pod in the policy's namespace. That is exactly what you want for a namespace-wide baseline, and exactly the surprise that makes a narrow policy accidentally apply to everything. Read {} as 'all Pods here', and read a missing key as a match-nothing typo.",
+      text: "An empty podSelector ({}) is not 'select nothing': it matches every Pod in the policy's namespace. That is exactly what you want for a namespace-wide baseline, and exactly the surprise that makes a narrow policy accidentally apply to everything. Read {} as 'all Pods here', and read a missing key as a match-nothing typo.",
     },
     {
       type: "heading",
@@ -2980,7 +2980,7 @@ const networkPolicies: DocsLesson = {
         },
         {
           code: "  namespace: default",
-          note: "policies are namespaced — they only select Pods in this namespace",
+          note: "policies are namespaced: they only select Pods in this namespace",
         },
         {
           code: "spec:",
@@ -3044,7 +3044,7 @@ const networkPolicies: DocsLesson = {
       stages: [
         {
           label: "Select the target Pods",
-          note: "Start by choosing WHO this policy protects. With Ingress named but no rules, this already denies all ingress to api Pods — a scoped deny-all.",
+          note: "Start by choosing WHO this policy protects. With Ingress named but no rules, this already denies all ingress to api Pods: a scoped deny-all.",
           code: "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-web-to-api\n  namespace: default\nspec:\n  podSelector:\n    matchLabels:\n      app: api\n  policyTypes: [Ingress]",
         },
         {
@@ -3134,7 +3134,7 @@ const networkPolicies: DocsLesson = {
         "This policy is meant to let the web Pods call the api service. After applying it, web can no longer resolve api-svc and every request fails with a DNS lookup error, even though the api Pods are healthy. What's wrong?",
       code: "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: web-egress\n  namespace: default\nspec:\n  podSelector:\n    matchLabels:\n      app: web\n  policyTypes: [Egress]\n  egress:\n    - to:\n        - podSelector:\n            matchLabels:\n              app: api\n      ports:\n        - protocol: TCP\n          port: 8080",
       answer:
-        "The moment this Egress policy selects the web Pods, ALL egress not explicitly allowed is denied — including DNS. Web can only send to api:8080, so its lookups to kube-dns (UDP and TCP port 53 in kube-system) are dropped and 'api-svc' never resolves. Fix: add a second egress rule allowing port 53 to the DNS Pods, e.g. 'to: - namespaceSelector matching kube-system' with 'ports: - {protocol: UDP, port: 53}' and the TCP 53 variant. Whenever a policy governs egress, remember to allow DNS.",
+        "The moment this Egress policy selects the web Pods, ALL egress not explicitly allowed is denied, including DNS. Web can only send to api:8080, so its lookups to kube-dns (UDP and TCP port 53 in kube-system) are dropped and 'api-svc' never resolves. Fix: add a second egress rule allowing port 53 to the DNS Pods, e.g. 'to: - namespaceSelector matching kube-system' with 'ports: - {protocol: UDP, port: 53}' and the TCP 53 variant. Whenever a policy governs egress, remember to allow DNS.",
     },
     {
       type: "heading",
@@ -3154,10 +3154,10 @@ const networkPolicies: DocsLesson = {
       type: "takeaways",
       items: [
         "A namespace is default-allow until a policy selects a Pod for a direction; then that direction is default-deny for that Pod and only listed traffic is allowed.",
-        "Policies are additive allow-lists — no deny rule exists. Build a deny-all baseline, then poke narrow holes with allow policies.",
+        "Policies are additive allow-lists: no deny rule exists. Build a deny-all baseline, then poke narrow holes with allow policies.",
         "podSelector: {} selects every Pod in the namespace; naming a direction in policyTypes with no rules denies that whole direction.",
         "Peer selectors AND when in the same list item and OR across separate items; podSelector is same-namespace, namespaceSelector spans namespaces, ipBlock covers CIDRs.",
-        "Any egress policy that selects a Pod also blocks its DNS — always allow port 53 to kube-dns, and confirm your CNI actually enforces NetworkPolicy.",
+        "Any egress policy that selects a Pod also blocks its DNS: always allow port 53 to kube-dns, and confirm your CNI actually enforces NetworkPolicy.",
       ],
     },
     {
@@ -3167,14 +3167,14 @@ const networkPolicies: DocsLesson = {
       options: [
         {
           id: "a",
-          text: "All traffic — Pods are default-allow until a policy selects them.",
+          text: "All traffic: Pods are default-allow until a policy selects them.",
           correct: true,
           explanation:
             "With no policy selecting a Pod, both ingress and egress are unrestricted. Isolation begins only when a policy selects the Pod for that direction.",
         },
         {
           id: "b",
-          text: "No traffic — Kubernetes denies all Pod traffic by default.",
+          text: "No traffic: Kubernetes denies all Pod traffic by default.",
           correct: false,
           explanation:
             "The default is the opposite: a flat, fully open Pod network. Deny-all is something you must create with a policy.",
@@ -3237,7 +3237,7 @@ const scheduling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Pod's spec.nodeName is empty when you create it. The kube-scheduler watches for exactly these unbound Pods, picks a node for each one, and writes that choice into the Pod's binding. Everything in this lesson — nodeSelector, affinity, taints and tolerations, topology spread — is a way to influence that single decision without hard-coding a node name. Nothing here starts, stops, or moves a container by itself; the scheduler only decides placement, and the kubelet on the chosen node does the running.",
+      text: "A Pod's spec.nodeName is empty when you create it. The kube-scheduler watches for exactly these unbound Pods, picks a node for each one, and writes that choice into the Pod's binding. Everything in this lesson: nodeSelector, affinity, taints and tolerations, topology spread: is a way to influence that single decision without hard-coding a node name. Nothing here starts, stops, or moves a container by itself; the scheduler only decides placement, and the kubelet on the chosen node does the running.",
     },
     {
       type: "diagram",
@@ -3252,7 +3252,7 @@ const scheduling: DocsLesson = {
       items: [
         {
           title: "Filter (feasibility)",
-          text: "Hard rules run first and eliminate nodes: does the node have enough allocatable CPU/memory for the Pod's requests, does it match nodeSelector and required node affinity, does the Pod tolerate the node's taints, are required volumes attachable? A node that fails any filter is out. If zero nodes survive, the Pod stays Pending — this is where most 'why won't it schedule' incidents live.",
+          text: "Hard rules run first and eliminate nodes: does the node have enough allocatable CPU/memory for the Pod's requests, does it match nodeSelector and required node affinity, does the Pod tolerate the node's taints, are required volumes attachable? A node that fails any filter is out. If zero nodes survive, the Pod stays Pending: this is where most 'why won't it schedule' incidents live.",
         },
         {
           title: "Score (ranking)",
@@ -3271,7 +3271,7 @@ const scheduling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "nodeSelector is the simplest placement control: a map of label key/value pairs the node must have. It is exact-match and AND-only — every pair must be present on the node — and it is always a hard requirement with no soft fallback. If nothing matches, the Pod stays Pending. Reach for it only when your rule really is 'this exact label must be present'; the moment you need OR logic, ranges, or a preference, you have outgrown it and want affinity.",
+      text: "nodeSelector is the simplest placement control: a map of label key/value pairs the node must have. It is exact-match and AND-only: every pair must be present on the node, and it is always a hard requirement with no soft fallback. If nothing matches, the Pod stays Pending. Reach for it only when your rule really is 'this exact label must be present'; the moment you need OR logic, ranges, or a preference, you have outgrown it and want affinity.",
     },
     {
       type: "code",
@@ -3285,7 +3285,7 @@ const scheduling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Affinity comes in two families. Node affinity matches labels on nodes with real operators — In, NotIn, Exists, DoesNotExist, Gt, Lt — so you can say 'a zone in this set' or 'a GPU count greater than 0'. Pod affinity and anti-affinity instead match labels on other Pods already running in a topology domain, letting you co-locate related Pods or, far more commonly, spread replicas apart with anti-affinity. Both families offer a required form (a hard filter) and a preferred form (a soft score with a weight from 1-100). The clumsy suffix requiredDuringSchedulingIgnoredDuringExecution means the rule is enforced at scheduling time but ignored afterward: relabel a node and an already-running Pod is not evicted.",
+      text: "Affinity comes in two families. Node affinity matches labels on nodes with real operators: In, NotIn, Exists, DoesNotExist, Gt, Lt, so you can say 'a zone in this set' or 'a GPU count greater than 0'. Pod affinity and anti-affinity instead match labels on other Pods already running in a topology domain, letting you co-locate related Pods or, far more commonly, spread replicas apart with anti-affinity. Both families offer a required form (a hard filter) and a preferred form (a soft score with a weight from 1-100). The clumsy suffix requiredDuringSchedulingIgnoredDuringExecution means the rule is enforced at scheduling time but ignored afterward: relabel a node and an already-running Pod is not evicted.",
     },
     {
       type: "annotatedCode",
@@ -3324,7 +3324,7 @@ const scheduling: DocsLesson = {
         },
         {
           code: "      requiredDuringSchedulingIgnoredDuringExecution:",
-          note: "HARD: a filter — no matching node means the Pod stays Pending",
+          note: "HARD: a filter: no matching node means the Pod stays Pending",
         },
         {
           code: "        nodeSelectorTerms:",
@@ -3339,7 +3339,7 @@ const scheduling: DocsLesson = {
         },
         {
           code: "                operator: In",
-          note: "In/NotIn/Exists/DoesNotExist/Gt/Lt — richer than nodeSelector's exact match",
+          note: "In/NotIn/Exists/DoesNotExist/Gt/Lt: richer than nodeSelector's exact match",
         },
         {
           code: "                values:",
@@ -3406,13 +3406,13 @@ const scheduling: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "Required is a wall; preferred is a nudge",
-      text: "requiredDuringScheduling... is evaluated during filtering — if no node satisfies it, the Pod never schedules and sits Pending indefinitely; the scheduler will not relax it. preferredDuringScheduling... is evaluated during scoring — unmatched nodes simply get fewer points, so the Pod still lands somewhere. Use required for genuine hard constraints (GPU present, correct architecture) and preferred for 'nice to have' placement, so a full or missing preferred zone degrades gracefully instead of wedging the Pod.",
+      text: "requiredDuringScheduling... is evaluated during filtering: if no node satisfies it, the Pod never schedules and sits Pending indefinitely; the scheduler will not relax it. preferredDuringScheduling... is evaluated during scoring: unmatched nodes simply get fewer points, so the Pod still lands somewhere. Use required for genuine hard constraints (GPU present, correct architecture) and preferred for 'nice to have' placement, so a full or missing preferred zone degrades gracefully instead of wedging the Pod.",
     },
     {
       type: "concept",
       term: "topologyKey (pod (anti-)affinity)",
       definition:
-        "Pod affinity and anti-affinity are always relative to a topology domain named by topologyKey — a node label such as kubernetes.io/hostname (per-node) or topology.kubernetes.io/zone (per-zone). 'Anti-affinity with topologyKey: kubernetes.io/hostname against app=web' means: do not place two web Pods on the same node. Get the topologyKey wrong and you spread across the wrong dimension (e.g. per-node when you meant per-zone).",
+        "Pod affinity and anti-affinity are always relative to a topology domain named by topologyKey: a node label such as kubernetes.io/hostname (per-node) or topology.kubernetes.io/zone (per-zone). 'Anti-affinity with topologyKey: kubernetes.io/hostname against app=web' means: do not place two web Pods on the same node. Get the topologyKey wrong and you spread across the wrong dimension (e.g. per-node when you meant per-zone).",
     },
     {
       type: "buildUp",
@@ -3421,17 +3421,17 @@ const scheduling: DocsLesson = {
       stages: [
         {
           label: "Start with a hard requirement",
-          note: "The workload must run on SSD nodes, full stop. A required node affinity makes that a filter — no SSD node, no scheduling.",
+          note: "The workload must run on SSD nodes, full stop. A required node affinity makes that a filter: no SSD node, no scheduling.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  affinity:\n    nodeAffinity:\n      requiredDuringSchedulingIgnoredDuringExecution:\n        nodeSelectorTerms:\n          - matchExpressions:\n              - key: disktype\n                operator: In\n                values:\n                  - ssd\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
         },
         {
           label: "Add a soft preference",
-          note: "Among the SSD nodes, we would rather use zone us-east-1a — but we are fine elsewhere if it is full. That is a preferred rule with a weight, so it only shifts the score.",
+          note: "Among the SSD nodes, we would rather use zone us-east-1a, but we are fine elsewhere if it is full. That is a preferred rule with a weight, so it only shifts the score.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  affinity:\n    nodeAffinity:\n      requiredDuringSchedulingIgnoredDuringExecution:\n        nodeSelectorTerms:\n          - matchExpressions:\n              - key: disktype\n                operator: In\n                values:\n                  - ssd\n      preferredDuringSchedulingIgnoredDuringExecution:\n        - weight: 50\n          preference:\n            matchExpressions:\n              - key: topology.kubernetes.io/zone\n                operator: In\n                values:\n                  - us-east-1a\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
         },
         {
           label: "Tolerate the reserved-node taint",
-          note: "The SSD nodes are tainted dedicated=web:NoSchedule so only this app uses them. Affinity alone still cannot land there — add a matching toleration to get past the taint.",
+          note: "The SSD nodes are tainted dedicated=web:NoSchedule so only this app uses them. Affinity alone still cannot land there: add a matching toleration to get past the taint.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  affinity:\n    nodeAffinity:\n      requiredDuringSchedulingIgnoredDuringExecution:\n        nodeSelectorTerms:\n          - matchExpressions:\n              - key: disktype\n                operator: In\n                values:\n                  - ssd\n      preferredDuringSchedulingIgnoredDuringExecution:\n        - weight: 50\n          preference:\n            matchExpressions:\n              - key: topology.kubernetes.io/zone\n                operator: In\n                values:\n                  - us-east-1a\n  tolerations:\n    - key: dedicated\n      operator: Equal\n      value: web\n      effect: NoSchedule\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
         },
       ],
@@ -3443,13 +3443,13 @@ const scheduling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Affinity and nodeSelector are the Pod reaching toward nodes. Taints are the opposite: a property on a node that repels Pods unless they carry a matching toleration. You taint a node with kubectl taint nodes node1 dedicated=web:NoSchedule. The effect is the important part. NoSchedule blocks new Pods without a matching toleration but leaves already-running Pods alone. PreferNoSchedule is the soft version — the scheduler avoids the node during scoring but will use it if it must. NoExecute is the strong one: it blocks new Pods AND evicts already-running Pods that do not tolerate it, honoring an optional tolerationSeconds grace period before eviction. Control-plane nodes and not-ready/unreachable nodes carry these taints by default.",
+      text: "Affinity and nodeSelector are the Pod reaching toward nodes. Taints are the opposite: a property on a node that repels Pods unless they carry a matching toleration. You taint a node with kubectl taint nodes node1 dedicated=web:NoSchedule. The effect is the important part. NoSchedule blocks new Pods without a matching toleration but leaves already-running Pods alone. PreferNoSchedule is the soft version: the scheduler avoids the node during scoring but will use it if it must. NoExecute is the strong one: it blocks new Pods AND evicts already-running Pods that do not tolerate it, honoring an optional tolerationSeconds grace period before eviction. Control-plane nodes and not-ready/unreachable nodes carry these taints by default.",
     },
     {
       type: "callout",
       tone: "warning",
       title: "A toleration permits, it does not attract",
-      text: "Tolerating a taint only removes the barrier — it does not make the scheduler prefer that node. A Pod that merely tolerates dedicated=web can still be placed anywhere else in the cluster. To truly reserve a node for one workload you need BOTH: a taint to keep everyone else off, and nodeSelector or node affinity on the intended Pods to pull them onto it. And beware NoExecute: adding that taint (or using kubectl taint with :NoExecute) will evict running Pods that lack the toleration.",
+      text: "Tolerating a taint only removes the barrier: it does not make the scheduler prefer that node. A Pod that merely tolerates dedicated=web can still be placed anywhere else in the cluster. To truly reserve a node for one workload you need BOTH: a taint to keep everyone else off, and nodeSelector or node affinity on the intended Pods to pull them onto it. And beware NoExecute: adding that taint (or using kubectl taint with :NoExecute) will evict running Pods that lack the toleration.",
     },
     {
       type: "heading",
@@ -3458,7 +3458,7 @@ const scheduling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Anti-affinity can say 'not two on the same node', but it is coarse. topologySpreadConstraints express balance directly: keep the number of matching Pods within maxSkew across a set of topology domains. maxSkew: 1 over topology.kubernetes.io/zone means the busiest and least-busy zone may differ by at most one Pod. whenUnsatisfiable decides how hard the rule is: DoNotSchedule makes it a filter (a Pod that would violate the skew stays Pending), while ScheduleAnyway makes it a scoring preference. labelSelector defines which Pods count toward the skew — usually your own workload's labels.",
+      text: "Anti-affinity can say 'not two on the same node', but it is coarse. topologySpreadConstraints express balance directly: keep the number of matching Pods within maxSkew across a set of topology domains. maxSkew: 1 over topology.kubernetes.io/zone means the busiest and least-busy zone may differ by at most one Pod. whenUnsatisfiable decides how hard the rule is: DoNotSchedule makes it a filter (a Pod that would violate the skew stays Pending), while ScheduleAnyway makes it a scoring preference. labelSelector defines which Pods count toward the skew: usually your own workload's labels.",
     },
     {
       type: "code",
@@ -3479,7 +3479,7 @@ const scheduling: DocsLesson = {
           label: "nodeSelector",
           cells: [
             "Pod schedules only on nodes whose labels exactly match every key/value you list",
-            "Hard only — no soft variant",
+            "Hard only: no soft variant",
             "Pod spec, targets node labels",
             "The rule is a simple, exact label match and you never need a fallback",
           ],
@@ -3488,7 +3488,7 @@ const scheduling: DocsLesson = {
           label: "Affinity / anti-affinity",
           cells: [
             "Attract or repel using operators against node labels (node affinity) or other Pods' labels in a topology domain (pod affinity)",
-            "Both — required (hard filter) or preferred (soft, weighted 1-100)",
+            "Both: required (hard filter) or preferred (soft, weighted 1-100)",
             "Pod spec, targets node labels or co-located Pods",
             "You need OR logic, ranges, co-location, spreading, or a graceful soft preference",
           ],
@@ -3516,7 +3516,7 @@ const scheduling: DocsLesson = {
         "This Pod stays Pending. kubectl describe pod web shows: 'FailedScheduling: 0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector.' Every node in the cluster is labeled disktype=hdd. What is wrong, and how do you fix it?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  affinity:\n    nodeAffinity:\n      requiredDuringSchedulingIgnoredDuringExecution:\n        nodeSelectorTerms:\n          - matchExpressions:\n              - key: disktype\n                operator: In\n                values:\n                  - ssd\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
       answer:
-        "The rule is requiredDuringScheduling..., which the scheduler evaluates during the filtering phase. It demands a node labeled disktype=ssd, but all three nodes are disktype=hdd, so every node is filtered out as infeasible and the Pod never reaches scoring — it sits Pending forever, and nothing self-heals it. Fixes, in order of least surprise: label a node to match (kubectl label node <name> disktype=ssd); or relax the rule to preferredDuringScheduling... so an hdd node is merely down-ranked instead of rejected; or correct the values to a label your nodes actually have. The same Pending pattern appears with taints — if the only ssd node were tainted and this Pod had no matching toleration, describe would instead read 'node(s) had untolerated taint {…}'. Always read the FailedScheduling message: it names the exact filter that rejected each node.",
+        "The rule is requiredDuringScheduling..., which the scheduler evaluates during the filtering phase. It demands a node labeled disktype=ssd, but all three nodes are disktype=hdd, so every node is filtered out as infeasible and the Pod never reaches scoring: it sits Pending forever, and nothing self-heals it. Fixes, in order of least surprise: label a node to match (kubectl label node <name> disktype=ssd); or relax the rule to preferredDuringScheduling... so an hdd node is merely down-ranked instead of rejected; or correct the values to a label your nodes actually have. The same Pending pattern appears with taints: if the only ssd node were tainted and this Pod had no matching toleration, describe would instead read 'node(s) had untolerated taint {…}'. Always read the FailedScheduling message: it names the exact filter that rejected each node.",
     },
     {
       type: "heading",
@@ -3535,7 +3535,7 @@ const scheduling: DocsLesson = {
     {
       type: "compare",
       caption:
-        "The same zone rule, expressed as required vs preferred node affinity — very different failure behavior.",
+        "The same zone rule, expressed as required vs preferred node affinity: very different failure behavior.",
       left: {
         title: "required (hard)",
         code: "requiredDuringScheduling\n  IgnoredDuringExecution:\n    nodeSelectorTerms:\n      - matchExpressions:\n          - key: zone\n            operator: In\n            values: [us-east-1a]\n# No node in us-east-1a?\n# Pod stays Pending. Forever.",
@@ -3548,12 +3548,12 @@ const scheduling: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "The scheduler runs one decision per unbound Pod: filter nodes to the feasible set, score the survivors, bind the best — hard rules filter, soft rules score.",
+        "The scheduler runs one decision per unbound Pod: filter nodes to the feasible set, score the survivors, bind the best: hard rules filter, soft rules score.",
         "nodeSelector is exact-match and hard-only; node affinity adds operators and both required (hard) and preferred (soft, weighted) forms.",
         "Pod affinity/anti-affinity work relative to a topologyKey; topologySpreadConstraints (maxSkew + whenUnsatisfiable) express even distribution directly.",
-        "Taints repel Pods; a toleration only permits, it never attracts — reserving a node needs a taint AND affinity/nodeSelector on the intended Pods.",
+        "Taints repel Pods; a toleration only permits, it never attracts: reserving a node needs a taint AND affinity/nodeSelector on the intended Pods.",
         "NoSchedule blocks new Pods, PreferNoSchedule is a soft avoid, and NoExecute also evicts running Pods that lack the toleration.",
-        "A Pod stuck Pending is almost always a hard rule with no feasible node — read the FailedScheduling event to see which filter rejected each node.",
+        "A Pod stuck Pending is almost always a hard rule with no feasible node: read the FailedScheduling event to see which filter rejected each node.",
       ],
     },
     {
@@ -3654,7 +3654,7 @@ const autoscaling: DocsLesson = {
       variant: "control-loop",
       title: "HPA is a control loop",
       caption:
-        "Observe a metric, compare to a target, write a new replica count, let the Deployment controller reconcile — then repeat.",
+        "Observe a metric, compare to a target, write a new replica count, let the Deployment controller reconcile, then repeat.",
     },
     {
       type: "heading",
@@ -3669,7 +3669,7 @@ const autoscaling: DocsLesson = {
       type: "concept",
       term: "Utilization is relative, not absolute",
       definition:
-        "When you target CPU 'Utilization', the number is a percentage of each Pod's CPU REQUEST — not of the node, not of a core. averageUtilization: 60 means 'keep average CPU near 60% of the requested amount'. This is why a resource request is mandatory: with no request there is no denominator, so utilization is undefined.",
+        "When you target CPU 'Utilization', the number is a percentage of each Pod's CPU REQUEST: not of the node, not of a core. averageUtilization: 60 means 'keep average CPU near 60% of the requested amount'. This is why a resource request is mandatory: with no request there is no denominator, so utilization is undefined.",
     },
     {
       type: "heading",
@@ -3678,7 +3678,7 @@ const autoscaling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Read every HPA through four lenses: what it scales (scaleTargetRef), the floor and ceiling (minReplicas/maxReplicas), the signal (metrics), and how eagerly it reacts (behavior). The autoscaling/v2 API is the current one — v1 only supported a single CPU target.",
+      text: "Read every HPA through four lenses: what it scales (scaleTargetRef), the floor and ceiling (minReplicas/maxReplicas), the signal (metrics), and how eagerly it reacts (behavior). The autoscaling/v2 API is the current one: v1 only supported a single CPU target.",
     },
     {
       type: "annotatedCode",
@@ -3688,7 +3688,7 @@ const autoscaling: DocsLesson = {
       lines: [
         {
           code: "apiVersion: autoscaling/v2",
-          note: "use v2 — it supports memory, multiple metrics, and scaling behavior",
+          note: "use v2: it supports memory, multiple metrics, and scaling behavior",
         },
         {
           code: "kind: HorizontalPodAutoscaler",
@@ -3707,7 +3707,7 @@ const autoscaling: DocsLesson = {
         },
         {
           code: "  scaleTargetRef:",
-          note: "WHAT to scale — must point at an object with a scale subresource (Deployment, ReplicaSet, StatefulSet)",
+          note: "WHAT to scale: must point at an object with a scale subresource (Deployment, ReplicaSet, StatefulSet)",
         },
         {
           code: "    apiVersion: apps/v1",
@@ -3717,19 +3717,19 @@ const autoscaling: DocsLesson = {
         },
         {
           code: "    name: web",
-          note: "the Deployment name — NOT a label selector; the HPA drives its replica count directly",
+          note: "the Deployment name: NOT a label selector; the HPA drives its replica count directly",
         },
         {
           code: "  minReplicas: 2",
-          note: "the floor — the HPA will never scale below this, even at zero load",
+          note: "the floor: the HPA will never scale below this, even at zero load",
         },
         {
           code: "  maxReplicas: 10",
-          note: "the ceiling — a hard cap that protects the cluster from a runaway scale-up",
+          note: "the ceiling: a hard cap that protects the cluster from a runaway scale-up",
         },
         {
           code: "  metrics:",
-          note: "the signal(s) — if multiple are listed the HPA takes the LARGEST resulting replica count",
+          note: "the signal(s): if multiple are listed the HPA takes the LARGEST resulting replica count",
         },
         {
           code: "    - type: Resource",
@@ -3766,7 +3766,7 @@ const autoscaling: DocsLesson = {
       stages: [
         {
           label: "Bind to a target",
-          note: "Point at the Deployment and set a floor and ceiling. This is already valid, but with no metrics it just holds replicas between 2 and 10 — it will not react to load yet.",
+          note: "Point at the Deployment and set a floor and ceiling. This is already valid, but with no metrics it just holds replicas between 2 and 10: it will not react to load yet.",
           code: "apiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: web-hpa\nspec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: web\n  minReplicas: 2\n  maxReplicas: 10",
         },
         {
@@ -3805,7 +3805,7 @@ const autoscaling: DocsLesson = {
         "This HPA targets 60% CPU but never scales. kubectl get hpa shows TARGETS as <unknown>/60% no matter how hard the app is hit. The Deployment is running and healthy. What is wrong?",
       code: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: web\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\n          # no resources.requests set\n---\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: web-hpa\nspec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: web\n  minReplicas: 2\n  maxReplicas: 10\n  metrics:\n    - type: Resource\n      resource:\n        name: cpu\n        target:\n          type: Utilization\n          averageUtilization: 60",
       answer:
-        "The container declares no resources.requests.cpu. A Utilization target is a percentage of the requested CPU, so with no request there is no denominator and the HPA cannot compute utilization — TARGETS reports <unknown>/60% and it will not scale on that metric. Fix: add resources.requests.cpu (for example 100m) to the container. Once a request exists, metrics-server-reported usage divided by the request gives a real percentage and the HPA starts scaling.",
+        "The container declares no resources.requests.cpu. A Utilization target is a percentage of the requested CPU, so with no request there is no denominator and the HPA cannot compute utilization: TARGETS reports <unknown>/60% and it will not scale on that metric. Fix: add resources.requests.cpu (for example 100m) to the container. Once a request exists, metrics-server-reported usage divided by the request gives a real percentage and the HPA starts scaling.",
     },
     {
       type: "heading",
@@ -3814,7 +3814,7 @@ const autoscaling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The VerticalPodAutoscaler recommends and (in Auto mode) applies better CPU/memory requests by evicting and recreating Pods with new values — it right-sizes Pods rather than adding them. The Cluster Autoscaler works one level down: when Pods are stuck Pending because no node has room, it asks the cloud provider to add nodes, and it removes nodes that stay underutilized. HPA reacts in seconds, VPA over minutes, and the Cluster Autoscaler on the timescale of provisioning a VM.",
+      text: "The VerticalPodAutoscaler recommends and (in Auto mode) applies better CPU/memory requests by evicting and recreating Pods with new values: it right-sizes Pods rather than adding them. The Cluster Autoscaler works one level down: when Pods are stuck Pending because no node has room, it asks the cloud provider to add nodes, and it removes nodes that stay underutilized. HPA reacts in seconds, VPA over minutes, and the Cluster Autoscaler on the timescale of provisioning a VM.",
     },
     {
       type: "decisionTable",
@@ -3834,7 +3834,7 @@ const autoscaling: DocsLesson = {
           cells: [
             "Each Pod's CPU/memory requests (and limits)",
             "Observed usage no longer matches the configured requests",
-            "Workloads that are hard to replicate — right-sizing requests",
+            "Workloads that are hard to replicate: right-sizing requests",
           ],
         },
         {
@@ -3883,11 +3883,11 @@ const autoscaling: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "HPA changes replica count, VPA changes per-Pod requests, Cluster Autoscaler changes node count — three axes, three controllers.",
+        "HPA changes replica count, VPA changes per-Pod requests, Cluster Autoscaler changes node count: three axes, three controllers.",
         "A Utilization target is a percentage of the Pod's CPU/memory request, so the target's containers MUST declare requests or the HPA reports <unknown> and never scales.",
         "desiredReplicas = ceil(currentReplicas * currentMetric / targetMetric), always clamped to minReplicas..maxReplicas.",
         "Use behavior.scaleDown.stabilizationWindowSeconds to stop thrashing; scale-up stays fast by default.",
-        "Never point an HPA and an Auto-mode VPA at the same metric/resource — they will fight over the same signal.",
+        "Never point an HPA and an Auto-mode VPA at the same metric/resource: they will fight over the same signal.",
       ],
     },
     {
@@ -3977,7 +3977,7 @@ const disruptionsAvailability: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Every running Pod eventually goes away, but the cause matters. Involuntary disruptions are things nobody scheduled: a node kernel panic, hardware loss, the network partitioning, or the kubelet evicting under memory pressure. Voluntary disruptions are actions an operator or controller deliberately takes: draining a node for a kernel upgrade, scaling the cluster down, or deleting a Pod during a rollout. A PodDisruptionBudget (PDB) is the one lever you have to say how much voluntary disruption an application can absorb at once — and it does nothing about the involuntary kind.",
+      text: "Every running Pod eventually goes away, but the cause matters. Involuntary disruptions are things nobody scheduled: a node kernel panic, hardware loss, the network partitioning, or the kubelet evicting under memory pressure. Voluntary disruptions are actions an operator or controller deliberately takes: draining a node for a kernel upgrade, scaling the cluster down, or deleting a Pod during a rollout. A PodDisruptionBudget (PDB) is the one lever you have to say how much voluntary disruption an application can absorb at once, and it does nothing about the involuntary kind.",
     },
     {
       type: "diagram",
@@ -3993,7 +3993,7 @@ const disruptionsAvailability: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "kubectl drain does two things: it cordons the node (marks it unschedulable) and then evicts every Pod on it. Crucially, drain does not DELETE Pods directly — it POSTs to the eviction subresource (the Eviction API). For each request, the API server checks whether removing that Pod would violate any PDB matching it. If it would, the API returns 429 Too Many Requests and drain backs off and retries. So a PDB never blocks the failure itself; it throttles the rate at which cooperative tooling is allowed to take Pods down.",
+      text: "kubectl drain does two things: it cordons the node (marks it unschedulable) and then evicts every Pod on it. Crucially, drain does not DELETE Pods directly: it POSTs to the eviction subresource (the Eviction API). For each request, the API server checks whether removing that Pod would violate any PDB matching it. If it would, the API returns 429 Too Many Requests and drain backs off and retries. So a PDB never blocks the failure itself; it throttles the rate at which cooperative tooling is allowed to take Pods down.",
     },
     {
       type: "concept",
@@ -4019,7 +4019,7 @@ const disruptionsAvailability: DocsLesson = {
           cells: [
             "Operator action",
             "Direct DELETE, not the eviction subresource",
-            "No — bypasses the PDB",
+            "No: bypasses the PDB",
           ],
         },
         {
@@ -4039,7 +4039,7 @@ const disruptionsAvailability: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A PDB has exactly two moving parts: which Pods it guards (selector) and how many must stay up (a budget expressed as either minAvailable or maxUnavailable — never both). The selector, like a Service selector, matches Pod labels, not Deployments or ReplicaSets by name.",
+      text: "A PDB has exactly two moving parts, which Pods it guards (selector) and how many must stay up (a budget expressed as either minAvailable or maxUnavailable: never both). The selector, like a Service selector, matches Pod labels, not Deployments or ReplicaSets by name.",
     },
     {
       type: "annotatedCode",
@@ -4073,7 +4073,7 @@ const disruptionsAvailability: DocsLesson = {
         },
         {
           code: "  selector:",
-          note: "HOW the PDB finds Pods — must match the workload's Pod labels exactly",
+          note: "HOW the PDB finds Pods: must match the workload's Pod labels exactly",
         },
         {
           code: "    matchLabels:",
@@ -4096,7 +4096,7 @@ const disruptionsAvailability: DocsLesson = {
       stages: [
         {
           label: "Skeleton",
-          note: "A valid object shell: the GA apiVersion, the kind, and a name. It guards nothing yet — no selector and no budget.",
+          note: "A valid object shell: the GA apiVersion, the kind, and a name. It guards nothing yet: no selector and no budget.",
           code: "apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: web-pdb",
         },
         {
@@ -4115,13 +4115,13 @@ const disruptionsAvailability: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "minAvailable and maxUnavailable are mirror images",
-      text: "minAvailable: 2 with 5 replicas means up to 3 can be evicted at once. maxUnavailable: 1 with 5 replicas means only 1 at a time — the other 4 must stay up. Both accept an integer or a percentage (maxUnavailable: 25%). Percentages are rounded, and maxUnavailable rounds so that at least one Pod is always kept available. Prefer maxUnavailable for autoscaled workloads so the budget stays correct when the replica count moves.",
+      text: "minAvailable: 2 with 5 replicas means up to 3 can be evicted at once. maxUnavailable: 1 with 5 replicas means only 1 at a time: the other 4 must stay up. Both accept an integer or a percentage (maxUnavailable: 25%). Percentages are rounded, and maxUnavailable rounds so that at least one Pod is always kept available. Prefer maxUnavailable for autoscaled workloads so the budget stays correct when the replica count moves.",
     },
     {
       type: "callout",
       tone: "warning",
       title: "Watch status.disruptionsAllowed",
-      text: "kubectl get pdb shows ALLOWED DISRUPTIONS — roughly (current healthy Pods) minus minAvailable. When it reads 0, the next eviction returns 429 and a drain will hang indefinitely. Also note only Ready Pods count toward availability, so a workload stuck NotReady can silently freeze all maintenance.",
+      text: "kubectl get pdb shows ALLOWED DISRUPTIONS: roughly (current healthy Pods) minus minAvailable. When it reads 0, the next eviction returns 429 and a drain will hang indefinitely. Also note only Ready Pods count toward availability, so a workload stuck NotReady can silently freeze all maintenance.",
     },
     {
       type: "heading",
@@ -4135,7 +4135,7 @@ const disruptionsAvailability: DocsLesson = {
         "An operator ran kubectl drain node-1 to patch it, but the command has been hanging for 20 minutes and one web Pod refuses to evict. The Deployment runs 2 replicas. What's wrong with this PDB?",
       code: "apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: web-pdb\nspec:\n  minAvailable: 2\n  selector:\n    matchLabels:\n      app: web\n---\n# Deployment (for context)\nspec:\n  replicas: 2",
       answer:
-        "minAvailable: 2 equals the replica count of 2. disruptionsAllowed is 2 - 2 = 0, so the eviction API returns 429 for every attempt and the drain deadlocks — there is never a spare Pod to give up. The budget is mathematically impossible to satisfy while evicting anything. Fix it by loosening the budget (minAvailable: 1, or better maxUnavailable: 1) so one Pod can move at a time, or by scaling the Deployment above the floor before draining.",
+        "minAvailable: 2 equals the replica count of 2. disruptionsAllowed is 2 - 2 = 0, so the eviction API returns 429 for every attempt and the drain deadlocks: there is never a spare Pod to give up. The budget is mathematically impossible to satisfy while evicting anything. Fix it by loosening the budget (minAvailable: 1, or better maxUnavailable: 1) so one Pod can move at a time, or by scaling the Deployment above the floor before draining.",
     },
     {
       type: "heading",
@@ -4171,7 +4171,7 @@ const disruptionsAvailability: DocsLesson = {
         "kubectl drain evicts through the eviction API, which returns 429 when a removal would breach a PDB, so drain waits instead of forcing.",
         "Set minAvailable OR maxUnavailable, never both; prefer maxUnavailable for autoscaled apps so the budget tracks replica changes.",
         "minAvailable equal to (or 100% of) the replica count sets disruptionsAllowed to 0 and deadlocks every drain.",
-        "kubectl delete pod bypasses the eviction API and ignores PDBs — only cooperative tooling honors the budget.",
+        "kubectl delete pod bypasses the eviction API and ignores PDBs: only cooperative tooling honors the budget.",
       ],
     },
     {
@@ -4191,7 +4191,7 @@ const disruptionsAvailability: DocsLesson = {
           text: "All possible node hardware failures.",
           correct: false,
           explanation:
-            "Involuntary losses like a kernel panic never consult the PDB — the Pods are simply gone.",
+            "Involuntary losses like a kernel panic never consult the PDB: the Pods are simply gone.",
         },
         {
           id: "c",
@@ -4263,7 +4263,7 @@ const quotasLimitRanges: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The single most important distinction: a ResourceQuota sums usage across every object in the namespace and rejects the request that would push the total past its hard limits. A LimitRange never looks at the total — it inspects one container or Pod at a time and applies defaults or min/max bounds to that object alone.",
+      text: "The single most important distinction: a ResourceQuota sums usage across every object in the namespace and rejects the request that would push the total past its hard limits. A LimitRange never looks at the total: it inspects one container or Pod at a time and applies defaults or min/max bounds to that object alone.",
     },
     {
       type: "compare",
@@ -4281,7 +4281,7 @@ const quotasLimitRanges: DocsLesson = {
       type: "concept",
       term: "Aggregate vs per-object enforcement",
       definition:
-        "ResourceQuota tracks the running total for the namespace and rejects creation when the total would exceed hard. LimitRange evaluates a single object and either mutates it (defaults) or rejects it (min/max) — it has no notion of the namespace total.",
+        "ResourceQuota tracks the running total for the namespace and rejects creation when the total would exceed hard. LimitRange evaluates a single object and either mutates it (defaults) or rejects it (min/max): it has no notion of the namespace total.",
     },
     {
       type: "heading",
@@ -4347,7 +4347,7 @@ const quotasLimitRanges: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "A compute quota makes requests/limits mandatory",
-      text: "This is the rule people trip over. The moment a namespace has a ResourceQuota that tracks a compute resource (requests.cpu, requests.memory, limits.cpu, or limits.memory), the quota admission controller must be able to count every new Pod — so it REQUIRES each container to declare the matching request/limit. A Pod that omits them is rejected with a Forbidden error, even if the namespace is nearly empty.",
+      text: "This is the rule people trip over. The moment a namespace has a ResourceQuota that tracks a compute resource (requests.cpu, requests.memory, limits.cpu, or limits.memory), the quota admission controller must be able to count every new Pod, so it REQUIRES each container to declare the matching request/limit. A Pod that omits them is rejected with a Forbidden error, even if the namespace is nearly empty.",
     },
     {
       type: "heading",
@@ -4366,7 +4366,7 @@ const quotasLimitRanges: DocsLesson = {
         },
         {
           label: "Add a compute ceiling",
-          note: "Now the namespace total for CPU/memory requests is bounded. Side effect: because a compute resource is tracked, every new Pod must now specify requests.cpu and requests.memory or it is rejected.",
+          note: "Now the namespace total for CPU/memory requests is bounded. Side effect, because a compute resource is tracked, every new Pod must now specify requests.cpu and requests.memory or it is rejected.",
           code: 'apiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: team-quota\n  namespace: team-a\nspec:\n  hard:\n    requests.cpu: "4"\n    requests.memory: 8Gi',
         },
         {
@@ -4385,7 +4385,7 @@ const quotasLimitRanges: DocsLesson = {
       type: "annotatedCode",
       language: "yaml",
       title: "A LimitRange with defaults and bounds",
-      caption: "Each entry under limits applies to a type of object — here, every Container.",
+      caption: "Each entry under limits applies to a type of object: here, every Container.",
       lines: [
         {
           code: "apiVersion: v1",
@@ -4465,7 +4465,7 @@ const quotasLimitRanges: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "Quotas are not retroactive",
-      text: "Creating or tightening a ResourceQuota only affects future create/update requests. Pods that already exceed the new limits keep running — Kubernetes will not evict them. To reclaim over-quota usage you must delete or rescale the offending workloads yourself. Check current usage with kubectl describe resourcequota team-quota -n team-a.",
+      text: "Creating or tightening a ResourceQuota only affects future create/update requests. Pods that already exceed the new limits keep running: Kubernetes will not evict them. To reclaim over-quota usage you must delete or rescale the offending workloads yourself. Check current usage with kubectl describe resourcequota team-quota -n team-a.",
     },
     {
       type: "heading",
@@ -4480,7 +4480,7 @@ const quotasLimitRanges: DocsLesson = {
         "Namespace team-a has a ResourceQuota that tracks requests.cpu and limits.memory. This Pod is rejected at creation with a Forbidden error mentioning the quota. The image and namespace are correct. What is wrong, and how do you fix it without deleting the quota?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: worker\n  namespace: team-a\nspec:\n  containers:\n    - name: app\n      image: klab/web-app:1.0.0\n      # no resources block at all",
       answer:
-        'The container declares no resources.requests or resources.limits. Because the namespace has a compute ResourceQuota, the quota admission controller must count this Pod\'s CPU/memory usage and cannot — so it rejects it: pods "worker" is forbidden: failed quota: team-quota: must specify limits.memory,requests.cpu. Two fixes: (1) add an explicit resources block with requests and limits to the container, or (2) create a LimitRange with defaultRequest and default in team-a. The LimitRange mutates the Pod at admission, filling in the missing values before the quota is checked, so it succeeds automatically.',
+        'The container declares no resources.requests or resources.limits. Because the namespace has a compute ResourceQuota, the quota admission controller must count this Pod\'s CPU/memory usage and cannot, so it rejects it: pods "worker" is forbidden: failed quota: team-quota: must specify limits.memory,requests.cpu. Two fixes: (1) add an explicit resources block with requests and limits to the container, or (2) create a LimitRange with defaultRequest and default in team-a. The LimitRange mutates the Pod at admission, filling in the missing values before the quota is checked, so it succeeds automatically.',
     },
     {
       type: "heading",
@@ -4531,7 +4531,7 @@ const quotasLimitRanges: DocsLesson = {
         "ResourceQuota bounds the namespace aggregate (total requests/limits and object counts); LimitRange bounds and defaults each object.",
         "A compute ResourceQuota makes requests/limits mandatory: any Pod that omits a tracked resource is rejected with a Forbidden error.",
         "A LimitRange with default/defaultRequest satisfies that requirement automatically, because it mutates Pods at admission before the quota validates them.",
-        "Quotas apply only to new create/update requests — they never evict Pods that already exceed the limits.",
+        "Quotas apply only to new create/update requests: they never evict Pods that already exceed the limits.",
         "Inspect live usage with kubectl describe resourcequota; read the Forbidden error text to see exactly which resource was missing or exhausted.",
       ],
     },
@@ -4581,7 +4581,7 @@ const quotasLimitRanges: DocsLesson = {
           text: "Delete the ResourceQuota so Pods stop being rejected.",
           correct: false,
           explanation:
-            "That removes the guardrail entirely — the namespace could then consume unbounded resources.",
+            "That removes the guardrail entirely: the namespace could then consume unbounded resources.",
         },
         {
           id: "c",
@@ -4612,14 +4612,14 @@ const extendingKubernetes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Kubernetes is not a fixed set of objects — it is an extensible API server with a control-loop model. Three mechanisms turn it into a platform. A CustomResourceDefinition (CRD) teaches the API server a brand-new object kind. A controller (often called an Operator) watches instances of that kind and reconciles the real world toward them. Admission controllers sit on the write path and can mutate or reject any request before it is stored. Together they let you manage databases, backups, or certificates with the same kubectl apply workflow you already use for Pods.",
+      text: "Kubernetes is not a fixed set of objects: it is an extensible API server with a control-loop model. Three mechanisms turn it into a platform. A CustomResourceDefinition (CRD) teaches the API server a brand-new object kind. A controller (often called an Operator) watches instances of that kind and reconciles the real world toward them. Admission controllers sit on the write path and can mutate or reject any request before it is stored. Together they let you manage databases, backups, or certificates with the same kubectl apply workflow you already use for Pods.",
     },
     {
       type: "steps",
       items: [
         {
           title: "CRD",
-          text: "Registers a new resource type with a group, versions, a schema, and an API path — so the API server can store and serve it.",
+          text: "Registers a new resource type with a group, versions, a schema, and an API path, so the API server can store and serve it.",
         },
         {
           title: "Custom resource",
@@ -4627,7 +4627,7 @@ const extendingKubernetes: DocsLesson = {
         },
         {
           title: "Operator",
-          text: "A controller that watches those custom resources and drives external or complex state to match — the CRD is data, the Operator is behavior.",
+          text: "A controller that watches those custom resources and drives external or complex state to match: the CRD is data, the Operator is behavior.",
         },
         {
           title: "Admission",
@@ -4659,7 +4659,7 @@ const extendingKubernetes: DocsLesson = {
       lines: [
         {
           code: "apiVersion: apiextensions.k8s.io/v1",
-          note: "CRDs live in the apiextensions group — this manifest creates the type, not an instance",
+          note: "CRDs live in the apiextensions group: this manifest creates the type, not an instance",
         },
         {
           code: "kind: CustomResourceDefinition",
@@ -4669,7 +4669,7 @@ const extendingKubernetes: DocsLesson = {
         },
         {
           code: "  name: backuppolicies.ops.klab.io",
-          note: "MUST be exactly <spec.names.plural>.<spec.group> — the API server rejects any other name",
+          note: "MUST be exactly <spec.names.plural>.<spec.group>: the API server rejects any other name",
         },
         {
           code: "spec:",
@@ -4680,7 +4680,7 @@ const extendingKubernetes: DocsLesson = {
         },
         {
           code: "  scope: Namespaced",
-          note: "Namespaced or Cluster — decides whether instances live in a namespace",
+          note: "Namespaced or Cluster: decides whether instances live in a namespace",
         },
         {
           code: "  names:",
@@ -4716,14 +4716,14 @@ const extendingKubernetes: DocsLesson = {
         },
         {
           code: "      storage: true",
-          note: "EXACTLY ONE version has storage: true — the form persisted in etcd",
+          note: "EXACTLY ONE version has storage: true: the form persisted in etcd",
         },
         {
           code: "      schema:",
         },
         {
           code: "        openAPIV3Schema:",
-          note: "structural schema — the API server validates instances against it and prunes unknown fields",
+          note: "structural schema: the API server validates instances against it and prunes unknown fields",
         },
         {
           code: "          type: object",
@@ -4768,7 +4768,7 @@ const extendingKubernetes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Once the CRD is established, an instance looks like any other object. Its apiVersion is <group>/<version> and its kind matches names.kind. The API server validates it against the CRD schema and stores it — but nothing acts on it until a controller is watching.",
+      text: "Once the CRD is established, an instance looks like any other object. Its apiVersion is <group>/<version> and its kind matches names.kind. The API server validates it against the CRD schema and stores it, but nothing acts on it until a controller is watching.",
     },
     {
       type: "annotatedCode",
@@ -4778,7 +4778,7 @@ const extendingKubernetes: DocsLesson = {
       lines: [
         {
           code: "apiVersion: ops.klab.io/v1",
-          note: "<group>/<version> from the CRD — NOT v1 and NOT apiextensions.k8s.io",
+          note: "<group>/<version> from the CRD: NOT v1 and NOT apiextensions.k8s.io",
         },
         {
           code: "kind: BackupPolicy",
@@ -4799,7 +4799,7 @@ const extendingKubernetes: DocsLesson = {
         },
         {
           code: '  schedule: "0 2 * * *"',
-          note: "required by the schema — omit it and the create is rejected",
+          note: "required by the schema: omit it and the create is rejected",
         },
         {
           code: "  retain: 7",
@@ -4819,7 +4819,7 @@ const extendingKubernetes: DocsLesson = {
       stages: [
         {
           label: "Identity",
-          note: "Name the type: the metadata.name must be <plural>.<group>, and names.kind is what instances use. Not servable yet — no versions.",
+          note: "Name the type: the metadata.name must be <plural>.<group>, and names.kind is what instances use. Not servable yet: no versions.",
           code: "apiVersion: apiextensions.k8s.io/v1\nkind: CustomResourceDefinition\nmetadata:\n  name: backuppolicies.ops.klab.io\nspec:\n  group: ops.klab.io\n  scope: Namespaced\n  names:\n    plural: backuppolicies\n    singular: backuppolicy\n    kind: BackupPolicy",
         },
         {
@@ -4841,14 +4841,14 @@ const extendingKubernetes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A CRD by itself only lets you store and retrieve objects — it is inert. The Operator pattern adds a controller that runs a reconciliation loop: watch BackupPolicy objects, compare desired state (the spec) to observed reality, and take action (create a CronJob, call a backup API, update status). This is the exact same control-loop model the built-in Deployment and ReplicaSet controllers use — just aimed at a custom domain.",
+      text: "A CRD by itself only lets you store and retrieve objects: it is inert. The Operator pattern adds a controller that runs a reconciliation loop: watch BackupPolicy objects, compare desired state (the spec) to observed reality, and take action (create a CronJob, call a backup API, update status). This is the exact same control-loop model the built-in Deployment and ReplicaSet controllers use: just aimed at a custom domain.",
     },
     {
       type: "diagram",
       variant: "control-loop",
       title: "Operator as another controller",
       caption:
-        "Watch the custom resource, diff desired vs actual, act, and record status — then repeat.",
+        "Watch the custom resource, diff desired vs actual, act, and record status, then repeat.",
     },
     {
       type: "concept",
@@ -4873,7 +4873,7 @@ const extendingKubernetes: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "CRD is data, Operator is behavior",
-      text: "Installing a CRD only adds a new API type — kubectl apply of a custom resource will succeed and store the object even if nothing ever acts on it. The Operator (a controller watching that type) is what turns the stored intent into real changes. Missing behavior almost always means the controller is not running, not that the CRD is wrong.",
+      text: "Installing a CRD only adds a new API type: kubectl apply of a custom resource will succeed and store the object even if nothing ever acts on it. The Operator (a controller watching that type) is what turns the stored intent into real changes. Missing behavior almost always means the controller is not running, not that the CRD is wrong.",
     },
     {
       type: "quiz",
@@ -4893,7 +4893,7 @@ const extendingKubernetes: DocsLesson = {
           text: "The API server never stored the object.",
           correct: false,
           explanation:
-            "If kubectl apply succeeded and the schema passed, the object is stored — storage is not the missing piece.",
+            "If kubectl apply succeeded and the schema passed, the object is stored: storage is not the missing piece.",
         },
         {
           id: "c",
@@ -4917,7 +4917,7 @@ const extendingKubernetes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Every create/update/delete travels a fixed pipeline inside the API server: authentication, then authorization, then the admission chain, then persistence to etcd. Admission is where policy lives. Dynamic admission uses webhooks — external HTTPS endpoints the API server calls. Mutating webhooks run first and may patch the object (inject a sidecar, set a default). Then the object is checked against the OpenAPI/structural schema. Finally validating webhooks run and may only accept or reject. Nothing reaches etcd until the whole chain passes.",
+      text: "Every create/update/delete travels a fixed pipeline inside the API server: authentication, then authorization, then the admission chain, then persistence to etcd. Admission is where policy lives. Dynamic admission uses webhooks: external HTTPS endpoints the API server calls. Mutating webhooks run first and may patch the object (inject a sidecar, set a default). Then the object is checked against the OpenAPI/structural schema. Finally validating webhooks run and may only accept or reject. Nothing reaches etcd until the whole chain passes.",
     },
     {
       type: "callout",
@@ -4933,16 +4933,16 @@ const extendingKubernetes: DocsLesson = {
         {
           label: "Mutating webhook",
           cells: [
-            "First — before schema validation and validating webhooks",
-            "Yes — returns a JSON patch that modifies the object",
+            "First: before schema validation and validating webhooks",
+            "Yes: returns a JSON patch that modifies the object",
             "Injecting sidecars, setting defaults, adding labels/annotations",
           ],
         },
         {
           label: "Validating webhook",
           cells: [
-            "Last — after mutation and schema validation",
-            "No — may only allow or deny",
+            "Last: after mutation and schema validation",
+            "No: may only allow or deny",
             "Enforcing policy: block privileged Pods, require limits, reject bad configs",
           ],
         },
@@ -4962,14 +4962,14 @@ const extendingKubernetes: DocsLesson = {
       options: [
         {
           id: "a",
-          text: "The Pod is admitted — mutation adds the label before validation checks it.",
+          text: "The Pod is admitted: mutation adds the label before validation checks it.",
           correct: true,
           explanation:
             "Mutating webhooks always run first, so the label exists by the time the validating webhook inspects the object.",
         },
         {
           id: "b",
-          text: "The Pod is rejected — validation runs before mutation.",
+          text: "The Pod is rejected: validation runs before mutation.",
           correct: false,
           explanation: "Ordering is the reverse: mutating admission precedes validating admission.",
         },
@@ -5001,7 +5001,7 @@ const extendingKubernetes: DocsLesson = {
         "This CRD is rejected by the API server with an error about metadata.name. The group and names look reasonable. What is wrong?",
       code: "apiVersion: apiextensions.k8s.io/v1\nkind: CustomResourceDefinition\nmetadata:\n  name: backuppolicy.ops.klab.io\nspec:\n  group: ops.klab.io\n  scope: Namespaced\n  names:\n    plural: backuppolicies\n    singular: backuppolicy\n    kind: BackupPolicy\n  versions:\n    - name: v1\n      served: true\n      storage: true",
       answer:
-        "The metadata.name must be exactly <spec.names.plural>.<spec.group>. Here the plural is 'backuppolicies' and the group is 'ops.klab.io', so the name must be 'backuppolicies.ops.klab.io' — but it says 'backuppolicy.ops.klab.io' (the singular). Change metadata.name to backuppolicies.ops.klab.io.",
+        "The metadata.name must be exactly <spec.names.plural>.<spec.group>. Here the plural is 'backuppolicies' and the group is 'ops.klab.io', so the name must be 'backuppolicies.ops.klab.io', but it says 'backuppolicy.ops.klab.io' (the singular). Change metadata.name to backuppolicies.ops.klab.io.",
     },
     {
       type: "heading",
@@ -5021,10 +5021,10 @@ const extendingKubernetes: DocsLesson = {
       type: "takeaways",
       items: [
         "A CRD teaches the API server a new object kind; its metadata.name must be <plural>.<group>, and exactly one version is the storage version.",
-        "A custom resource is inert data until a controller (Operator) runs a reconciliation loop over it — the CRD is data, the Operator is behavior.",
+        "A custom resource is inert data until a controller (Operator) runs a reconciliation loop over it: the CRD is data, the Operator is behavior.",
         "Operators use the same level-triggered control-loop as built-in controllers; the difference is they run as Pods you deploy and own.",
         "Admission webhooks run on the write path before persistence: mutating first (can patch), then schema validation, then validating (accept or reject only).",
-        "Webhooks are on the critical path — a broken one with failurePolicy: Fail can block writes cluster-wide, so scope and time them out carefully.",
+        "Webhooks are on the critical path: a broken one with failurePolicy: Fail can block writes cluster-wide, so scope and time them out carefully.",
       ],
     },
   ],

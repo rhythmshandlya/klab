@@ -27,7 +27,7 @@ const NAMESPACE = "default";
  * The hands-on step: an editor + terminal (mirroring `LiveLab`'s layout) against a
  * live simulator. Applying runs `evaluateDoCheck` against the resulting snapshot, but
  * readiness converges asynchronously (probes/controllers settle over subsequent
- * ticks) — so we keep re-checking as new snapshots arrive after the first apply,
+ * ticks), so we keep re-checking as new snapshots arrive after the first apply,
  * not just once right after the apply call resolves.
  */
 export function DoStep({
@@ -50,7 +50,7 @@ export function DoStep({
   const [goalMet, setGoalMet] = useState(false);
   const completedRef = useRef(false);
 
-  // The check outcome is a pure derivation of the latest snapshot — no state, so it
+  // The check outcome is a pure derivation of the latest snapshot: no state, so it
   // re-evaluates on every tick after the first apply (the cluster converges over
   // several ticks, not instantly).
   const result = useMemo(
@@ -81,7 +81,7 @@ export function DoStep({
   const runCommand = useCallback(
     async (line: string): Promise<TerminalRunResult> => {
       if (!sim.ready) {
-        return { output: "Cluster is still booting — try again in a moment.", isError: true };
+        return { output: "Cluster is still booting: try again in a moment.", isError: true };
       }
       const out = await runCommandLine(line, {
         simulator: sim.simulator,
@@ -95,7 +95,7 @@ export function DoStep({
 
   const paths = Object.keys(files);
 
-  // Live derivations for the side panel — mirrors LiveLab's right panel so the
+  // Live derivations for the side panel: mirrors LiveLab's right panel so the
   // diagram + metrics reflect the actual running cluster, not just a static goal card.
   const pods = useMemo(
     () => sim.snapshot.pods.filter((p) => (p.metadata?.namespace ?? "default") === NAMESPACE),
@@ -162,7 +162,7 @@ export function DoStep({
           </div>
         </div>
 
-        {/* Live cluster state — the diagram IS the running cluster, updating as changes apply. */}
+        {/* Live cluster state: the diagram IS the running cluster, updating as changes apply. */}
         <div className="bg-panel-elevated flex min-h-[16rem] min-w-0 flex-col overflow-y-auto">
           <div className="border-border grid grid-cols-3 gap-2 border-b p-3">
             <Metric label="Desired" value={desiredReplicas} />

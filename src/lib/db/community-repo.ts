@@ -9,7 +9,7 @@ import { progressSolved, sandboxes, submissions, user } from "./schema";
  * `submissions`, and the session user's rank. All queries are public-aggregate shaped;
  * the /community page caches them with ISR, and only the rank endpoint is per-user.
  *
- * Solve durations are browser-measured telemetry, not server-verified truth — the UI
+ * Solve durations are browser-measured telemetry, not server-verified truth: the UI
  * labels records accordingly (same stance as stats-repo).
  */
 
@@ -291,7 +291,7 @@ export async function readLevelRecords(db: ProgressDb): Promise<LevelRecord[]> {
 
 /**
  * The user's leaderboard position: rank by total XP among all users with at least one
- * solve (standard competition ranking — tied XP shares the higher rank). Null when the
+ * solve (standard competition ranking: tied XP shares the higher rank). Null when the
  * user has no solves yet.
  */
 export async function readUserRank(db: ProgressDb, userId: string): Promise<UserRank | null> {

@@ -4,11 +4,11 @@ import { textResponse } from "./http";
 import { logSink } from "./log-sink";
 
 /**
- * `klab/web-app:2.0.0` — the "bad release" build of web-app. NOT a real OCI image.
+ * `klab/web-app:2.0.0`: the "bad release" build of web-app. NOT a real OCI image.
  *
  * The process starts and keeps running, but a (simulated) broken asset build means it
  * can never serve successfully: /healthz and / both answer 500. With a correct
- * readiness probe against /healthz the pods therefore never become Ready — a rollout
+ * readiness probe against /healthz the pods therefore never become Ready: a rollout
  * that must be rolled back (the Rolling Update level). The root cause is discoverable
  * in the logs.
  */
@@ -31,7 +31,7 @@ export class WebAppV2Image extends BaseImage {
       });
 
     log(`web-app v${WebAppV2Image.imageVersion} starting`);
-    log("FATAL: asset manifest missing from build — /healthz will report 500 until rebuilt");
+    log("FATAL: asset manifest missing from build: /healthz will report 500 until rebuilt");
     log(`listening on :${port}`);
 
     ctx.listenHttp(port, async (_ctx, request) => {

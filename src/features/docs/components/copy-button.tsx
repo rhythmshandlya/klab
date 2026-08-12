@@ -19,7 +19,7 @@ export function CopyButton({ text, className }: { text: string; className?: stri
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard unavailable — nothing to do.
+      // Clipboard unavailable: nothing to do.
     }
   };
 

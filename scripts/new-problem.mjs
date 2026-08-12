@@ -1,30 +1,32 @@
 #!/usr/bin/env node
-// Scaffold a new klab problem level from a template.
+// Scaffold a schema-valid klab problem candidate.
 //
 //   pnpm new:problem <slug> "Human Title"
 //
-// Writes src/content/levels/<slug>.ts (a working selector-mismatch level that already
-// passes the solvability harness) and prints the two snippets to register it. Content
-// stays 100% in code; every PR is gated by the red→green harness (see CONTRIBUTING.md).
+// The generated file uses the deterministic manifest-assessment runtime. Authors
+// can keep it for policy/API scenarios or replace it with a richer scripted or
+// Webernetes runtime. Registration and the canonical solution remain explicit
+// review steps.
 
-import { existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
 const slug = process.argv[2];
 const title = process.argv[3];
 
 if (!slug || !/^[a-z][a-z0-9-]*$/.test(slug)) {
   console.error('Usage: pnpm new:problem <slug> "Human Title"');
-  console.error('  <slug> must be kebab-case, e.g. "wrong-container-port"');
+  console.error('  <slug> must be kebab-case, for example "wrong-container-port"');
   process.exit(1);
 }
-const camel = slug.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
-const humanTitle = title ?? slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+const camel = slug.replace(/-([a-z0-9])/g, (_, character) => character.toUpperCase());
+const humanTitle =
+  title ?? slug.replace(/-/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 const levelPath = join(root, "src/content/levels", `${slug}.ts`);
+
 if (existsSync(levelPath)) {
   console.error(`Refusing to overwrite existing ${levelPath}`);
   process.exit(1);
@@ -32,138 +34,105 @@ if (existsSync(levelPath)) {
 
 const level = `import type { ProblemLevel } from "@/lib/domain/types";
 
-/**
- * Level: ${humanTitle}.
- *
- * TODO(author): describe the bug and the intended fix (never state the fix in the
- * story/objective — the learner connects the evidence). This template ships a working
- * selector-mismatch puzzle so it passes the harness out of the box; edit freely.
- */
+import { PUBLISHED_PROBLEM_V1 } from "./metadata";
 
-const SERVICE_YAML = \`apiVersion: v1
+const INITIAL_YAML = \`apiVersion: v1
 kind: Service
 metadata:
-  name: web-svc
+  name: sample-service
   namespace: default
 spec:
   selector:
-    app: web
+    app: wrong-label
   ports:
     - name: http
       port: 80
       targetPort: 8080
 \`;
 
-const DEPLOYMENT_YAML = \`apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: web-app
-  namespace: default
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: web-app
-  template:
-    metadata:
-      labels:
-        app: web-app
-    spec:
-      containers:
-        - name: web-app
-          image: klab/web-app:1.0.0
-          ports:
-            - name: http
-              containerPort: 8080
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-            initialDelaySeconds: 1
-            periodSeconds: 2
-            timeoutSeconds: 2
-\`;
-
 export const ${camel} = {
+  ...PUBLISHED_PROBLEM_V1,
   id: "${slug}",
   slug: "${slug}",
   title: "${humanTitle}",
-  difficulty: "beginner",
-  severity: "medium",
-  xp: 100,
-  estimatedMinutes: 15,
-  successRate: 70,
+  difficulty: "intermediate",
+  severity: "high",
+  xp: 150,
+  estimatedMinutes: 20,
+  successRate: 55,
   concepts: ["services", "labels-selectors", "debugging"],
-  blurb: "TODO: one-line teaser for the catalog.",
-  story: "TODO: the incident, in the operator's voice. Do not reveal the fix.",
-  objective: "Make web-svc serve HTTP 200 again.",
-  constraints: [{ id: "edit-svc-only", label: "Only edit service.yaml" }],
-  files: [{ path: "service.yaml", language: "yaml", initialValue: SERVICE_YAML }],
-  readonlyFiles: [{ path: "deployment.yaml", language: "yaml", value: DEPLOYMENT_YAML }],
-  initialManifests: [DEPLOYMENT_YAML],
-  registeredImages: [
-    { ref: "klab/web-app:1.0.0", description: "Web server — /healthz 200, / 200." },
+  blurb: "Diagnose a production contract failure and repair it safely.",
+  story: "A release passed admission, but its traffic contract is failing. Operators need a minimal repair that preserves the public interface.",
+  objective: "Restore the declared service contract without weakening the surrounding safeguards.",
+  learningObjectives: [
+    "Correlate runtime evidence with the relevant manifest contract",
+    "Make and verify the smallest safe declarative repair",
   ],
-  allowedCommands: [
-    "kubectl get pods",
-    "kubectl get endpoints web-svc",
-    "kubectl describe svc web-svc",
-    "curl <url>",
+  prerequisites: ["service-selector-mismatch"],
+  learningPaths: ["application-debugging", "sre-on-call"],
+  capabilities: ["pods", "events", "logs", "http-probes"],
+  engine: { kind: "scripted", scenarioId: "manifest-assessment" },
+  constraints: [
+    { kind: "editable-files", id: "edit-workload", label: "Edit only service.yaml", paths: ["service.yaml"] },
+    {
+      kind: "manifest",
+      id: "service-contract",
+      label: "The Service must select the production workload",
+      file: "service.yaml",
+      resource: { kind: "Service", name: "sample-service", namespace: "default" },
+      exclusive: true,
+      assertions: [{ path: "spec.selector.app", operator: "equals", value: "sample-app" }],
+    },
   ],
-  quickCommands: ["kubectl get pods", "kubectl get endpoints web-svc", "kubectl describe svc web-svc"],
-  probeTargets: ["http://web-svc/", "http://web-svc/healthz"],
+  files: [
+    { path: "service.yaml", language: "yaml", initialValue: INITIAL_YAML, access: "editable", applyAtBoot: false },
+  ],
+  quickCommands: [
+    { id: "pods", command: "kubectl get pods" },
+    { id: "events", command: "kubectl get events" },
+    {
+      id: "logs",
+      command: "kubectl logs <pod>",
+      target: { kind: "pod", namespace: "default", selector: { app: "manifest-assessment" }, prefer: "not-ready" },
+    },
+  ],
+  referenceCommands: [
+    "kubectl get service sample-service -o yaml",
+    "kubectl get endpointslice -l kubernetes.io/service-name=sample-service",
+    "kubectl get pods -l app=sample-app --show-labels",
+    "kubectl describe service sample-service",
+  ],
+  probeTargets: ["http://assessment-svc/"],
   validators: [
     {
-      id: "http-200",
-      title: "Service returns 200",
-      successLabel: "GET / through web-svc returns 200",
-      failureLabel: "GET / through web-svc does not return 200",
-      kind: "http-get-through-service",
+      id: "assessment-ready",
+      title: "Production requirements pass",
+      successLabel: "The configuration passes assessment",
+      failureLabel: "The configuration still violates a production requirement",
+      kind: "pod-ready-by-selector",
       namespace: "default",
-      service: "web-svc",
-      port: 80,
-      path: "/",
-      expectStatus: 200,
-    },
-    {
-      id: "endpoints",
-      title: "Service has ready endpoints",
-      successLabel: "web-svc has ready endpoints",
-      failureLabel: "web-svc has zero ready endpoints",
-      kind: "service-has-ready-endpoints",
-      namespace: "default",
-      name: "web-svc",
-      minReadyEndpoints: 2,
+      selector: { app: "manifest-assessment" },
+      minReady: 1,
     },
   ],
   hints: [
-    { id: "hint-1", title: "Start with the wiring", body: "TODO", xpPenalty: 15 },
-    { id: "hint-2", title: "Compare selector and labels", body: "TODO", xpPenalty: 25, unlockAfter: ["r-selector"] },
-    { id: "hint-3", title: "Fix the selector", body: "TODO", xpPenalty: 35 },
+    { id: "scope", title: "Find the contract", body: "Compare the objective with the fields owned by the editable resource.", xpPenalty: 10 },
+    { id: "evidence", title: "Read the rejection", body: "Inspect the assessment event and policy-engine log before changing YAML.", xpPenalty: 20, unlockAfter: ["event"] },
+    { id: "verify", title: "Verify the exact field", body: "Check the selector contract, apply, and evaluate the full design again.", xpPenalty: 30, unlockAfter: ["log"] },
   ],
   evidenceRules: [
-    {
-      id: "r-selector",
-      evidenceId: "svc-selector",
-      label: "web-svc selects app=web",
-      hiddenLabel: "Service selector inspected",
-      source: "terminal",
-      trigger: { type: "command", commandMatches: "describe (svc|service)", outputMatches: "Selector:\\\\s+app=web\\\\s" },
-    },
-    {
-      id: "r-no-endpoints",
-      evidenceId: "svc-no-endpoints",
-      label: "web-svc has no endpoints",
-      hiddenLabel: "Service endpoints inspected",
-      source: "terminal",
-      trigger: { type: "command", commandMatches: "get endpoints", outputMatches: "<none>" },
-    },
+    { id: "pods", evidenceId: "assessment-pod", label: "The assessment pod is not Ready", hiddenLabel: "Assessment status inspected", source: "terminal", trigger: { type: "command", commandMatches: "kubectl get pods" } },
+    { id: "event", evidenceId: "rejection-event", label: "ConfigRejected reports unmet production requirements", hiddenLabel: "Admission evidence inspected", source: "events", trigger: { type: "event-reason", reason: "ConfigRejected" } },
+    { id: "log", evidenceId: "policy-log", label: "The policy engine rejected the configuration", hiddenLabel: "Policy log inspected", source: "logs", trigger: { type: "log", messageMatches: "configuration rejected", podMatches: "manifest-assessment" } },
+    { id: "validator", evidenceId: "failed-review", label: "The architecture check is failing", hiddenLabel: "Formal review run", source: "validator", trigger: { type: "validator", validatorId: "assessment-ready", passed: false } },
   ],
   postSolveExplanation: {
-    rootCause: "TODO",
-    whyItFailed: "TODO",
-    whatFixedIt: "TODO",
-    relatedConcepts: ["services", "labels-selectors"],
+    rootCause: "The authored resource violated the workload contract used by the production system.",
+    whyItFailed: "Kubernetes accepted structurally valid YAML, but the declared relationship could not produce the required behavior.",
+    whatFixedIt: "The repair aligned the manifest with the required contract and passed the deterministic policy assessment.",
+    prevention: "Encode the contract in CI policy, exercise the failure path before release, and review runtime evidence alongside YAML diffs.",
+    relatedConcepts: ["services", "labels-selectors", "debugging"],
+    recommendedNextSlugs: [],
   },
 } satisfies ProblemLevel;
 `;
@@ -171,15 +140,9 @@ export const ${camel} = {
 mkdirSync(dirname(levelPath), { recursive: true });
 writeFileSync(levelPath, level, "utf8");
 
-console.log(`\n✓ Created src/content/levels/${slug}.ts\n`);
-console.log("Next steps:\n");
-console.log(`1. Register it in src/content/levels/index.ts:`);
-console.log(`     import { ${camel} } from "./${slug}";`);
-console.log(`   …and add \`${camel},\` to the LEVELS array.\n`);
-console.log(`2. Add the canonical solution to src/content/levels/solutions.ts under key "${slug}"`);
-console.log(`   (the edited files that make the validators pass — for this template, service.yaml`);
-console.log(`    with selector app: web-app).\n`);
-console.log(`3. Prove it: \`pnpm test:levels\` (content audit + broken→fails + fix→passes).\n`);
-console.log(
-  `4. Fill in the TODOs (story, hints, evidence, postSolveExplanation) and \`pnpm lint\`.\n`,
-);
+console.log(`Created src/content/levels/${slug}.ts`);
+console.log("Next steps:");
+console.log(`1. Register ${camel} in src/content/levels/index.ts.`);
+console.log(`2. Add a canonical solution for "${slug}" to src/content/levels/solutions.ts.`);
+console.log("3. Replace the scaffold prose and assertions with the reviewed scenario design.");
+console.log("4. Run pnpm audit:problems and pnpm test:levels before review.");

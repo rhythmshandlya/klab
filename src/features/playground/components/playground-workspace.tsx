@@ -204,7 +204,7 @@ export function PlaygroundWorkspace({
   const runCommand = useCallback(
     async (line: string): Promise<TerminalRunResult> => {
       if (!sim.ready) {
-        return { output: "Cluster is still booting — try again in a moment.", isError: true };
+        return { output: "Cluster is still booting: try again in a moment.", isError: true };
       }
       const result = await runCommandLine(line, {
         simulator: sim.simulator,

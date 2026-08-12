@@ -10,7 +10,7 @@ import { useLevelStore } from "../level-store";
  * Live win-condition status ("Failing checks" from the UX spec): shows each hidden
  * validator's current pass/fail WITHOUT the learner having to formally Run
  * Validation. States are observational facts (e.g. "web-svc has zero ready
- * endpoints") — they say what's broken, never why. Refreshed quietly on boot and
+ * endpoints"): they say what's broken, never why. Refreshed quietly on boot and
  * after every Apply/Reset.
  */
 export function FailingChecks({
@@ -26,11 +26,20 @@ export function FailingChecks({
 
   const failing = checks ? checks.results.filter((r) => !r.passed).length : null;
   const total = checks?.results.length ?? level.validators.length + level.constraints.length;
+  const isBuild = level.challengeMode === "build";
 
   return (
     <Panel>
       <PanelHeader
-        title={checks && failing === 0 ? "Passing checks" : "Failing checks"}
+        title={
+          isBuild
+            ? checks && failing === 0
+              ? "Static review passed"
+              : "Static architecture review"
+            : checks && failing === 0
+              ? "Passing checks"
+              : "Failing checks"
+        }
         icon={
           checks && failing === 0 ? (
             <icons.success className="text-green" />
@@ -109,8 +118,11 @@ export function FailingChecks({
           </>
         )}
         <p className="text-subtle border-border border-t px-1 pt-2 text-xs">
-          Fix the cluster, then <span className="text-foreground font-medium">Run Validation</span>{" "}
-          (⌘R) to submit.
+          {isBuild ? "Revise the manifests, then " : "Fix the cluster, then "}
+          <span className="text-foreground font-medium">
+            {isBuild ? "Submit Static Review" : "Run Validation"}
+          </span>{" "}
+          (Cmd+R) to submit.
         </p>
       </PanelBody>
     </Panel>

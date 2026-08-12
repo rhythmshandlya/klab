@@ -7,7 +7,7 @@ import { schema } from "./schema";
 
 /**
  * Lazily-constructed Drizzle client over the Neon serverless HTTP driver. Never
- * connects at import time — `getDb()` builds it on first use, so modules can import
+ * connects at import time: `getDb()` builds it on first use, so modules can import
  * this file even when `DATABASE_URL` is unset (guest / static-build path).
  *
  * The HTTP driver is edge/serverless-friendly (no WebSocket, no pooling to manage).
@@ -23,7 +23,7 @@ let cached: Database | null = null;
 export function getDb(): Database {
   const url = env.DATABASE_URL;
   if (!url) {
-    throw new Error("getDb() called without DATABASE_URL — guard callers with hasDb().");
+    throw new Error("getDb() called without DATABASE_URL: guard callers with hasDb().");
   }
   if (!cached) {
     cached = drizzle(neon(url), { schema });

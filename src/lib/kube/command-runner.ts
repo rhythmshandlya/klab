@@ -26,7 +26,7 @@ import type { Result } from "@/lib/utils/result";
 
 /**
  * A small, deliberately limited kubectl-like command runner. It does not aim to be a
- * real shell — it must *feel* real. Commands parse into a discriminated union, then
+ * real shell: it must *feel* real. Commands parse into a discriminated union, then
  * execute against the simulator's live snapshot. Unknown/unsupported input returns
  * helpful, educational output (never throws), per the product UX rules.
  */
@@ -37,7 +37,7 @@ export interface CommandRuntime {
   getLogs(namespace: string, pod: string, container?: string): LogLine[];
   applyYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
   deleteYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
-  // Optional capabilities — KubeSimulator provides them all; scripted problem
+  // Optional capabilities: KubeSimulator provides them all; scripted problem
   // engines may omit them, and the matching commands degrade with a clear message.
   exec?(
     namespace: string,
@@ -241,7 +241,7 @@ function parseArgs(args: string[]): ParsedArgs {
 /**
  * Match labels against an equality-based selector: `k=v`, `k==v`, `k!=v`, or a bare
  * key (existence), comma-separated. Set-based expressions (`in`, `notin`) are not
- * supported — the parse simply fails the match, mirroring "no results".
+ * supported: the parse simply fails the match, mirroring "no results".
  */
 export function matchesLabelSelector(
   labels: Record<string, string> | undefined,
@@ -286,7 +286,7 @@ export function parseCommand(line: string): Command {
       return parseKubectl(tokens.slice(1));
     default:
       return unsupported(
-        `${head}: command not found. This is a simulated shell — type 'help' for supported commands.`,
+        `${head}: command not found. This is a simulated shell: type 'help' for supported commands.`,
       );
   }
 }
@@ -394,7 +394,7 @@ function parseKubectl(args: string[]): Command {
       const name = parsed.positionals[1];
       if (GET_RESOURCE_ALIASES[what] !== "namespaces") {
         return unsupported(
-          "kubectl create: only 'kubectl create namespace <name>' is supported — apply a manifest for anything else.",
+          "kubectl create: only 'kubectl create namespace <name>' is supported: apply a manifest for anything else.",
         );
       }
       if (!name) return unsupported("kubectl create namespace: specify a name.");
@@ -1219,7 +1219,7 @@ async function runRollout(
     return { output, isError: false, signals: [{ type: "command", command: rawLine, output }] };
   }
 
-  // status — mirror kubectl's phrasing from live status fields.
+  // status: mirror kubectl's phrasing from live status fields.
   const desired = deployment.spec?.replicas ?? 0;
   const updated = deployment.status?.updatedReplicas ?? 0;
   const available = deployment.status?.availableReplicas ?? 0;
@@ -1402,7 +1402,7 @@ export interface CommandReferenceEntry {
 }
 
 /**
- * The single source of truth for what the simulated shell supports — rendered by
+ * The single source of truth for what the simulated shell supports: rendered by
  * `help` in the terminal and by the searchable command reference in the UI.
  */
 export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
@@ -1506,7 +1506,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
 ];
 
 const HELP_TEXT = [
-  "klab simulated shell — supported commands:",
+  "klab simulated shell: supported commands:",
   "",
   ...COMMAND_REFERENCE.map((entry) => `  ${entry.command.padEnd(56)} ${entry.description}`),
   "",

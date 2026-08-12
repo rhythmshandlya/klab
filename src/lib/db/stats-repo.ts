@@ -5,7 +5,7 @@ import { submissions } from "./schema";
 
 /**
  * Client-validated per-problem telemetry, computed from submission history:
- *  - successRate = distinct solvers / distinct attempters (0–1)
+ *  - successRate = distinct solvers / distinct attempters (0 to 1)
  *  - avgSolveMs  = average duration of passing submissions
  *  - sampleSize  = distinct attempters
  *

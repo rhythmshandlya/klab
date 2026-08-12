@@ -68,7 +68,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("progress-store — guest", () => {
+describe("progress-store: guest", () => {
   it("applies mutations to the local cache with no network", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     mutateProgress({ kind: "attempted", slug: "a" });
@@ -104,7 +104,7 @@ describe("progress-store — guest", () => {
   });
 });
 
-describe("progress-store — signed in", () => {
+describe("progress-store: signed in", () => {
   it("merges + pulls on sign-in, then pushes queued intents", async () => {
     const fetchMock = vi.fn(remoteReturning(SNAPSHOT));
     vi.stubGlobal("fetch", fetchMock);

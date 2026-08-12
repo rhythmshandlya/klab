@@ -41,7 +41,7 @@ export function missionHref(m: Mission): string {
 /**
  * Manifests that reconstruct the cluster state a mission expects on entry: the section's
  * seed plus every earlier mission's do-step files. Known approximation: a do-step's
- * initialValue is its STARTING yaml, not necessarily the learner's solved state — keep
+ * initialValue is its STARTING yaml, not necessarily the learner's solved state: keep
  * do-step files authored so that applying them as-is yields the intended durable objects.
  */
 export function accumulatedSeedManifests(mission: Mission): string[] {

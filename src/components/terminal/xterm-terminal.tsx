@@ -40,7 +40,7 @@ const KEY_DOWN = "\x1b[B";
  * xterm.js terminal with a minimal line editor: command history (↑/↓), backspace,
  * Ctrl+L clear, Ctrl+C cancel, and paste. Commands are executed via `onCommand`;
  * output is printed and the prompt redrawn. The xterm library loads lazily (browser
- * only). Kept out of React render — the effect owns the imperative terminal.
+ * only). Kept out of React render: the effect owns the imperative terminal.
  */
 export function XtermTerminal({
   onCommand,

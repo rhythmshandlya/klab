@@ -4,7 +4,7 @@
  * the runtime. Every static entry is validated at load time by the matching Zod
  * schema in `./schemas.ts`, so the runtime can trust these shapes.
  *
- * Kept intentionally free of any Webernetes/runtime imports — pure data.
+ * Kept intentionally free of any Webernetes/runtime imports: pure data.
  */
 
 export type Difficulty = "beginner" | "intermediate" | "advanced" | "architect";
@@ -86,9 +86,19 @@ export interface ManifestResourceSelector {
 export type ManifestAssertion =
   | { path: string; operator: "present" }
   | { path: string; operator: "absent" }
+  | { path: string; operator: "empty-object" }
+  | { path: string; operator: "base64" }
   | {
       path: string;
-      operator: "equals" | "not-equals" | "gte" | "lte" | "matches";
+      operator:
+        | "equals"
+        | "not-equals"
+        | "gte"
+        | "lte"
+        | "matches"
+        | "not-matches"
+        | "array-contains"
+        | "array-not-contains";
       value: string | number | boolean;
     };
 
@@ -338,7 +348,7 @@ export interface ProblemLevel {
   xp: number;
   /** Author-estimated time to solve, shown in the catalog. */
   estimatedMinutes: number;
-  /** Author-estimated solve rate (0–100), shown in the catalog. */
+  /** Author-estimated solve rate (0 to 100), shown in the catalog. */
   successRate: number;
   concepts: KubernetesConcept[];
   /** One-line teaser for lists/tables (story is the full in-level briefing). */
@@ -357,6 +367,8 @@ export interface ProblemLevel {
   /** Ordered incident construction; omitted when all applyAtBoot files form one step. */
   bootSequence?: ProblemBootStep[];
   quickCommands: QuickCommand[];
+  /** Real-cluster diagnostic commands shown as a runbook reference, not executed by the simulator. */
+  referenceCommands?: string[];
   /** Preset URLs for the network-probe panel (level-specific service names). */
   probeTargets: string[];
   validators: LevelValidatorDefinition[];
@@ -401,7 +413,7 @@ export interface InteractiveLab {
 
 /**
  * A block of docs lesson content. A small typed vocabulary (instead of MDX) that the
- * renderer maps to components — keeps content Zod-validated and free of a build-time
+ * renderer maps to components: keeps content Zod-validated and free of a build-time
  * MDX pipeline. `heading` blocks provide the anchors for the table of contents;
  * `lab` blocks embed an interactive lab by id.
  */

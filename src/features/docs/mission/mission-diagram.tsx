@@ -97,7 +97,7 @@ export function MissionDiagram({
   namespace,
 }: {
   spec: DiagramSpec;
-  /** Required only for `mode: "live"` — concept/static diagrams are self-contained. */
+  /** Required only for `mode: "live"`: concept/static diagrams are self-contained. */
   snapshot?: ClusterSnapshot;
   namespace?: string;
 }) {

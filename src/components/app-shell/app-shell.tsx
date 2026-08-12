@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { AuthCapabilities } from "@/lib/env";
@@ -17,6 +18,9 @@ export function AppShell({
   authEnabled?: boolean;
   authCapabilities?: AuthCapabilities;
 }) {
+  const pathname = usePathname() ?? "/";
+  const isEntryPage = pathname === "/";
+
   return (
     <TooltipProvider delayDuration={250} skipDelayDuration={0}>
       <a
@@ -27,9 +31,11 @@ export function AppShell({
       </a>
       {/* Syncs session → progress store; only when auth is on, so guests never
           mount the session hook. */}
-      {authEnabled ? <ProgressSync /> : <GuestDataSync />}
+      {!isEntryPage ? authEnabled ? <ProgressSync /> : <GuestDataSync /> : null}
       <div className="flex min-h-dvh flex-col">
-        <TopNav authEnabled={authEnabled} authCapabilities={authCapabilities} />
+        {!isEntryPage ? (
+          <TopNav authEnabled={authEnabled} authCapabilities={authCapabilities} />
+        ) : null}
         <main id="main" className="flex min-h-0 flex-1 flex-col">
           {children}
         </main>

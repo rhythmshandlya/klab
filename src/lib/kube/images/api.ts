@@ -4,7 +4,7 @@ import { jsonResponse, textResponse } from "./http";
 import { logSink } from "./log-sink";
 
 /**
- * `klab/api:1.0.0` — a service that calls another service by DNS name, to teach
+ * `klab/api:1.0.0`: a service that calls another service by DNS name, to teach
  * service discovery and DNS. NOT a real OCI image.
  *
  * Endpoints:

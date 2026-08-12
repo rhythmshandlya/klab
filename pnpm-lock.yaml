@@ -28,8 +28,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@ngrok/webernetes':
-        specifier: ^0.1.4
-        version: 0.1.4
+        specifier: ^0.5.5
+        version: 0.5.5
       '@radix-ui/react-accordion':
         specifier: ^1.2.16
         version: 1.2.16(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -1568,8 +1568,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ngrok/webernetes@0.1.4':
-    resolution: {integrity: sha512-dlOQLi2ckE+yqjAx7gbYijAmuV3FGm9luY0kUIHDZwLsK6HORNusHoJWUWVJR5sbNf3Ehzm+pkC5ChkLVFh8QA==}
+  '@ngrok/webernetes@0.5.5':
+    resolution: {integrity: sha512-EC1dHqs5jHJOQrKkAR8iJvCt4ak/2YRSyCFl8eWYSywAL3CyBZ7zqTnxQ2T290+6TWlZLYxwfIvI9LcwUNAoKw==}
 
   '@noble/ciphers@2.3.0':
     resolution: {integrity: sha512-Clu/xdfgVTf9o7ngLOURaxePwR0j8sjclKEtVij10/jGulwFsPWCvvRgG/XjUVf8Nei+jLG6uwyXzUTGY1DQrw==}
@@ -6777,7 +6777,7 @@ snapshots:
   '@next/swc-win32-x64-msvc@16.2.11':
     optional: true
 
-  '@ngrok/webernetes@0.1.4':
+  '@ngrok/webernetes@0.5.5':
     dependencies:
       buffer: 6.0.3
       events: 3.3.0

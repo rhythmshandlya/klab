@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // AI-assisted problem generation. Drafts a candidate level with Claude, writes it to
-// scripts/candidates/ for HUMAN REVIEW — it never lands in src/ unreviewed, and the
+// scripts/candidates/ for HUMAN REVIEW. It never lands in src/ unreviewed, and the
 // solvability harness (pnpm test:levels) is the gate before it ships.
 //
 //   ANTHROPIC_API_KEY=sk-ant-... node scripts/generate-problems.mjs "a level about a Service targeting the wrong port"
@@ -26,19 +26,21 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 
 // The contract the model must satisfy. Kept terse; the schema + harness enforce the rest.
-const SYSTEM = `You author problems for klab, a browser Kubernetes debugging game running on @ngrok/webernetes.
+const SYSTEM = `You author production-grade problems for klab, a browser Kubernetes debugging game.
 
 Produce ONE level as a TypeScript module plus its canonical solution. Hard rules:
-- The simulator supports only these kinds: Deployment, ReplicaSet, Pod, Service, Namespace, Node. NO ConfigMap/Secret/Ingress/StatefulSet/NetworkPolicy/PVC.
+- Use engine { kind: "webernetes" } only for Deployment, ReplicaSet, Pod, Service, Namespace, and Node scenarios. For other Kubernetes APIs use { kind: "scripted", scenarioId: "manifest-assessment" } and declare machine-checkable manifest constraints.
 - Available images (by ref): klab/web-app:1.0.0 (/healthz 200, /readyz 404, / 200), klab/web-app:2.0.0 (500 everywhere), klab/web-app:0.9.0 (/healthz 200 but / 500), klab/api:1.0.0 (proxies UPSTREAM_URL), klab/worker:1.0.0 (exits unless DATABASE_URL set), klab/debug-tools:1.0.0.
 - A workload that must sit BROKEN/not-Ready should be a bare Pod, not a Deployment (a Deployment whose pods never go Ready churns forever).
-- Validator kinds: deployment-ready, service-has-ready-endpoints, http-get-through-service, pod-ready-by-selector, pod-restarts-below, no-pods-matching. Each also needs id/title/successLabel/failureLabel.
+- Validator kinds: deployment-ready, service-has-ready-endpoints, http-get-through-service, http-sample-through-service, no-recent-readiness-failures, pod-ready-by-selector, pod-restarts-below, no-pods-matching. Each also needs id/title/successLabel/failureLabel.
 - The level MUST be solvable by editing ONLY the editable file(s); the broken state must fail the validators and the canonical fix must pass them.
 - Never reveal the fix in story/objective. Evidence labels state facts, hints escalate (with xpPenalty and unlockAfter), total hint penalty <= xp.
-- Shape must match the ProblemLevel type (see src/lib/domain/types.ts): id, slug, title, difficulty (beginner|intermediate|advanced), severity, xp, estimatedMinutes, successRate, concepts[], blurb, story, objective, constraints[], files[], readonlyFiles[], initialManifests[], registeredImages[], allowedCommands[], quickCommands[], probeTargets[], validators[], hints[], evidenceRules[], postSolveExplanation.
+- Shape must match the current ProblemLevel type in src/lib/domain/types.ts. Include contentVersion, publicationStatus, challengeMode, learningObjectives, prerequisites, learningPaths, capabilities, kubernetesVersion, engine, machine-enforced constraints, files with access/applyAtBoot, structured quickCommands, at least four incident-specific referenceCommands, probeTargets, validators, at least three hints, at least four evidenceRules, and the complete postSolveExplanation including prevention and recommendedNextSlugs.
+- Every incidentSource must be HTTPS, attribution "inspired-by", and include an adaptationNote of at least 80 characters saying the scenario is fictional and not an exact reproduction.
+- Use no em dash characters. Never include TODO or placeholder copy.
 
 Return EXACTLY two fenced blocks and nothing else:
-1) a \`\`\`ts block: the full module — \`import type { ProblemLevel } from "@/lib/domain/types";\` then \`export const <camelSlug> = { ... } satisfies ProblemLevel;\`
+1) a \`\`\`ts block: the full module. Import ProblemLevel from the domain types, then export one named level that satisfies ProblemLevel.
 2) a \`\`\`json block: the solution, shaped { "fix": "<one-line>", "files": { "<path>": "<full fixed file contents>" } }, matching the editable file paths.`;
 
 console.error(`Generating a level for: ${spec}\n(using claude-opus-4-8; this can take a minute)…`);

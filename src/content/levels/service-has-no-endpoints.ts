@@ -6,7 +6,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * Level: Service Has No Endpoints.
  *
  * During an incident someone scaled the deployment to zero "temporarily" and never
- * scaled it back. Nothing is red — there are simply no pods at all, which is its own
+ * scaled it back. Nothing is red: there are simply no pods at all, which is its own
  * kind of confusing. Fix: replicas back up in deployment.yaml.
  */
 
@@ -67,7 +67,7 @@ export const serviceHasNoEndpoints = {
   concepts: ["services", "endpoints", "deployments", "debugging"],
   blurb: "A service exists but has no backing endpoints. Restore traffic flow.",
   story:
-    "web-svc has served nothing but 503s all weekend. The dashboards show no crashing pods, no failing probes, no warning events — nothing is red. That's because there is nothing. Friday's incident response 'temporarily' scaled the fleet down, and Friday's on-call is on a beach.",
+    "web-svc has served nothing but 503s all weekend. The dashboards show no crashing pods, no failing probes, no warning events: nothing is red. That's because there is nothing. Friday's incident response 'temporarily' scaled the fleet down, and Friday's on-call is on a beach.",
   objective: "Get web-svc serving again (HTTP 200 with ready endpoints).",
   learningObjectives: [
     "Trace an empty EndpointSlice back to desired replica state.",
@@ -163,13 +163,13 @@ export const serviceHasNoEndpoints = {
     {
       id: "hint-1",
       title: "Nothing is broken. Nothing is running.",
-      body: "Don't hunt for a red pod — count the pods. `kubectl get pods` and `kubectl get endpoints web-svc`. What do you actually have?",
+      body: "Don't hunt for a red pod: count the pods. `kubectl get pods` and `kubectl get endpoints web-svc`. What do you actually have?",
       xpPenalty: 25,
     },
     {
       id: "hint-2",
       title: "Who makes pods?",
-      body: "Pods come from the Deployment's replica count. `kubectl get deployments` — read the READY column carefully. 0/0 means it's doing exactly what it was told.",
+      body: "Pods come from the Deployment's replica count. `kubectl get deployments`: read the READY column carefully. 0/0 means it's doing exactly what it was told.",
       xpPenalty: 40,
       unlockAfter: ["r-no-pods"],
     },
@@ -230,7 +230,7 @@ export const serviceHasNoEndpoints = {
   postSolveExplanation: {
     rootCause: "The Deployment was scaled to replicas: 0, so no pods existed to serve web-svc.",
     whyItFailed:
-      "A Service is only as alive as the pods its selector matches. With zero replicas the EndpointSlice was empty, and — crucially — nothing looked 'broken': no crash loops, no failing probes, no warning events. Absence doesn't alert.",
+      "A Service is only as alive as the pods its selector matches. With zero replicas the EndpointSlice was empty, and: crucially: nothing looked 'broken': no crash loops, no failing probes, no warning events. Absence doesn't alert.",
     whatFixedIt:
       "Restoring replicas: 2 made the Deployment create pods again; once they passed readiness they were published as endpoints and web-svc served traffic.",
     prevention:

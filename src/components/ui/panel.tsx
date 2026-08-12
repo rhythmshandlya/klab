@@ -3,7 +3,7 @@ import { type HTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Panel — the primary surface for the workspace columns. A bordered container with
+ * Panel: the primary surface for the workspace columns. A bordered container with
  * an optional labeled header (small, uppercase, letter-spaced) and a right-aligned
  * actions slot. Mirrors the "INCIDENT BRIEF" / "CLUSTER EXPLORER" headers in the
  * reference layouts.

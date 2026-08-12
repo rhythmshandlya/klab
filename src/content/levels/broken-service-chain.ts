@@ -11,7 +11,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * its body, orders answers 502, and only web-svc is truly dead. Teaches tracing a
  * request chain hop by hop instead of trusting the edge. Fix: web-svc targetPort.
  *
- * (The reference design lists "Network Policy Meltdown" in this slot — the simulator
+ * (The reference design lists "Network Policy Meltdown" in this slot: the simulator
  * has no NetworkPolicy support, so the multi-hop "traffic silently dies mid-chain"
  * lesson is told through a service chain.)
  */
@@ -165,7 +165,7 @@ export const brokenServiceChain = {
   concepts: ["services", "networking", "dns", "endpoints", "debugging"],
   blurb: "The frontend says 200, the API says 502, the web tier says nothing at all.",
   story:
-    "Checkout is down, but the synthetic monitor on the frontend is green — it returns 200, after all. Dig one layer and orders-svc is throwing 502s. Dig another and web-svc doesn't answer at all. Three tiers, three different stories. Somewhere in frontend → orders → web, one hop is lying and one is dead.",
+    "Checkout is down, but the synthetic monitor on the frontend is green: it returns 200, after all. Dig one layer and orders-svc is throwing 502s. Dig another and web-svc doesn't answer at all. Three tiers, three different stories. Somewhere in frontend → orders → web, one hop is lying and one is dead.",
   objective: "Trace the chain and restore it end to end: orders-svc and web-svc must return 200.",
   learningObjectives: [
     "Trace an outage through multiple Service hops instead of stopping at the edge status.",
@@ -178,7 +178,7 @@ export const brokenServiceChain = {
   constraints: [
     {
       id: "edit-web-svc",
-      label: "Only edit web-svc.yaml — every Deployment is correct",
+      label: "Only edit web-svc.yaml: every Deployment is correct",
       kind: "editable-files",
       paths: ["web-svc.yaml"],
     },
@@ -281,21 +281,21 @@ export const brokenServiceChain = {
   hints: [
     {
       id: "hint-1",
-      title: "200 is not health — read the body",
-      body: "The frontend returns 200 because it successfully reports its upstream's FAILURE. Don't trust the edge: curl each tier in order — frontend-svc, orders-svc, web-svc — and note where the story changes.",
+      title: "200 is not health: read the body",
+      body: "The frontend returns 200 because it successfully reports its upstream's FAILURE. Don't trust the edge: curl each tier in order: frontend-svc, orders-svc, web-svc, and note where the story changes.",
       xpPenalty: 40,
     },
     {
       id: "hint-2",
       title: "The last hop is the dead one",
-      body: "orders-svc's 502 is just it relaying that web-svc never answers. Everything about the web DEPLOYMENT is healthy (pods Ready, endpoints published) — so inspect the web SERVICE: `kubectl describe svc web-svc`. Follow the ports.",
+      body: "orders-svc's 502 is just it relaying that web-svc never answers. Everything about the web DEPLOYMENT is healthy (pods Ready, endpoints published), so inspect the web SERVICE: `kubectl describe svc web-svc`. Follow the ports.",
       xpPenalty: 60,
       unlockAfter: ["r-web-dead"],
     },
     {
       id: "hint-3",
       title: "9090 vs 8080",
-      body: "web-svc forwards to targetPort 9090, but the web-app container listens on 8080 (its logs say so). Fix targetPort in web-svc.yaml and Apply — the whole chain heals from the bottom.",
+      body: "web-svc forwards to targetPort 9090, but the web-app container listens on 8080 (its logs say so). Fix targetPort in web-svc.yaml and Apply: the whole chain heals from the bottom.",
       xpPenalty: 80,
       unlockAfter: ["r-targetport"],
     },
@@ -304,7 +304,7 @@ export const brokenServiceChain = {
     {
       id: "r-orders-502",
       evidenceId: "orders-502",
-      label: "orders-svc answers 502 — its upstream call fails",
+      label: "orders-svc answers 502: its upstream call fails",
       hiddenLabel: "Middle tier tested",
       source: "network",
       trigger: { type: "probe", hostMatches: "^orders-svc$", pathMatches: "^/$", status: 502 },
@@ -360,7 +360,7 @@ export const brokenServiceChain = {
     whyItFailed:
       "Each tier reported only its own hop: the frontend returned 200 (it successfully relayed a failure), orders returned 502 (its upstream call failed), and web-svc silently refused connections. Edge monitoring saw 'healthy'; only walking the chain hop by hop exposed where traffic actually died.",
     whatFixedIt:
-      "Correcting web-svc's targetPort to 8080 reconnected the last hop. orders-svc immediately started getting 200s from web-svc, and the frontend's body flipped from status: 502 to status: 200 — the whole chain healed from the bottom.",
+      "Correcting web-svc's targetPort to 8080 reconnected the last hop. orders-svc immediately started getting 200s from web-svc, and the frontend's body flipped from status: 502 to status: 200: the whole chain healed from the bottom.",
     prevention:
       "Monitor dependency-level outcomes, keep request context across hops, and continuously probe each internal Service contract as well as the public edge.",
     relatedConcepts: ["services", "networking", "endpoints"],

@@ -1,7 +1,7 @@
 import { type SVGProps } from "react";
 
 /**
- * klab cluster mark — an original, abstract "control-plane + nodes" wheel.
+ * klab cluster mark: an original, abstract "control-plane + nodes" wheel.
  *
  * Intentionally NOT the Kubernetes helm logo: a central control-plane node ringed
  * by six worker nodes on an orbit, evoking a cluster without reproducing any

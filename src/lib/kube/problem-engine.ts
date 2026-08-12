@@ -114,6 +114,7 @@ export class ScriptedIncidentEngine implements ProblemEngine {
   readonly capabilities: ReadonlySet<ProblemCapability>;
   private readonly listeners = new Set<ProblemSnapshotListener>();
   private readonly runtime: ScriptedScenarioRuntime | undefined;
+  private activeLevel: ProblemLevel | undefined;
 
   constructor(private readonly scenarioId: string) {
     this.capabilities = capabilitiesForEngine({ kind: "scripted", scenarioId });
@@ -122,6 +123,7 @@ export class ScriptedIncidentEngine implements ProblemEngine {
 
   async boot(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
     if (!this.runtime) return err(`Unknown scripted scenario: ${this.scenarioId}`);
+    this.activeLevel = level;
     const unsupported = unsupportedProblemCapabilities(level);
     if (unsupported.length > 0) {
       return err(`Scripted scenario does not support: ${unsupported.join(", ")}`);
@@ -152,6 +154,11 @@ export class ScriptedIncidentEngine implements ProblemEngine {
   async applyFiles(
     files: Readonly<Record<string, string>>,
   ): Promise<Result<AppliedResourceRef[], string>> {
+    if (this.runtime?.applyFiles && this.activeLevel) {
+      const applied = this.runtime.applyFiles(this.activeLevel, files);
+      if (applied.ok) this.emit();
+      return applied;
+    }
     return this.applyYaml(joinDocs(Object.values(files)));
   }
 

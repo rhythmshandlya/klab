@@ -67,7 +67,7 @@ export const podCrashloopMystery = {
   concepts: ["pods", "debugging", "events", "deployments"],
   blurb: "The worker pods keep crashing, seconds after every restart.",
   story:
-    "The queue-worker fleet was migrated to the new cluster this morning. Since then the job queue has only grown: the workers start, die within seconds, and the kubelet dutifully restarts them into the same wall. Jobs are piling up — find out what the workers are missing.",
+    "The queue-worker fleet was migrated to the new cluster this morning. Since then the job queue has only grown: the workers start, die within seconds, and the kubelet dutifully restarts them into the same wall. Jobs are piling up: find out what the workers are missing.",
   objective: "Get the queue-worker pods Running, Ready, and staying up.",
   learningObjectives: [
     "Use logs and restart state to identify an application startup failure.",
@@ -181,7 +181,7 @@ export const podCrashloopMystery = {
     {
       id: "hint-1",
       title: "Read the STATUS column, not just Running",
-      body: "`kubectl get pods` — a status like CrashLoopBackOff means the process EXITS and Kubernetes keeps restarting it. This isn't a probe problem; the app itself is dying.",
+      body: "`kubectl get pods`: a status like CrashLoopBackOff means the process EXITS and Kubernetes keeps restarting it. This isn't a probe problem; the app itself is dying.",
       xpPenalty: 25,
     },
     {
@@ -227,7 +227,7 @@ export const podCrashloopMystery = {
     {
       id: "r-fatal-log",
       evidenceId: "fatal-log",
-      label: "Logs: FATAL — DATABASE_URL is not set",
+      label: "Logs: FATAL: DATABASE_URL is not set",
       hiddenLabel: "Container logs read",
       source: "logs",
       trigger: {
@@ -256,7 +256,7 @@ export const podCrashloopMystery = {
   postSolveExplanation: {
     rootCause: "The worker requires a DATABASE_URL env var, and the Deployment never set it.",
     whyItFailed:
-      "On startup the worker checked its configuration, logged 'FATAL: DATABASE_URL is not set' and exited 1. The kubelet restarted it with exponential back-off — CrashLoopBackOff — but restarts can't fix missing configuration, so the loop never ended.",
+      "On startup the worker checked its configuration, logged 'FATAL: DATABASE_URL is not set' and exited 1. The kubelet restarted it with exponential back-off: CrashLoopBackOff, but restarts can't fix missing configuration, so the loop never ended.",
     whatFixedIt:
       "Adding the DATABASE_URL env var to the container spec rolled out new pods that started cleanly, passed readiness, and stayed up with zero restarts.",
     prevention:

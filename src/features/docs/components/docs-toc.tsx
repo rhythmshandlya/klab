@@ -137,7 +137,7 @@ export function DocsToc({ rail }: { rail: LessonRail }) {
       <div className="border-border flex items-center justify-between border-t pt-5">
         {feedback ? (
           <span className="text-subtle text-xs">
-            {feedback === "up" ? "Thanks for the feedback!" : "Thanks — we'll keep improving this."}
+            {feedback === "up" ? "Thanks for the feedback!" : "Thanks: we'll keep improving this."}
           </span>
         ) : (
           <>

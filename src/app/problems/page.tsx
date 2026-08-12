@@ -53,7 +53,7 @@ async function buildCatalog(): Promise<LevelSummary[]> {
       };
     });
   } catch {
-    // DB unreachable / not migrated — fall back to the authored catalog.
+    // DB unreachable / not migrated: fall back to the authored catalog.
     return [...LEVEL_CATALOG];
   }
 }

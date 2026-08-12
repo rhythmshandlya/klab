@@ -6,7 +6,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * Level: Namespace Confusion.
  *
  * checkout moved into its own `shop` namespace, but the storefront (in `default`)
- * still calls `http://checkout-svc/` — a name that only resolves inside `shop`.
+ * still calls `http://checkout-svc/`: a name that only resolves inside `shop`.
  * Teaches namespace-relative DNS. Fix: point UPSTREAM_URL at `checkout-svc.shop`.
  */
 
@@ -119,7 +119,7 @@ export const namespaceConfusion = {
   concepts: ["namespaces", "dns", "services", "debugging"],
   blurb: "A service moved to its own namespace, and now nobody can find it.",
   story:
-    "Platform split checkout into its own namespace last sprint — cleaner ownership, they said. Since the migration, every checkout call from the storefront fails. The checkout pods themselves? Perfectly healthy. The storefront pods? Also healthy. And yet.",
+    "Platform split checkout into its own namespace last sprint: cleaner ownership, they said. Since the migration, every checkout call from the storefront fails. The checkout pods themselves? Perfectly healthy. The storefront pods? Also healthy. And yet.",
   objective: "Make the storefront reach checkout again (storefront-svc returns HTTP 200).",
   learningObjectives: [
     "Apply Kubernetes search-domain rules to short and qualified Service names.",
@@ -239,7 +239,7 @@ export const namespaceConfusion = {
     {
       id: "hint-1",
       title: "Healthy pods, failing calls",
-      body: "Both apps are Ready — the failure is in the storefront's OUTBOUND call. Read what the storefront itself says: `kubectl logs <storefront-pod>`.",
+      body: "Both apps are Ready: the failure is in the storefront's OUTBOUND call. Read what the storefront itself says: `kubectl logs <storefront-pod>`.",
       xpPenalty: 15,
     },
     {
@@ -309,7 +309,7 @@ export const namespaceConfusion = {
   ],
   postSolveExplanation: {
     rootCause:
-      "The storefront called http://checkout-svc/ — a bare name that only resolves inside the shop namespace, not from default.",
+      "The storefront called http://checkout-svc/: a bare name that only resolves inside the shop namespace, not from default.",
     whyItFailed:
       "Kubernetes DNS is namespace-relative: `checkout-svc` expands to checkout-svc.<caller's namespace>.svc.cluster.local. From default that name doesn't exist, so every upstream call failed DNS resolution and the storefront returned 502.",
     whatFixedIt:

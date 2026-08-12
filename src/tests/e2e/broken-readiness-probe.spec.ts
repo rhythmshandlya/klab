@@ -39,7 +39,7 @@ test("solve the Broken Readiness Probe incident end-to-end", async ({ page }) =>
 
   await test.step("fix the readiness probe path in the editor", async () => {
     await page.locator(".monaco-editor").first().waitFor({ state: "visible", timeout: 30_000 });
-    // Select "/readyz" in the editor, then type "/healthz" over it — a real UI edit.
+    // Select "/readyz" in the editor, then type "/healthz" over it: a real UI edit.
     const selected = await page.evaluate(() => {
       const monaco = (window as any).monaco;
       const editor = monaco.editor.getEditors()[0];

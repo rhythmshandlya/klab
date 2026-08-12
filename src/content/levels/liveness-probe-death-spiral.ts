@@ -76,7 +76,7 @@ export const livenessProbeDeathSpiral = {
   concepts: ["liveness-probes", "readiness-probes", "pods", "events", "debugging"],
   blurb: "An aggressive liveness probe keeps executing perfectly healthy pods.",
   story:
-    "web-svc is flapping: up for a few seconds, dead, up again. The app team insists nothing is wrong with the app — and weirdly, they're right. Meanwhile the pods' restart counters are climbing like a countdown. Something in the cluster is killing healthy containers, on schedule.",
+    "web-svc is flapping: up for a few seconds, dead, up again. The app team insists nothing is wrong with the app, and weirdly, they're right. Meanwhile the pods' restart counters are climbing like a countdown. Something in the cluster is killing healthy containers, on schedule.",
   objective: "Stop the restart spiral and keep web-svc stably serving HTTP 200.",
   learningObjectives: [
     "Separate liveness, readiness, and application health semantics.",
@@ -190,20 +190,20 @@ export const livenessProbeDeathSpiral = {
     {
       id: "hint-1",
       title: "Watch it happen twice",
-      body: "Run `kubectl get pods`, wait ten seconds, run it again. The RESTARTS column is climbing. Restarting is not crashing — ask what, in Kubernetes, is allowed to kill a container.",
+      body: "Run `kubectl get pods`, wait ten seconds, run it again. The RESTARTS column is climbing. Restarting is not crashing: ask what, in Kubernetes, is allowed to kill a container.",
       xpPenalty: 40,
     },
     {
       id: "hint-2",
       title: "Two probes, two powers",
-      body: "A failing READINESS probe only removes a pod from Service endpoints. A failing LIVENESS probe KILLS the container. `kubectl describe pod <pod>`: where does each probe point? Which of those paths does this app actually serve?",
+      body: "A failing READINESS probe only removes a pod from Service endpoints. A failing LIVENESS probe KILLS the container. `kubectl describe pod <pod>`, where does each probe point? Which of those paths does this app actually serve?",
       xpPenalty: 60,
       unlockAfter: ["r-restarts"],
     },
     {
       id: "hint-3",
       title: "The executioner is misconfigured",
-      body: "Liveness checks /readyz — which this app answers with 404 — so the kubelet executes a healthy container every few seconds. Point the liveness probe at /healthz and Apply.",
+      body: "Liveness checks /readyz, which this app answers with 404, so the kubelet executes a healthy container every few seconds. Point the liveness probe at /healthz and Apply.",
       xpPenalty: 80,
       unlockAfter: ["r-liveness-target"],
     },
@@ -264,7 +264,7 @@ export const livenessProbeDeathSpiral = {
     {
       id: "r-healthz-200",
       evidenceId: "healthz-200",
-      label: "GET /healthz returns 200 — the app is fine",
+      label: "GET /healthz returns 200: the app is fine",
       hiddenLabel: "Health endpoint tested",
       source: "network",
       trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/healthz", status: 200 },
@@ -274,7 +274,7 @@ export const livenessProbeDeathSpiral = {
     rootCause:
       "The liveness probe targeted /readyz (404 on this app), so the kubelet repeatedly killed healthy containers.",
     whyItFailed:
-      "Readiness and liveness answer different questions. Readiness (correctly on /healthz) passed, so pods joined the Service — then liveness (on /readyz) failed twice, the kubelet killed the container, endpoints emptied, and the cycle restarted. From outside it looked like flapping; from inside it was scheduled execution.",
+      "Readiness and liveness answer different questions. Readiness (correctly on /healthz) passed, so pods joined the Service, then liveness (on /readyz) failed twice, the kubelet killed the container, endpoints emptied, and the cycle restarted. From outside it looked like flapping; from inside it was scheduled execution.",
     whatFixedIt:
       "Pointing the liveness probe at /healthz stopped the kills. The rollout produced fresh pods with zero restarts that stayed Ready, and the Service stopped flapping.",
     prevention:

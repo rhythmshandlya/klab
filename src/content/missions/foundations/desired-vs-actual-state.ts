@@ -16,7 +16,7 @@ export const desiredVsActualState: Mission = {
     {
       kind: "teach",
       id: "declare-wish",
-      idea: "Every managed object carries two halves of a story. spec is what you asked for; status is what Kubernetes currently observes. The whole system is machinery for driving the gap between them to zero — and keeping it there.",
+      idea: "Every managed object carries two halves of a story. spec is what you asked for; status is what Kubernetes currently observes. The whole system is machinery for driving the gap between them to zero, and keeping it there.",
       visual: { mode: "concept", variant: "control-loop", buildToStep: 0 },
       ack: "Show me",
     },
@@ -43,7 +43,7 @@ export const desiredVsActualState: Mission = {
           },
           {
             id: "b",
-            text: "Nothing — a human must notice and recreate it",
+            text: "Nothing: a human must notice and recreate it",
             correct: false,
             explain:
               "That would be imperative. The reconciliation loop runs continuously with no human in the way.",
@@ -56,7 +56,7 @@ export const desiredVsActualState: Mission = {
     {
       kind: "teach",
       id: "pets-vs-cattle",
-      idea: "A bare Pod is a pet: if it dies, nobody replaces it. A Deployment manages cattle — interchangeable Pods stamped from one template that it recreates on demand. Durable workloads should be cattle, never pets.",
+      idea: "A bare Pod is a pet: if it dies, nobody replaces it. A Deployment manages cattle: interchangeable Pods stamped from one template that it recreates on demand. Durable workloads should be cattle, never pets.",
     },
     {
       kind: "check",
@@ -90,7 +90,7 @@ export const desiredVsActualState: Mission = {
     {
       kind: "do",
       id: "do-deployment",
-      goal: "Apply a Deployment for `web` with replicas: 2. It stamps out two self-healing Pods labeled tier: frontend — the resilient replacement for your hand-made ones.",
+      goal: "Apply a Deployment for `web` with replicas: 2. It stamps out two self-healing Pods labeled tier: frontend: the resilient replacement for your hand-made ones.",
       files: [
         {
           path: "web-deployment.yaml",
@@ -102,7 +102,7 @@ export const desiredVsActualState: Mission = {
       check: { kind: "pods-ready", selector: { app: "web", tier: "frontend" }, minReady: 2 },
       hint: "Apply as-is. The Deployment owns a ReplicaSet, which creates two Pods carrying tier: frontend. Watch the ready count climb to 2.",
       debrief:
-        "The Deployment now holds two replicas for you. Your two hand-made Pods (labeled only app: web) are now redundant pets — in a real cluster you would run `kubectl delete pod web web-2` to retire them and let the cattle carry the load.",
+        "The Deployment now holds two replicas for you. Your two hand-made Pods (labeled only app: web) are now redundant pets: in a real cluster you would run `kubectl delete pod web web-2` to retire them and let the cattle carry the load.",
     },
     {
       kind: "debrief",
@@ -110,8 +110,8 @@ export const desiredVsActualState: Mission = {
       summary: "A Deployment now owns `web` and keeps two replicas alive without you.",
       commands: ["kubectl get deploy,rs,pods", "kubectl delete pod web web-2"],
       takeaways: [
-        "spec is intent you write; status is observed reality Kubernetes writes — never hand-edit status to fix things.",
-        "Controllers run a continuous, level-triggered reconciliation loop: observe, diff, act, repeat — so it self-corrects.",
+        "spec is intent you write; status is observed reality Kubernetes writes: never hand-edit status to fix things.",
+        "Controllers run a continuous, level-triggered reconciliation loop: observe, diff, act, repeat, so it self-corrects.",
         "Drift closes automatically: delete a managed Pod and the loop recreates it.",
         "Prefer cattle over pets: a Deployment recreates its Pods, a bare Pod is gone for good.",
       ],

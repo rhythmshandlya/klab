@@ -19,7 +19,7 @@ type DebriefSpec = Extract<MissionStep, { kind: "debrief" }>;
 /**
  * A mission embedded in the reading flow: a stakes-bearing card between sections.
  * Starting it opens a full workspace overlay (editor + terminal + live topology)
- * against a cluster seeded with everything earlier missions built — reading stays
+ * against a cluster seeded with everything earlier missions built: reading stays
  * uninterrupted, and the hands-on work gets real room.
  */
 export function MissionWorkspaceCard({ run }: { run: MissionRun }) {
@@ -78,7 +78,7 @@ function LiveMission({
   const wrap = mission.steps.find((s): s is DebriefSpec => s.kind === "debrief");
   const [completed, setCompleted] = useState<ReadonlySet<string>>(new Set());
   // Ref mirrors `completed` so the side effect (progress write) stays OUT of the
-  // state updater — updaters must be pure, and mutateProgress re-renders other
+  // state updater: updaters must be pure, and mutateProgress re-renders other
   // components (TopNav XP) which React forbids mid-render.
   const completedRef = useRef<Set<string>>(new Set());
   const done = doSteps.length > 0 && doSteps.every((s) => completed.has(s.id));

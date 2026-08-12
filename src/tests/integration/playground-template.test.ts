@@ -49,7 +49,7 @@ describe("Playground: Deployment + Service template", () => {
     );
     expect(ready).toBe(true);
 
-    // Healthy Deployment must NOT churn — the pod count stays bounded.
+    // Healthy Deployment must NOT churn: the pod count stays bounded.
     await new Promise((r) => setTimeout(r, 8000));
     expect(appPods().length).toBeLessThanOrEqual(3);
 

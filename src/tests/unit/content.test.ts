@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getLevelBySlug, LEVEL_CATALOG, LEVELS } from "@/content/levels";
 import { LEVEL_SOLUTIONS } from "@/content/levels/solutions";
 import { parseLevel } from "@/lib/domain/schemas";
+import { evaluateLevelConstraints } from "@/lib/kube/manifest-constraints";
 import { unsupportedProblemCapabilities } from "@/lib/kube/problem-capabilities";
 
 const XP_BY_DIFFICULTY = { beginner: 100, intermediate: 150, advanced: 200 } as const;
@@ -17,6 +18,16 @@ describe("level content", () => {
   it("has no duplicate catalog slugs", () => {
     const slugs = LEVEL_CATALOG.map((l) => l.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
+    const titles = LEVEL_CATALOG.map((level) => level.title.toLowerCase());
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+
+  it("ships the exact sixty-problem curriculum with a real architecture track", () => {
+    expect(LEVELS).toHaveLength(60);
+    expect(LEVELS.filter((level) => level.challengeMode === "repair")).toHaveLength(51);
+    expect(LEVELS.filter((level) => level.challengeMode === "build")).toHaveLength(9);
+    expect(LEVELS.filter((level) => level.difficulty === "architect")).toHaveLength(9);
+    expect(LEVELS.filter((level) => level.incidentSource).length).toBeGreaterThanOrEqual(12);
   });
 
   it("publishes versioned curriculum metadata with a valid prerequisite graph", () => {
@@ -58,6 +69,22 @@ describe("level content", () => {
     }
   });
 
+  it("keeps recommendations acyclic", () => {
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const visit = (slug: string): void => {
+      if (visited.has(slug)) return;
+      expect(visiting.has(slug), `recommendation cycle at ${slug}`).toBe(false);
+      visiting.add(slug);
+      for (const next of getLevelBySlug(slug)?.postSolveExplanation.recommendedNextSlugs ?? []) {
+        visit(next);
+      }
+      visiting.delete(slug);
+      visited.add(slug);
+    };
+    for (const level of LEVELS) visit(level.slug);
+  });
+
   it("keeps Architect final bosses distinct from repair problems", () => {
     for (const level of LEVELS) {
       if (level.challengeMode === "repair") {
@@ -77,9 +104,38 @@ describe("level content", () => {
   });
 
   it("every catalog entry is a playable authored level", () => {
-    expect(LEVEL_CATALOG.length).toBeGreaterThanOrEqual(12);
+    expect(LEVEL_CATALOG).toHaveLength(60);
     for (const entry of LEVEL_CATALOG) {
       expect(getLevelBySlug(entry.slug), entry.slug).toBeDefined();
+    }
+  });
+
+  it("covers the Kubernetes production domains missing from the original bank", () => {
+    const covered = new Set(LEVELS.flatMap((level) => level.concepts));
+    for (const concept of [
+      "statefulsets",
+      "daemonsets",
+      "jobs",
+      "cronjobs",
+      "ingress",
+      "gateway-api",
+      "owners-gc",
+      "init-containers",
+      "resource-quotas",
+      "limit-ranges",
+      "configmaps",
+      "storage",
+      "service-accounts",
+      "rbac",
+      "security-contexts",
+      "network-policies",
+      "autoscaling",
+      "crds",
+      "operators",
+      "admission-controllers",
+      "reconciliation",
+    ] as const) {
+      expect(covered.has(concept), `${concept} coverage`).toBe(true);
     }
   });
 
@@ -192,6 +248,52 @@ describe("level content", () => {
           rule.trigger.type,
           `${level.slug}/${rule.id}: ${rule.source} must use its structured trigger`,
         ).toBe(sourceTrigger[rule.source]);
+        const trigger = rule.trigger;
+        if (trigger.type === "command") {
+          expect(
+            () => new RegExp(trigger.commandMatches),
+            `${level.slug}/${rule.id}`,
+          ).not.toThrow();
+          const outputMatches = trigger.outputMatches;
+          if (outputMatches) {
+            expect(() => new RegExp(outputMatches), `${level.slug}/${rule.id}`).not.toThrow();
+          }
+        }
+      }
+
+      for (const ids of [
+        level.validators.map((item) => item.id),
+        level.constraints.map((item) => item.id),
+        level.hints.map((item) => item.id),
+        level.bootSequence?.map((item) => item.id) ?? [],
+      ]) {
+        expect(new Set(ids).size, `${level.slug} duplicate authored ids`).toBe(ids.length);
+      }
+
+      if (level.engine.kind === "scripted" && level.engine.scenarioId === "manifest-assessment") {
+        const initial = Object.fromEntries(
+          level.files
+            .filter((file) => file.access !== "hidden")
+            .map((file) => [file.path, file.initialValue]),
+        );
+        const manifestRules = level.constraints.filter((rule) => rule.kind === "manifest");
+        expect(manifestRules.length, `${level.slug} assessment rules`).toBeGreaterThan(0);
+        expect(
+          evaluateLevelConstraints(level, initial).some((result) => !result.passed),
+          `${level.slug} starts with a real policy failure`,
+        ).toBe(true);
+        if (level.challengeMode === "repair") {
+          expect(level.referenceCommands?.length, `${level.slug} production runbook`).toBe(4);
+          expect(
+            new Set(level.referenceCommands ?? []).size,
+            `${level.slug} runbook commands`,
+          ).toBe(4);
+        }
+        if (level.challengeMode === "build") {
+          expect(level.postSolveExplanation.docsHref, `${level.slug} lesson link`).not.toMatch(
+            /^\/learn\//,
+          );
+        }
       }
     }
 

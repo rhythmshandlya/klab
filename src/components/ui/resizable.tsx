@@ -6,7 +6,7 @@ import { Group, Panel, Separator, type Layout } from "react-resizable-panels";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Themed wrappers around react-resizable-panels: draggable (and keyboard-operable —
+ * Themed wrappers around react-resizable-panels: draggable (and keyboard-operable:
  * the separators are WAI-ARIA `role="separator"` with arrow-key support) split panes
  * for workspace layouts. `usePersistedLayout` remembers a group's layout in
  * localStorage so a user's preferred pane sizes survive reloads.
@@ -76,7 +76,7 @@ export function usePersistedLayout(storageKey: string): {
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(layout));
       } catch {
-        // Storage full or unavailable — layout persistence is best-effort.
+        // Storage full or unavailable: layout persistence is best-effort.
       }
     },
     [storageKey],

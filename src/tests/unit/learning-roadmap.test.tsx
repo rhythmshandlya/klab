@@ -8,13 +8,16 @@ import { LearningRoadmap } from "@/features/docs/components/learning-roadmap";
 const CATALOG = getCurriculumCatalog();
 
 describe("LearningRoadmap", () => {
-  it("renders every section as a stage, with Real Incidents in its own 'Apply it' band", () => {
+  it("renders every section, including Real Incidents, as one explained course path", () => {
     render(<LearningRoadmap sections={CATALOG.sections} completed={new Set()} />);
 
     for (const section of CATALOG.sections) {
       expect(screen.getByRole("heading", { name: section.title })).toBeInTheDocument();
     }
-    expect(screen.getByText("Apply it")).toBeInTheDocument();
+    expect(screen.queryByText("Apply it")).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText(`Stage ${CATALOG.sections.length}, not started`),
+    ).toBeInTheDocument();
   });
 
   it("marks completed lessons and surfaces cross-links into other modes", () => {
@@ -24,7 +27,7 @@ describe("LearningRoadmap", () => {
     expect(screen.getAllByLabelText("Completed").length).toBeGreaterThan(0);
 
     // At least one lesson links out to Problems (via relatedLevelSlug) and one to
-    // the Playground (via shared concepts) — the Docs→practice on-ramp.
+    // the Playground (via shared concepts): the Docs→practice on-ramp.
     const problemLinks = screen
       .getAllByRole("link")
       .filter((a) => a.getAttribute("href")?.startsWith("/problems/"));

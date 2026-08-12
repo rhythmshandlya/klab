@@ -23,7 +23,7 @@ import { logSink, type LogLine } from "./images/log-sink";
 import { parseManifests, type ParsedManifest } from "./manifest-parser";
 
 /**
- * KubeSimulator — the single facade the UI uses to talk to the simulated cluster.
+ * KubeSimulator: the single facade the UI uses to talk to the simulated cluster.
  *
  * Wraps @ngrok/webernetes (a real, browser-based Kubernetes control plane: scheduler,
  * kubelet with readiness/liveness probers, and deployment/replicaset/endpointslice
@@ -146,7 +146,7 @@ export class KubeSimulator {
 
   /**
    * Run a lifecycle op serialized after any in-flight one. Failures don't poison the
-   * chain — the next op still runs (it inspects live state, e.g. doBoot() is a no-op
+   * chain: the next op still runs (it inspects live state, e.g. doBoot() is a no-op
    * when already ready).
    */
   private serializeLifecycle<T>(op: () => Promise<T>): Promise<T> {
@@ -165,7 +165,7 @@ export class KubeSimulator {
   }
 
   private async doBoot(): Promise<Result<void, string>> {
-    // Already up (e.g. a duplicate boot with no intervening close) — nothing to do.
+    // Already up (e.g. a duplicate boot with no intervening close): nothing to do.
     if (this.statusValue === "ready" && this.cluster) return ok(undefined);
     this.statusValue = "booting";
     try {
@@ -262,7 +262,7 @@ export class KubeSimulator {
     if (!cluster.ok) return cluster;
     if (manifests.length === 0) return ok([]);
     try {
-      // Pods are immutable in Kubernetes — a plain apply of a changed Pod is a no-op on
+      // Pods are immutable in Kubernetes: a plain apply of a changed Pod is a no-op on
       // the running pod. To let learners re-apply an edited Pod (e.g. fixing a probe),
       // delete any existing Pod of the same name first and wait for it to be removed,
       // then create the replacement. Non-Pod kinds apply normally.
@@ -346,7 +346,7 @@ export class KubeSimulator {
     try {
       const parsed = new URL(url.includes("://") ? url : `http://${url}`);
       const host = parsed.hostname;
-      // Dotted hosts (FQDNs, IPs) pass through untouched — only bare names expand.
+      // Dotted hosts (FQDNs, IPs) pass through untouched: only bare names expand.
       if (host.includes(".")) return url;
       const isService = this.snapshot.services.some(
         (s) => s.metadata?.name === host && (s.metadata?.namespace ?? "default") === namespace,

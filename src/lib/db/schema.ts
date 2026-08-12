@@ -14,13 +14,13 @@ import {
 /**
  * Postgres schema (Drizzle). Two groups:
  *
- *  1. Better Auth core tables (`user`/`session`/`account`/`verification`) — the
+ *  1. Better Auth core tables (`user`/`session`/`account`/`verification`): the
  *     property keys MUST match Better Auth's field names (camelCase) so its Drizzle
  *     adapter resolves them; SQL column names are snake_case. Shapes mirror
  *     @better-auth/core 1.6.x exactly (+ the anonymous plugin's `isAnonymous`).
  *     Reconcile with `pnpm dlx @better-auth/cli generate` if Better Auth is upgraded.
  *
- *  2. klab app tables — USER DATA ONLY. Problems live in code and are referenced by
+ *  2. klab app tables: USER DATA ONLY. Problems live in code and are referenced by
  *     `level_slug` (text, no FK). XP / streak / per-slug hint penalty are NOT stored;
  *     they are derived from these grow-only rows so every write is an idempotent,
  *     commutative upsert (safe under concurrent devices and guest→account merge).
@@ -39,6 +39,8 @@ export const user = pgTable("user", {
   isAnonymous: boolean("is_anonymous").default(false),
   /** Explicit opt-in for leaderboard, recent activity, and speed records. */
   publicProfile: boolean("public_profile").notNull().default(false),
+  /** Operator-managed identity used for trusted KLab Team communication. */
+  isOfficial: boolean("is_official").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -96,7 +98,7 @@ export const progressSolved = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     levelSlug: text("level_slug").notNull(),
     awardedXp: integer("awarded_xp").notNull(),
-    /** Client-local calendar day (YYYY-MM-DD) — streaks derive from the distinct set. */
+    /** Client-local calendar day (YYYY-MM-DD): streaks derive from the distinct set. */
     solvedDay: text("solved_day").notNull(),
     solvedAt: timestamp("solved_at").notNull().defaultNow(),
   },
@@ -227,6 +229,60 @@ export const sandboxes = pgTable(
   ],
 );
 
+/** Public community threads for questions, product feedback, bugs, and problem ideas. */
+export const communityDiscussions = pgTable(
+  "community_discussions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    category: text("category").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    /** open | under-review | planned | resolved | closed */
+    status: text("status").notNull().default("open"),
+    pinned: boolean("pinned").notNull().default(false),
+    lastActivityAt: timestamp("last_activity_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("community_discussions_author_client_key").on(t.authorId, t.clientId),
+    index("community_discussions_activity_idx").on(t.pinned, t.lastActivityAt),
+    index("community_discussions_category_activity_idx").on(t.category, t.lastActivityAt),
+    index("community_discussions_status_activity_idx").on(t.status, t.lastActivityAt),
+    index("community_discussions_author_idx").on(t.authorId, t.createdAt),
+  ],
+);
+
+/** Replies are limited to one nested level by the repository. */
+export const communityDiscussionReplies = pgTable(
+  "community_discussion_replies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    discussionId: uuid("discussion_id")
+      .notNull()
+      .references(() => communityDiscussions.id, { onDelete: "cascade" }),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    /** Null for a response; a root response id for a nested reply. */
+    parentId: uuid("parent_id"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("community_replies_author_client_key").on(t.authorId, t.clientId),
+    index("community_replies_discussion_created_idx").on(t.discussionId, t.createdAt),
+    index("community_replies_parent_created_idx").on(t.parentId, t.createdAt),
+    index("community_replies_author_idx").on(t.authorId, t.createdAt),
+  ],
+);
+
 /** Guards guest→account imports from double-counting on repeat. */
 export const mergeLog = pgTable(
   "merge_log",
@@ -253,5 +309,7 @@ export const schema = {
   hintReveals,
   submissions,
   sandboxes,
+  communityDiscussions,
+  communityDiscussionReplies,
   mergeLog,
 };

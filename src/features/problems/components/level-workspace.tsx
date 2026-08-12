@@ -38,6 +38,7 @@ import { EvidenceBoard } from "./evidence-board";
 import { FailingChecks } from "./failing-checks";
 import { HintsCard } from "./hints-card";
 import { IncidentBrief } from "./incident-brief";
+import { ArchitectureInventory } from "./architecture-inventory";
 import { NetworkProbe } from "./network-probe";
 import { ValidationDialog } from "./validation-dialog";
 
@@ -62,7 +63,7 @@ interface ApplyFeedback {
   message: string;
 }
 
-/** Local calendar day (YYYY-MM-DD) for the solved intent — streaks are per local day. */
+/** Local calendar day (YYYY-MM-DD) for the solved intent: streaks are per local day. */
 function todayLocal(): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -142,6 +143,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const revealedHintIds = useLevelStore((s) => s.revealedHintIds);
 
   const sim = useProblemEngine(level);
+  const isBuild = level.challengeMode === "build";
   const scenarioReady = sim.ready;
   const validateProblem = sim.validate;
   const [validationOpen, setValidationOpen] = useState(false);
@@ -152,7 +154,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
 
   // Persisted, user-resizable pane layouts (drag the separators; arrow keys work too).
   const columnsLayout = usePersistedLayout("klab:layout:level-workspace:columns");
-  const centerLayout = usePersistedLayout("klab:layout:level-workspace:center");
+  const centerLayout = usePersistedLayout("klab:layout:level-workspace:center:v2");
   const rightLayout = usePersistedLayout("klab:layout:level-workspace:right");
   const explorerLayout = usePersistedLayout("klab:layout:level-workspace:explorer");
 
@@ -274,7 +276,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const runCommand = useCallback(
     async (line: string): Promise<TerminalRunResult> => {
       if (!sim.ready) {
-        return { output: "Cluster is still booting — try again in a moment.", isError: true };
+        return { output: "Cluster is still booting: try again in a moment.", isError: true };
       }
       markAttempted();
       const result = await sim.engine.runCommand(line, NAMESPACE, useLevelStore.getState().files);
@@ -309,7 +311,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
       if (!result.ok) {
         setApplyFeedback({
           tone: "error",
-          title: "Changes were not applied",
+          title: isBuild ? "Static review could not run" : "Changes were not applied",
           message: result.error,
         });
         return;
@@ -317,17 +319,19 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
       const resources = result.value.map(({ kind, name }) => `${kind}/${name}`);
       setApplyFeedback({
         tone: "success",
-        title: "Changes applied",
+        title: isBuild ? "Static review completed" : "Changes applied",
         message:
           resources.length > 0
-            ? resources.join(", ")
+            ? isBuild
+              ? `${resources.length} submitted resources were assessed.`
+              : resources.join(", ")
             : "The manifest was accepted. No resources changed.",
       });
       scheduleChecks();
     } finally {
       setApplying(false);
     }
-  }, [sim, level.files, scheduleChecks, markAttempted]);
+  }, [sim, level.files, scheduleChecks, markAttempted, isBuild]);
 
   const handleReset = useCallback(async () => {
     setApplyFeedback(null);
@@ -445,7 +449,6 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
     .filter((h) => revealedHintIds.includes(h.id))
     .reduce((sum, h) => sum + h.xpPenalty, 0);
   const netXp = Math.max(0, level.xp - hintPenalty);
-
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col gap-2 overflow-x-auto p-3">
       {sim.error ? (
@@ -467,7 +470,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
         onLayoutChanged={columnsLayout.onLayoutChanged}
         className="min-h-0 min-w-[1080px] flex-1"
       >
-        {/* Left rail — resizable; one scroll container, cards keep their natural height. */}
+        {/* Left rail: resizable; one scroll container, cards keep their natural height. */}
         <ResizablePane
           id="rail-left"
           defaultSize="23%"
@@ -507,7 +510,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
 
         <ResizableHandle orientation="vertical" aria-label="Resize incident rail" />
 
-        {/* Center column — vertical split so the editor height is adjustable. */}
+        {/* Center column: vertical split so the editor height is adjustable. */}
         <ResizablePane id="center" minSize="28%" className="h-full">
           <ResizableGroup
             orientation="vertical"
@@ -516,7 +519,116 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
             onLayoutChanged={centerLayout.onLayoutChanged}
             className="h-full"
           >
-            <ResizablePane id="center-top" defaultSize="52%" minSize="18%" className="h-full">
+            {/* The manifest is the primary work surface. Investigation tools sit below it. */}
+            <ResizablePane id="center-editor" defaultSize="58%" minSize="22%" className="h-full">
+              <Panel className="h-full">
+                <div
+                  role="tablist"
+                  aria-label="Problem files"
+                  className="border-border flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5"
+                >
+                  {visibleFiles.map((file) => {
+                    const active = file.path === activeFilePath;
+                    return (
+                      <button
+                        key={file.path}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        aria-controls="problem-file-editor"
+                        onClick={() => setActiveFile(file.path)}
+                        className={cn(
+                          "flex h-9 shrink-0 items-center gap-1.5 border-b-2 px-2 font-mono text-xs transition-colors",
+                          active
+                            ? "border-foreground text-foreground"
+                            : "text-muted hover:text-foreground border-transparent",
+                        )}
+                      >
+                        <icons.yaml className="text-subtle size-3.5" aria-hidden />
+                        <span>{file.path}</span>
+                        {file.access === "readonly" ? (
+                          <icons.lock className="text-subtle size-3" aria-hidden />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                <PanelHeader
+                  title={
+                    activeFile?.access === "readonly"
+                      ? isBuild
+                        ? "Architecture reference"
+                        : "Reference manifest"
+                      : isBuild
+                        ? "Architecture manifests"
+                        : "Editable manifest"
+                  }
+                  icon={<icons.yaml />}
+                  actions={
+                    <div className="flex items-center gap-1.5">
+                      <ToolbarButton
+                        onClick={() => void handleApply()}
+                        disabled={applying || !sim.ready}
+                        primary
+                      >
+                        <icons.run aria-hidden />
+                        {applying
+                          ? isBuild
+                            ? "Reviewing..."
+                            : "Applying..."
+                          : isBuild
+                            ? "Run Static Review"
+                            : "Apply Changes"}
+                      </ToolbarButton>
+                      <ToolbarButton
+                        onClick={() => void handleValidate()}
+                        disabled={validating || !sim.ready}
+                        primary
+                      >
+                        <icons.validate aria-hidden />
+                        {validating
+                          ? "Validating..."
+                          : isBuild
+                            ? "Submit Static Review"
+                            : "Run Validation"}
+                      </ToolbarButton>
+                      <ToolbarButton onClick={() => setCenterTab("diff")}>
+                        <icons.diff aria-hidden />
+                        Show Diff
+                      </ToolbarButton>
+                      <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
+                        <icons.reset aria-hidden />
+                        Reset
+                      </ToolbarButton>
+                    </div>
+                  }
+                />
+                {applyFeedback ? (
+                  <ApplyFeedbackBanner
+                    feedback={applyFeedback}
+                    onDismiss={() => setApplyFeedback(null)}
+                  />
+                ) : null}
+                <div id="problem-file-editor" role="tabpanel" className="min-h-0 flex-1">
+                  <ErrorBoundary label="Editor">
+                    <YamlEditor
+                      path={activeFilePath || "manifest.yaml"}
+                      value={files[activeFilePath] ?? ""}
+                      readOnly={activeFile?.access !== "editable"}
+                      onChange={(value) => {
+                        if (activeFile?.access !== "editable") return;
+                        setApplyFeedback(null);
+                        setFile(activeFilePath, value);
+                      }}
+                    />
+                  </ErrorBoundary>
+                </div>
+              </Panel>
+            </ResizablePane>
+
+            <ResizableHandle orientation="horizontal" aria-label="Resize investigation tools" />
+
+            <ResizablePane id="center-tools" minSize="18%" className="h-full">
               <Panel className="h-full">
                 <div className="border-border flex h-10 shrink-0 items-center justify-between gap-2 border-b pr-2">
                   <div className="flex items-center">
@@ -582,9 +694,13 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                           terminalRunnerRef.current = run;
                         }}
                         welcome={[
-                          "klab simulated shell — type 'help' for commands.",
+                          "klab simulated shell, type 'help' for commands.",
                           `Engine: ${
-                            level.engine.kind === "webernetes" ? "Webernetes" : "scripted incident"
+                            level.engine.kind === "webernetes"
+                              ? "Webernetes"
+                              : isBuild
+                                ? "static architecture policy review"
+                                : "scripted incident"
                           }`,
                           `Try: ${level.quickCommands[0]?.command ?? "kubectl get pods"}`,
                         ]}
@@ -617,105 +733,12 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                 </div>
               </Panel>
             </ResizablePane>
-
-            <ResizableHandle orientation="horizontal" aria-label="Resize editor height" />
-
-            {/* Editor */}
-            <ResizablePane id="center-editor" minSize="18%" className="h-full">
-              <Panel className="h-full">
-                <div
-                  role="tablist"
-                  aria-label="Problem files"
-                  className="border-border flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5"
-                >
-                  {visibleFiles.map((file) => {
-                    const active = file.path === activeFilePath;
-                    return (
-                      <button
-                        key={file.path}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        aria-controls="problem-file-editor"
-                        onClick={() => setActiveFile(file.path)}
-                        className={cn(
-                          "flex h-9 shrink-0 items-center gap-1.5 border-b-2 px-2 font-mono text-xs transition-colors",
-                          active
-                            ? "border-foreground text-foreground"
-                            : "text-muted hover:text-foreground border-transparent",
-                        )}
-                      >
-                        <icons.yaml className="text-subtle size-3.5" aria-hidden />
-                        <span>{file.path}</span>
-                        {file.access === "readonly" ? (
-                          <icons.lock className="text-subtle size-3" aria-hidden />
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-                <PanelHeader
-                  title={
-                    activeFile?.access === "readonly" ? "Reference manifest" : "Editable manifest"
-                  }
-                  icon={<icons.yaml />}
-                  actions={
-                    <div className="flex items-center gap-1.5">
-                      <ToolbarButton
-                        onClick={() => void handleApply()}
-                        disabled={applying || !sim.ready}
-                        primary
-                      >
-                        <icons.run aria-hidden />
-                        {applying ? "Applying…" : "Apply Changes"}
-                      </ToolbarButton>
-                      <ToolbarButton
-                        onClick={() => void handleValidate()}
-                        disabled={validating || !sim.ready}
-                        primary
-                      >
-                        <icons.validate aria-hidden />
-                        {validating ? "Validating…" : "Run Validation"}
-                      </ToolbarButton>
-                      <ToolbarButton onClick={() => setCenterTab("diff")}>
-                        <icons.diff aria-hidden />
-                        Show Diff
-                      </ToolbarButton>
-                      <ToolbarButton onClick={() => void handleReset()} disabled={!sim.ready}>
-                        <icons.reset aria-hidden />
-                        Reset
-                      </ToolbarButton>
-                    </div>
-                  }
-                />
-                {applyFeedback ? (
-                  <ApplyFeedbackBanner
-                    feedback={applyFeedback}
-                    onDismiss={() => setApplyFeedback(null)}
-                  />
-                ) : null}
-                <div id="problem-file-editor" role="tabpanel" className="min-h-0 flex-1">
-                  <ErrorBoundary label="Editor">
-                    <YamlEditor
-                      path={activeFilePath || "manifest.yaml"}
-                      value={files[activeFilePath] ?? ""}
-                      readOnly={activeFile?.access !== "editable"}
-                      onChange={(value) => {
-                        if (activeFile?.access !== "editable") return;
-                        setApplyFeedback(null);
-                        setFile(activeFilePath, value);
-                      }}
-                    />
-                  </ErrorBoundary>
-                </div>
-              </Panel>
-            </ResizablePane>
           </ResizableGroup>
         </ResizablePane>
 
         <ResizableHandle orientation="vertical" aria-label="Resize cluster rail" />
 
-        {/* Right rail — explorer/details and topology, each resizable. */}
+        {/* Right rail: explorer/details and topology, each resizable. */}
         <ResizablePane
           id="rail-right"
           defaultSize="26%"
@@ -730,9 +753,36 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
             onLayoutChanged={rightLayout.onLayoutChanged}
             className="h-full"
           >
+            <ResizablePane id="topology" defaultSize="34%" minSize="15%" className="h-full">
+              <Panel className="h-full">
+                <PanelHeader
+                  title={isBuild ? "Design Inventory" : "Service Topology"}
+                  icon={isBuild ? <icons.cluster /> : <icons.service />}
+                />
+                <PanelBody scroll={false} className="p-0">
+                  <ErrorBoundary label="Topology">
+                    {isBuild ? (
+                      <ArchitectureInventory level={level} files={files} />
+                    ) : (
+                      <ServiceTopology
+                        snapshot={sim.snapshot}
+                        namespaces={workspaceNamespaces}
+                        onSelect={inspectTopology}
+                      />
+                    )}
+                  </ErrorBoundary>
+                </PanelBody>
+              </Panel>
+            </ResizablePane>
+
+            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
+
             <ResizablePane id="cluster" minSize="30%" className="h-full">
               <Panel className="h-full">
-                <PanelHeader title="Cluster Explorer" icon={<icons.cluster />} />
+                <PanelHeader
+                  title={isBuild ? "Static Review Runtime" : "Cluster Explorer"}
+                  icon={<icons.cluster />}
+                />
                 <ResizableGroup
                   orientation="vertical"
                   id="level-explorer"
@@ -764,23 +814,6 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                 </ResizableGroup>
               </Panel>
             </ResizablePane>
-
-            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
-
-            <ResizablePane id="topology" defaultSize="30%" minSize="15%" className="h-full">
-              <Panel className="h-full">
-                <PanelHeader title="Service Topology" icon={<icons.service />} />
-                <PanelBody scroll={false} className="p-0">
-                  <ErrorBoundary label="Topology">
-                    <ServiceTopology
-                      snapshot={sim.snapshot}
-                      namespaces={workspaceNamespaces}
-                      onSelect={inspectTopology}
-                    />
-                  </ErrorBoundary>
-                </PanelBody>
-              </Panel>
-            </ResizablePane>
           </ResizableGroup>
         </ResizablePane>
       </ResizableGroup>
@@ -795,7 +828,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   );
 }
 
-/** The simulator's own lifecycle — deliberately labeled so it can't be read as cluster health. */
+/** The simulator's own lifecycle: deliberately labeled so it can't be read as cluster health. */
 function ApplyFeedbackBanner({
   feedback,
   onDismiss,
@@ -850,7 +883,7 @@ function ScenarioStatus({ status }: { status: string }) {
   );
 }
 
-/** The challenge's live health — the thing the learner is actually fixing. */
+/** The challenge's live health: the thing the learner is actually fixing. */
 function ChallengeStatus({ failing, total }: { failing: number | null; total: number }) {
   if (failing === null) {
     return (
@@ -862,7 +895,7 @@ function ChallengeStatus({ failing, total }: { failing: number | null; total: nu
   if (failing === 0) {
     return (
       <span className="border-green/40 bg-green/10 text-green rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap">
-        Challenge passing — run validation
+        Challenge passing: run validation
       </span>
     );
   }

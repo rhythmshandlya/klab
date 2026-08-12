@@ -22,7 +22,7 @@ import type { schema } from "./schema";
  * Server-side progress persistence. Every intent lowers to an idempotent, keyed
  * operation so applying a batch twice equals applying it once (safe under client
  * retries, concurrent devices, and guest→account merge). `readProgress` PROJECTS the
- * grow-only rows back into the exact `Progress` DTO the client already understands —
+ * grow-only rows back into the exact `Progress` DTO the client already understands:
  * XP/streak/penalty are derived here, never stored as mutable totals.
  *
  * Typed against Drizzle's base `PgDatabase` so the same code runs on the Neon driver

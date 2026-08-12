@@ -4,7 +4,7 @@ import { jsonResponse, textResponse } from "./http";
 import { logSink } from "./log-sink";
 
 /**
- * `klab/worker:1.0.0` — a queue worker that REQUIRES a `DATABASE_URL` env var.
+ * `klab/worker:1.0.0`: a queue worker that REQUIRES a `DATABASE_URL` env var.
  * NOT a real OCI image.
  *
  * Behavior:
@@ -33,13 +33,13 @@ export class WorkerImage extends BaseImage {
     log(`worker v${WorkerImage.imageVersion} starting`);
     const databaseUrl = ctx.env.get("DATABASE_URL");
     if (!databaseUrl) {
-      log("FATAL: DATABASE_URL is not set — cannot connect to the job queue, exiting");
+      log("FATAL: DATABASE_URL is not set: cannot connect to the job queue, exiting");
       return 1;
     }
 
     const port = toPort(ctx.env.get("PORT"), 8080);
     log(`connected to ${databaseUrl}`);
-    log(`listening on :${port} — health probe at GET /healthz`);
+    log(`listening on :${port}: health probe at GET /healthz`);
 
     ctx.listenHttp(port, async (_ctx, request) => {
       const path = request.url.pathname;

@@ -41,7 +41,9 @@ export function IncidentBrief() {
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge tone={SEVERITY_TONE[level.severity]}>
               <Warning aria-hidden />
-              <span className="capitalize">{level.severity} severity</span>
+              <span className="capitalize">
+                {level.severity} {level.challengeMode === "build" ? "criticality" : "severity"}
+              </span>
             </Badge>
             <Badge tone="neutral">
               Kubernetes {level.kubernetesVersion.min}-{level.kubernetesVersion.max}
@@ -55,6 +57,19 @@ export function IncidentBrief() {
         </div>
 
         <p className="text-muted text-sm leading-relaxed">{level.story}</p>
+
+        <div className="border-blue/30 bg-blue/10 rounded-md border p-3">
+          <p className="text-foreground text-xs font-semibold">
+            {level.challengeMode === "build"
+              ? "Static architecture review"
+              : "Static repair review"}
+          </p>
+          <p className="text-muted mt-1 text-xs leading-relaxed">
+            {level.challengeMode === "build"
+              ? "KLab checks submitted manifests, required fields, and resource relationships. It does not provision a real cluster or prove the stated SLO and failure scenarios."
+              : "KLab checks the submitted repair and key Kubernetes relationships. Use the production runbook below to investigate the equivalent incident on a real cluster."}
+          </p>
+        </div>
 
         <Section label="Objective">
           <p className="text-foreground text-sm">{level.objective}</p>
@@ -84,6 +99,25 @@ export function IncidentBrief() {
             <p className="text-subtle mt-1 text-xs leading-relaxed">
               {level.incidentSource.adaptationNote}
             </p>
+          </Section>
+        ) : null}
+
+        {level.referenceCommands?.length ? (
+          <Section label="Production runbook">
+            <p className="text-subtle mb-2 text-xs leading-relaxed">
+              Reference commands for a real cluster. The simulated terminal only inspects
+              KLab&apos;s static review runtime.
+            </p>
+            <ul className="space-y-1.5">
+              {level.referenceCommands.map((command) => (
+                <li
+                  key={command}
+                  className="border-border bg-panel-elevated text-muted overflow-x-auto rounded border px-2 py-1.5 font-mono text-[11px]"
+                >
+                  {command}
+                </li>
+              ))}
+            </ul>
           </Section>
         ) : null}
 

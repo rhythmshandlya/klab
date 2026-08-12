@@ -12,7 +12,7 @@ import {
 /**
  * Signed-in progress sync. GET returns the server-derived Progress snapshot; POST
  * applies a batch of idempotent intents and returns the fresh snapshot. Guests never
- * reach here (their RemoteBackend is inactive) — but we still gate on config + session
+ * reach here (their RemoteBackend is inactive), but we still gate on config + session
  * so the route is safe when auth is off (501) or unauthenticated (401).
  */
 

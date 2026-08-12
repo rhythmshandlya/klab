@@ -1,10 +1,10 @@
 /**
- * klab design tokens — single source of truth.
+ * klab design tokens: single source of truth.
  *
  * These values are mirrored into CSS custom properties in `src/app/globals.css`
  * via Tailwind v4's `@theme`. Prefer the Tailwind utility classes (e.g. `bg-panel`,
  * `text-muted`) in components. Import these raw values only where a JS API needs a
- * literal color: the Monaco theme, the xterm theme, and React Flow node styling —
+ * literal color: the Monaco theme, the xterm theme, and React Flow node styling:
  * places that cannot read Tailwind classes.
  *
  * Do not hardcode hex values elsewhere. Add a token here instead.
@@ -36,7 +36,7 @@ export const palette = {
 
 /**
  * Semantic status colors. Status is never conveyed by color alone in the UI
- * (see accessibility rules) — these pair with icons and text labels.
+ * (see accessibility rules): these pair with icons and text labels.
  */
 export const statusColor = {
   ready: palette.green,

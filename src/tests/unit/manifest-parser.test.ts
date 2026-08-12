@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseManifests, stringifyManifest } from "@/lib/kube/manifest-parser";
+import {
+  parseKubernetesManifests,
+  parseManifests,
+  stringifyManifest,
+} from "@/lib/kube/manifest-parser";
 
 const DEPLOYMENT_AND_SERVICE = `
 apiVersion: apps/v1
@@ -55,6 +59,20 @@ describe("parseManifests", () => {
     if (result.ok) return;
     expect(result.error.message).toContain("Unsupported kind");
     expect(result.error.message).toContain("Deployment");
+  });
+
+  it("accepts structurally valid resources for policy and architecture assessment", () => {
+    const result = parseKubernetesManifests(
+      "apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: api-budget",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value[0]).toMatchObject({
+      apiVersion: "policy/v1",
+      kind: "PodDisruptionBudget",
+      name: "api-budget",
+      namespace: "default",
+    });
   });
 
   it("rejects a manifest missing metadata.name", () => {

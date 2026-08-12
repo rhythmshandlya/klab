@@ -5,12 +5,12 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
 /**
  * Level: Config Drift.
  *
- * A config change set PORT=9090 on the container, but everything else — probes,
- * containerPort, Service targetPort — still says 8080. The app honestly reports its
+ * A config change set PORT=9090 on the container, but everything else: probes,
+ * containerPort, Service targetPort: still says 8080. The app honestly reports its
  * port in the logs; nothing else agrees with it. Teaches coherence between env
  * config, probes, and Service ports. Fix: remove (or correct) the drifted PORT env.
  *
- * (The reference design calls this slot "ConfigMap Drift" — the simulator has no
+ * (The reference design calls this slot "ConfigMap Drift": the simulator has no
  * ConfigMap support, so the same drift story is told through env config.)
  */
 
@@ -74,7 +74,7 @@ export const configDrift = {
   concepts: ["deployments", "networking", "readiness-probes", "debugging"],
   blurb: "One config value moved and nothing else was told. Now nothing agrees.",
   story:
-    "A 'standardization' PR from three weeks ago is finally rolling out, and web-app is down. The manifest looks textbook: probe on 8080, containerPort 8080, Service targeting 8080 — all beautifully consistent. The app disagrees with all of them, and it left you a note saying exactly where it went.",
+    "A 'standardization' PR from three weeks ago is finally rolling out, and web-app is down. The manifest looks textbook: probe on 8080, containerPort 8080, Service targeting 8080: all beautifully consistent. The app disagrees with all of them, and it left you a note saying exactly where it went.",
   objective: "Bring the app, its probes, and the Service back into agreement (HTTP 200).",
   learningObjectives: [
     "Compare declared ports with the process's observed listener.",
@@ -201,7 +201,7 @@ export const configDrift = {
     {
       id: "hint-1",
       title: "The manifest can be consistent AND wrong",
-      body: "Probe, containerPort, Service — all say 8080, all agree. The only voice missing is the app's own. `kubectl logs <pod>`: which port does it SAY it's listening on?",
+      body: "Probe, containerPort, Service: all say 8080, all agree. The only voice missing is the app's own. `kubectl logs <pod>`, which port does it SAY it's listening on?",
       xpPenalty: 40,
     },
     {
@@ -269,7 +269,7 @@ export const configDrift = {
     rootCause:
       "A PORT=9090 env var made the app listen on 9090 while the probe, containerPort, and Service all still pointed at 8080.",
     whyItFailed:
-      "Config drift: one value moved and its dependents didn't. The app (honestly) bound :9090; the kubelet probed :8080 and found nothing, so pods never went Ready and the Service had no endpoints. Every declared port agreed with every other declared port — just not with reality.",
+      "Config drift: one value moved and its dependents didn't. The app (honestly) bound :9090; the kubelet probed :8080 and found nothing, so pods never went Ready and the Service had no endpoints. Every declared port agreed with every other declared port: just not with reality.",
     whatFixedIt:
       "Removing the drifted PORT env restored the app's default of 8080, matching the probe and the Service's targetPort. Pods went Ready and traffic flowed.",
     prevention:

@@ -8,6 +8,9 @@ vi.mock("@/lib/auth/client", () => ({
   signIn: { social: vi.fn(), email: vi.fn(), magicLink: vi.fn() },
   signUp: { email: vi.fn() },
 }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
 
 import { AuthMenu } from "@/components/auth/auth-menu";
 import { signOut, useSession } from "@/lib/auth/client";

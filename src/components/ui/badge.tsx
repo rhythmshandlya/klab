@@ -8,7 +8,7 @@ const badgeVariants = cva(
   {
     variants: {
       /**
-       * Tone is paired with an icon or text label at the call site — color is never
+       * Tone is paired with an icon or text label at the call site: color is never
        * the sole status indicator (accessibility rule).
        */
       tone: {

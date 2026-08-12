@@ -17,7 +17,7 @@ export const whatIsKubernetes: Mission = {
     {
       kind: "teach",
       id: "intro",
-      idea: "Kubernetes keeps your apps running by constantly comparing what you asked for against what is actually running — and fixing the gap.",
+      idea: "Kubernetes keeps your apps running by constantly comparing what you asked for against what is actually running, and fixing the gap.",
       visual: { mode: "concept", variant: "control-loop", buildToStep: 0 },
       ack: "Show me",
     },
@@ -36,7 +36,7 @@ export const whatIsKubernetes: Mission = {
         options: [
           {
             id: "a",
-            text: "Nothing — you must restart it",
+            text: "Nothing: you must restart it",
             correct: false,
             explain: "That would be imperative. Kubernetes is declarative.",
           },
@@ -44,7 +44,7 @@ export const whatIsKubernetes: Mission = {
             id: "b",
             text: "Starts a replacement to get back to 3",
             correct: true,
-            explain: "Exactly — the control loop reconciles actual back to desired.",
+            explain: "Exactly: the control loop reconciles actual back to desired.",
           },
         ],
         reveal:
@@ -93,7 +93,7 @@ export const whatIsKubernetes: Mission = {
       check: { kind: "pods-ready", selector: { app: "web" }, minReady: 1 },
       hint: "Click Apply, then watch the Ready Pods metric. No edits needed for your first one.",
       debrief:
-        "You declared a Pod and the cluster made it real. You did not start a container — you described one, and the control loop did the rest.",
+        "You declared a Pod and the cluster made it real. You did not start a container: you described one, and the control loop did the rest.",
     },
     {
       kind: "debrief",
@@ -103,7 +103,7 @@ export const whatIsKubernetes: Mission = {
       takeaways: [
         "Kubernetes is declarative: you own spec, controllers own status.",
         "Reconciliation continuously drives actual state toward desired state.",
-        "A Pod is the smallest deployable unit — one or more containers sharing a network identity.",
+        "A Pod is the smallest deployable unit: one or more containers sharing a network identity.",
       ],
     },
   ],

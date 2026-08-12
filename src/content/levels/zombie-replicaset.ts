@@ -7,10 +7,10 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  *
  * An orphaned ReplicaSet from a pre-Deployment era still runs one legacy pod. Its
  * /healthz passes (so it's READY and joins web-svc), but every real request answers
- * 500 — poisoning a share of traffic. Teaches: Services select by LABELS, not by
+ * 500: poisoning a share of traffic. Teaches: Services select by LABELS, not by
  * ownership; count your endpoints. Fix: scale the zombie to 0 (or delete it).
  *
- * (The reference design lists "StatefulSet Orphaned PVCs" in this slot — the
+ * (The reference design lists "StatefulSet Orphaned PVCs" in this slot: the
  * simulator has no StatefulSet/PVC support, so the same "orphaned workload
  * haunts production" lesson is told through a ReplicaSet.)
  */
@@ -106,8 +106,8 @@ export const zombieReplicaset = {
   concepts: ["replicasets", "labels-selectors", "services", "rollouts", "debugging"],
   blurb: "Roughly a third of requests fail. The other two thirds are perfect.",
   story:
-    "Support tickets say checkout 'sometimes' errors — retry and it works. Your dashboards agree: a stubborn ~33% error rate, day and night. The web Deployment is green: 2/2 Ready, all probes passing. But web-svc keeps answering 500 to every third visitor, like something is haunting the rotation.",
-  objective: "Make EVERY request through web-svc return 200 — retire whatever is poisoning it.",
+    "Support tickets say checkout 'sometimes' errors: retry and it works. Your dashboards agree: a stubborn ~33% error rate, day and night. The web Deployment is green: 2/2 Ready, all probes passing. But web-svc keeps answering 500 to every third visitor, like something is haunting the rotation.",
+  objective: "Make EVERY request through web-svc return 200: retire whatever is poisoning it.",
   learningObjectives: [
     "Use ownership and ReplicaSet inventory to find workloads outside a Deployment view.",
     "Explain why a broad Service selector can route to healthy but obsolete Pods.",
@@ -119,7 +119,7 @@ export const zombieReplicaset = {
   constraints: [
     {
       id: "edit-legacy",
-      label: "Only edit legacy-rs.yaml — the Deployment and Service are correct",
+      label: "Only edit legacy-rs.yaml: the Deployment and Service are correct",
       kind: "editable-files",
       paths: ["legacy-rs.yaml"],
     },
@@ -216,14 +216,14 @@ export const zombieReplicaset = {
     {
       id: "hint-2",
       title: "Who owns the extra pod?",
-      body: "There's a third pod behind web-svc that the Deployment doesn't own. `kubectl get pods` and `kubectl get rs` — Services select by LABELS (app=web), not by owner. Something old still matches.",
+      body: "There's a third pod behind web-svc that the Deployment doesn't own. `kubectl get pods` and `kubectl get rs`: Services select by LABELS (app=web), not by owner. Something old still matches.",
       xpPenalty: 60,
       unlockAfter: ["r-three-endpoints"],
     },
     {
       id: "hint-3",
       title: "Retire the zombie",
-      body: "web-legacy is an orphaned ReplicaSet running the retired 0.9.0 build — healthy enough to pass probes, broken for real traffic. Scale it to replicas: 0 in legacy-rs.yaml and Apply (deleting it works too).",
+      body: "web-legacy is an orphaned ReplicaSet running the retired 0.9.0 build: healthy enough to pass probes, broken for real traffic. Scale it to replicas: 0 in legacy-rs.yaml and Apply (deleting it works too).",
       xpPenalty: 80,
       unlockAfter: ["r-legacy-rs"],
     },
@@ -240,7 +240,7 @@ export const zombieReplicaset = {
     {
       id: "r-three-endpoints",
       evidenceId: "three-endpoints",
-      label: "web-svc has THREE endpoints — the Deployment only runs two",
+      label: "web-svc has THREE endpoints: the Deployment only runs two",
       hiddenLabel: "Endpoint count audited",
       source: "terminal",
       trigger: {
@@ -312,7 +312,7 @@ export const zombieReplicaset = {
     rootCause:
       "An orphaned ReplicaSet (web-legacy) kept one retired 0.9.0 pod alive, and web-svc's selector (app=web) matched it.",
     whyItFailed:
-      "Services route by labels, not by ownership. The legacy pod's /healthz still returned 200, so it was Ready and took a full share of traffic — then answered 500 to every real request. Three endpoints, one poisoned: a stable ~33% error rate that no Deployment dashboard would ever show.",
+      "Services route by labels, not by ownership. The legacy pod's /healthz still returned 200, so it was Ready and took a full share of traffic, then answered 500 to every real request. Three endpoints, one poisoned: a stable ~33% error rate that no Deployment dashboard would ever show.",
     whatFixedIt:
       "Scaling web-legacy to zero removed the poisoned pod from the EndpointSlice, leaving only the stable pods behind web-svc. Every request now returns 200. (Longer term: delete the orphan and tighten the Service selector, e.g. app=web,track=stable.)",
     prevention:

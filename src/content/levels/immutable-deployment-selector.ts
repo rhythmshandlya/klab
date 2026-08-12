@@ -7,7 +7,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  *
  * The routing team updated search-svc to select pods carrying `tier: api`. The search
  * pods lack that label, so the Service has no endpoints. A teammate tried to add the
- * label by editing the Deployment's spec.selector — but Deployment selectors are
+ * label by editing the Deployment's spec.selector, but Deployment selectors are
  * immutable, so the apply was rejected. The fix is to leave the selector alone and add
  * `tier: api` to the pod template labels, which the controller then propagates.
  */
@@ -67,11 +67,11 @@ export const immutableDeploymentSelector = {
   successRate: 47,
   concepts: ["deployments", "labels-selectors", "rollouts", "debugging"],
   blurb:
-    "The teammate edited the wrong field and the API pushed back. The pods are healthy — they just aren't selected.",
+    "The teammate edited the wrong field and the API pushed back. The pods are healthy: they just aren't selected.",
   story:
-    "The routing team moved search-svc onto a tier-based selector so only `tier: api` pods receive traffic. A teammate tried to add the `tier: api` label by editing the Deployment's spec.selector — the apply failed with `field is immutable`, so the selector is still just {app: search}. The pods are Running and Ready, but their template labels never gained `tier: api`, so search-svc matches nothing and returns 503. Add the label the right way.",
+    "The routing team moved search-svc onto a tier-based selector so only `tier: api` pods receive traffic. A teammate tried to add the `tier: api` label by editing the Deployment's spec.selector: the apply failed with `field is immutable`, so the selector is still just {app: search}. The pods are Running and Ready, but their template labels never gained `tier: api`, so search-svc matches nothing and returns 503. Add the label the right way.",
   objective:
-    "Make search-svc route to the search pods by labeling pods correctly — without touching the immutable selector.",
+    "Make search-svc route to the search pods by labeling pods correctly: without touching the immutable selector.",
   learningObjectives: [
     "Recognize that a Deployment's spec.selector is immutable after creation.",
     "Migrate labels safely through the pod template rather than the selector.",
@@ -184,7 +184,7 @@ export const immutableDeploymentSelector = {
     {
       id: "hint-1",
       title: "The pods are fine, the Service is empty",
-      body: "`kubectl get pods` shows Ready pods, but `kubectl get endpoints search-svc` is empty. The Service selector and the pod labels do not agree — which label is missing on the pods?",
+      body: "`kubectl get pods` shows Ready pods, but `kubectl get endpoints search-svc` is empty. The Service selector and the pod labels do not agree, which label is missing on the pods?",
       xpPenalty: 25,
     },
     {
@@ -239,7 +239,7 @@ export const immutableDeploymentSelector = {
     {
       id: "r-service-503",
       evidenceId: "service-503",
-      label: "search-svc returns 503 — no pods match its selector",
+      label: "search-svc returns 503: no pods match its selector",
       hiddenLabel: "Service reachability tested",
       source: "network",
       trigger: {
@@ -254,11 +254,11 @@ export const immutableDeploymentSelector = {
     rootCause:
       "The search pods lacked the `tier: api` label that search-svc selects, so the Service had no ready endpoints.",
     whyItFailed:
-      "A teammate reached for spec.selector to add the label, but Deployment selectors are immutable — Kubernetes rejected the apply with `field is immutable`, and the pod template was never updated. The selector lives in two places: the immutable selector (which pods the Deployment adopts) and the mutable template labels (which labels new pods receive). Only the template can be changed.",
+      "A teammate reached for spec.selector to add the label, but Deployment selectors are immutable: Kubernetes rejected the apply with `field is immutable`, and the pod template was never updated. The selector lives in two places: the immutable selector (which pods the Deployment adopts) and the mutable template labels (which labels new pods receive). Only the template can be changed.",
     whatFixedIt:
       "Leaving spec.selector as {app: search} and adding tier: api to spec.template.metadata.labels let the controller create pods that carry tier: api, which then matched search-svc.",
     prevention:
-      "Design selectors up front (ideally a single stable label like app) and propagate routing or tier labels through the pod template. Never attempt to mutate a Deployment selector in place — if it must change, migrate to a new Deployment.",
+      "Design selectors up front (ideally a single stable label like app) and propagate routing or tier labels through the pod template. Never attempt to mutate a Deployment selector in place: if it must change, migrate to a new Deployment.",
     relatedConcepts: ["deployments", "labels-selectors", "rollouts"],
     recommendedNextSlugs: ["zombie-replicaset"],
   },

@@ -1,5 +1,5 @@
 /**
- * Result — an explicit success/failure value for user-facing operations
+ * Result: an explicit success/failure value for user-facing operations
  * (command execution, manifest parsing, validation). Prefer this over throwing
  * for expected failures so the UI can render a helpful message instead of a crash.
  * Reserve thrown errors + `invariant` for programmer errors.

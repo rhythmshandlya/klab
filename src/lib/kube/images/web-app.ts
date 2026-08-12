@@ -4,18 +4,18 @@ import { htmlResponse, textResponse } from "./http";
 import { logSink } from "./log-sink";
 
 /**
- * `klab/web-app:1.0.0` — a simple web server used across levels and docs.
+ * `klab/web-app:1.0.0`: a simple web server used across levels and docs.
  *
  * NOT a real OCI image: this is a TypeScript fake whose behavior is defined here.
  *
  * Endpoints:
- *   GET /healthz -> 200  (health/liveness signal — always healthy)
+ *   GET /healthz -> 200  (health/liveness signal: always healthy)
  *   GET /readyz  -> 404  (this app has no /readyz; used by the readiness-probe level)
  *   GET /        -> 200  (landing response, reached only when routed via a Service
  *                         that has this pod as a ready endpoint)
  *
  * The readiness-probe puzzle is a YAML mistake (probing /readyz instead of /healthz),
- * not an app bug — so the app's behavior here is fixed and correct.
+ * not an app bug, so the app's behavior here is fixed and correct.
  */
 export class WebAppImage extends BaseImage {
   static readonly imageName = "klab/web-app";
@@ -36,7 +36,7 @@ export class WebAppImage extends BaseImage {
       });
 
     log(`web-app v${WebAppImage.imageVersion} starting`);
-    log(`listening on :${port} — health probe at GET /healthz`);
+    log(`listening on :${port}: health probe at GET /healthz`);
 
     ctx.listenHttp(port, async (_ctx, request) => {
       const path = request.url.pathname;

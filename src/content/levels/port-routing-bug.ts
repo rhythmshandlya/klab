@@ -6,7 +6,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * Level: Port Routing Bug.
  *
  * The Service's targetPort is 3000 but the container listens on 8080. Selection works
- * (endpoints exist, pods Ready) — the request dies on the last hop, connecting to a
+ * (endpoints exist, pods Ready): the request dies on the last hop, connecting to a
  * port nothing listens on. Teaches the port chain: Service port → targetPort →
  * containerPort. Fix: targetPort 8080 in service.yaml.
  */
@@ -66,7 +66,7 @@ export const portRoutingBug = {
   estimatedMinutes: 18,
   successRate: 81,
   concepts: ["services", "networking", "endpoints", "debugging"],
-  blurb: "Requests hit the Service, the Service has endpoints — and then nothing.",
+  blurb: "Requests hit the Service, the Service has endpoints, and then nothing.",
   story:
     "After a config cleanup PR, web-svc went dark. The strange part: the pods are Ready, and the Service even lists endpoints. Requests just… never come back. The wiring looks fine until the very last hop.",
   objective: "Make requests through web-svc reach the app again (HTTP 200).",
@@ -81,7 +81,7 @@ export const portRoutingBug = {
   constraints: [
     {
       id: "edit-svc-only",
-      label: "Only edit service.yaml — the Deployment is correct",
+      label: "Only edit service.yaml: the Deployment is correct",
       kind: "editable-files",
       paths: ["service.yaml"],
     },
@@ -193,7 +193,7 @@ export const portRoutingBug = {
     {
       id: "r-endpoints-exist",
       evidenceId: "endpoints-exist",
-      label: "web-svc HAS endpoints — selection is fine",
+      label: "web-svc HAS endpoints: selection is fine",
       hiddenLabel: "Service endpoints inspected",
       source: "terminal",
       trigger: {
@@ -242,7 +242,7 @@ export const portRoutingBug = {
   postSolveExplanation: {
     rootCause: "The Service's targetPort (3000) didn't match the container's port (8080).",
     whyItFailed:
-      "Readiness and endpoint selection don't validate ports — the pods probed healthy on 8080 and were published as endpoints. But every request forwarded by the Service went to port 3000, where nothing was listening, so connections were refused.",
+      "Readiness and endpoint selection don't validate ports: the pods probed healthy on 8080 and were published as endpoints. But every request forwarded by the Service went to port 3000, where nothing was listening, so connections were refused.",
     whatFixedIt:
       "Setting targetPort to 8080 pointed the Service at the port the container actually binds. The port chain (80 → 8080 → 8080) lined up and requests completed.",
     prevention:

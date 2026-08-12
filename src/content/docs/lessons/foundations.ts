@@ -17,7 +17,7 @@ const whatIsKubernetes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A single container on a laptop is easy: you run it and watch it. Production is not that. You have dozens of containers spread over many machines, and each one can crash, get OOM-killed, or land on a node that fills up. If you manage this by hand you are forever answering the same questions: which machine has room, what do I restart when a process dies, how do clients find a container whose IP just changed, and how do I ship a new version without an outage. Container orchestration is the job of answering those questions automatically, continuously, for you.",
+      text: "A single container on a laptop is easy: you run it and watch it. Production is not that. You have dozens of containers spread over many machines, and each one can crash, get OOM-killed, or land on a node that fills up. If you manage this by hand you are forever answering the same questions, which machine has room, what do I restart when a process dies, how do clients find a container whose IP just changed, and how do I ship a new version without an outage. Container orchestration is the job of answering those questions automatically, continuously, for you.",
     },
     {
       type: "heading",
@@ -33,13 +33,13 @@ const whatIsKubernetes: DocsLesson = {
       variant: "control-loop",
       title: "The reconciliation loop",
       caption:
-        "Controllers watch desired vs. observed state and act to close the gap — forever, not once.",
+        "Controllers watch desired vs. observed state and act to close the gap: forever, not once.",
     },
     {
       type: "concept",
       term: "Reconciliation",
       definition:
-        "A controller is a loop that reads the desired state, observes the actual state, and takes one step to reduce the difference — then repeats. Nothing runs 'once and done'; the loop keeps running, which is exactly why a Pod you delete out of a managed set comes back.",
+        "A controller is a loop that reads the desired state, observes the actual state, and takes one step to reduce the difference, then repeats. Nothing runs 'once and done'; the loop keeps running, which is exactly why a Pod you delete out of a managed set comes back.",
     },
     {
       type: "callout",
@@ -74,7 +74,7 @@ const whatIsKubernetes: DocsLesson = {
         },
         {
           title: "Rollouts",
-          text: "A Deployment can shift traffic from an old Pod template to a new one gradually, and roll back if the new version fails its health checks — no big-bang replacement.",
+          text: "A Deployment can shift traffic from an old Pod template to a new one gradually, and roll back if the new version fails its health checks: no big-bang replacement.",
         },
         {
           title: "Config & secret management",
@@ -96,17 +96,17 @@ const whatIsKubernetes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "You express desired state as API objects, and every object — Pod, Service, Deployment — shares the same four-part skeleton: apiVersion, kind, metadata, and spec. Learn to read those four fields and you can read any manifest, even for a resource you have never seen.",
+      text: "You express desired state as API objects, and every object: Pod, Service, Deployment: shares the same four-part skeleton: apiVersion, kind, metadata, and spec. Learn to read those four fields and you can read any manifest, even for a resource you have never seen.",
     },
     {
       type: "annotatedCode",
       language: "yaml",
       title: "A minimal Pod",
-      caption: "The smallest useful desired-state object — the four fields every manifest carries.",
+      caption: "The smallest useful desired-state object: the four fields every manifest carries.",
       lines: [
         {
           code: "apiVersion: v1",
-          note: "which API group and version validates this object — a Pod lives in the core group, so it is v1 (not apps/v1)",
+          note: "which API group and version validates this object: a Pod lives in the core group, so it is v1 (not apps/v1)",
         },
         {
           code: "kind: Pod",
@@ -114,21 +114,21 @@ const whatIsKubernetes: DocsLesson = {
         },
         {
           code: "metadata:",
-          note: "identity: name, namespace, and labels — how everything else refers to this object",
+          note: "identity: name, namespace, and labels: how everything else refers to this object",
         },
         {
           code: "  name: web",
         },
         {
           code: "  labels:",
-          note: "arbitrary key:value tags — Services and controllers select objects by these",
+          note: "arbitrary key:value tags: Services and controllers select objects by these",
         },
         {
           code: "    app: web",
         },
         {
           code: "spec:",
-          note: "the DESIRED state — what you want to be true; the cluster works to make it so",
+          note: "the DESIRED state: what you want to be true; the cluster works to make it so",
         },
         {
           code: "  containers:",
@@ -162,7 +162,7 @@ const whatIsKubernetes: DocsLesson = {
       stages: [
         {
           label: "Identity",
-          note: "Start with the three fields that name the object: which API version, which kind, and a name. This is not yet runnable — there is no spec, so nothing to run.",
+          note: "Start with the three fields that name the object, which API version, which kind, and a name. This is not yet runnable: there is no spec, so nothing to run.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web",
         },
         {
@@ -185,7 +185,7 @@ const whatIsKubernetes: DocsLesson = {
     {
       type: "compare",
       caption:
-        "The imperative script runs once and is forgotten. The declarative object is stored and continuously enforced — that persistence is the whole point.",
+        "The imperative script runs once and is forgotten. The declarative object is stored and continuously enforced: that persistence is the whole point.",
       left: {
         title: "Imperative (do these steps)",
         code: "# a one-shot sequence of commands\ndocker run -d web-app:1.0.0\n# node dies -> nothing brings it back\n# you re-run the command yourself",
@@ -213,7 +213,7 @@ const whatIsKubernetes: DocsLesson = {
         "You apply this manifest and the API server rejects it with 'no matches for kind Pod in version apps/v1'. The container and image are fine. What is wrong?",
       code: "apiVersion: apps/v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
       answer:
-        "The apiVersion is wrong. A Pod belongs to the core API group, whose version is simply v1 — not apps/v1. The apps/v1 group is for higher-level workloads like Deployments, ReplicaSets, and StatefulSets. Change apiVersion: apps/v1 to apiVersion: v1 and the object validates. The kind and apiVersion must together name a real registered resource.",
+        "The apiVersion is wrong. A Pod belongs to the core API group, whose version is simply v1: not apps/v1. The apps/v1 group is for higher-level workloads like Deployments, ReplicaSets, and StatefulSets. Change apiVersion: apps/v1 to apiVersion: v1 and the object validates. The kind and apiVersion must together name a real registered resource.",
     },
     {
       type: "heading",
@@ -348,7 +348,7 @@ const clusterArchitecture: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Kubernetes cluster splits into two halves. The control plane stores the cluster's state and makes every decision about what should run where. The worker nodes are the machines that actually run your containers. You almost never talk to a node directly — you send a desired state to the API server, and a chain of specialized components turns that intent into running Pods.",
+      text: "A Kubernetes cluster splits into two halves. The control plane stores the cluster's state and makes every decision about what should run where. The worker nodes are the machines that actually run your containers. You almost never talk to a node directly: you send a desired state to the API server, and a chain of specialized components turns that intent into running Pods.",
     },
     {
       type: "diagram",
@@ -364,7 +364,7 @@ const clusterArchitecture: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The control plane is not one program — it is a handful of independent components, each with a narrow job. They coordinate entirely through the API server, never by calling each other.",
+      text: "The control plane is not one program: it is a handful of independent components, each with a narrow job. They coordinate entirely through the API server, never by calling each other.",
     },
     {
       type: "steps",
@@ -376,7 +376,7 @@ const clusterArchitecture: DocsLesson = {
         },
         {
           title: "etcd",
-          text: "A consistent, highly-available key-value store. It is the backing store for all cluster data — every Pod, Service, Secret, and ConfigMap lives here. If etcd is lost and unbacked-up, the cluster's state is gone.",
+          text: "A consistent, highly-available key-value store. It is the backing store for all cluster data: every Pod, Service, Secret, and ConfigMap lives here. If etcd is lost and unbacked-up, the cluster's state is gone.",
         },
         {
           title: "kube-scheduler",
@@ -384,7 +384,7 @@ const clusterArchitecture: DocsLesson = {
         },
         {
           title: "kube-controller-manager",
-          text: "Runs the built-in controllers as continuous reconciliation loops — node, replicaset, deployment, job, endpointslice, service-account, and more. Each loop drives actual state toward desired state.",
+          text: "Runs the built-in controllers as continuous reconciliation loops: node, replicaset, deployment, job, endpointslice, service-account, and more. Each loop drives actual state toward desired state.",
         },
         {
           title: "cloud-controller-manager",
@@ -403,7 +403,7 @@ const clusterArchitecture: DocsLesson = {
       items: [
         {
           title: "kubelet",
-          text: "The agent on each node. It watches the API server for Pods bound to its node, tells the runtime to start their containers, runs liveness/readiness probes, and reports observed status back to the API server. It never invents work — it executes what the control plane assigned.",
+          text: "The agent on each node. It watches the API server for Pods bound to its node, tells the runtime to start their containers, runs liveness/readiness probes, and reports observed status back to the API server. It never invents work: it executes what the control plane assigned.",
         },
         {
           title: "kube-proxy",
@@ -411,7 +411,7 @@ const clusterArchitecture: DocsLesson = {
         },
         {
           title: "container runtime",
-          text: "The software that actually runs containers — containerd or CRI-O. The kubelet talks to it through the Container Runtime Interface (CRI) to pull images and manage container lifecycles.",
+          text: "The software that actually runs containers: containerd or CRI-O. The kubelet talks to it through the Container Runtime Interface (CRI) to pull images and manage container lifecycles.",
         },
       ],
     },
@@ -453,7 +453,7 @@ const clusterArchitecture: DocsLesson = {
         {
           label: "Controllers expand it",
           detail:
-            "The deployment controller sees the new Deployment and creates a ReplicaSet; the ReplicaSet controller then creates the Pods it needs — each with an empty spec.nodeName.",
+            "The deployment controller sees the new Deployment and creates a ReplicaSet; the ReplicaSet controller then creates the Pods it needs: each with an empty spec.nodeName.",
           command: "kubectl get rs,pods",
           output:
             "NAME               DESIRED   CURRENT\nreplicaset/web-7d   3         3\nNAME              STATUS\npod/web-7d-abc     Pending",
@@ -468,7 +468,7 @@ const clusterArchitecture: DocsLesson = {
         {
           label: "kubelet runs it",
           detail:
-            "The kubelet on node-1 sees a Pod bound to it, has the runtime pull the image and start containers, runs the probes, and reports status.phase: Running back to the API server — which stores it in etcd.",
+            "The kubelet on node-1 sees a Pod bound to it, has the runtime pull the image and start containers, runs the probes, and reports status.phase: Running back to the API server, which stores it in etcd.",
           command: "kubectl get pod web-7d-abc",
           output: "NAME          READY   STATUS    RESTARTS\nweb-7d-abc    1/1     Running   0",
         },
@@ -490,7 +490,7 @@ const clusterArchitecture: DocsLesson = {
       type: "concept",
       term: "Binding",
       definition:
-        "A Bind is the tiny API write the scheduler makes to set a Pod's spec.nodeName. Scheduling is literally just choosing a node and writing that one field — the kubelet on that node does everything after.",
+        "A Bind is the tiny API write the scheduler makes to set a Pod's spec.nodeName. Scheduling is literally just choosing a node and writing that one field: the kubelet on that node does everything after.",
     },
     {
       type: "heading",
@@ -505,7 +505,7 @@ const clusterArchitecture: DocsLesson = {
       type: "annotatedCode",
       language: "yaml",
       title: "A running Pod, annotated by author",
-      caption: "Who wrote each field — you, the scheduler, or the kubelet.",
+      caption: "Who wrote each field: you, the scheduler, or the kubelet.",
       lines: [
         {
           code: "apiVersion: v1",
@@ -515,7 +515,7 @@ const clusterArchitecture: DocsLesson = {
         },
         {
           code: "metadata:",
-          note: "you author identity — name and namespace",
+          note: "you author identity: name and namespace",
         },
         {
           code: "  name: web",
@@ -532,7 +532,7 @@ const clusterArchitecture: DocsLesson = {
         },
         {
           code: "  containers:",
-          note: "your desired containers — the part you actually wrote",
+          note: "your desired containers: the part you actually wrote",
         },
         {
           code: "    - name: web",
@@ -585,7 +585,7 @@ const clusterArchitecture: DocsLesson = {
         },
         {
           label: "After the scheduler",
-          note: "The scheduler chose node-1 and wrote spec.nodeName. Still Pending — nothing has started yet — but the Pod now belongs to a node.",
+          note: "The scheduler chose node-1 and wrote spec.nodeName. Still Pending: nothing has started yet, but the Pod now belongs to a node.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  nodeName: node-1\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
         },
         {
@@ -607,7 +607,7 @@ const clusterArchitecture: DocsLesson = {
         "This Pod was accepted by the API server, but it stays Pending forever and never lands on a node. The cluster has healthy nodes named node-1 and node-2. What's wrong?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  nodeName: node-9\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
       answer:
-        "spec.nodeName is hard-coded to node-9, which doesn't exist. Setting nodeName yourself bypasses the scheduler and binds the Pod directly to that name — but no kubelet is running as node-9, so nothing ever picks the Pod up and it stays Pending. Remove nodeName and let the scheduler choose a real node (or use nodeSelector/affinity to influence the choice).",
+        "spec.nodeName is hard-coded to node-9, which doesn't exist. Setting nodeName yourself bypasses the scheduler and binds the Pod directly to that name, but no kubelet is running as node-9, so nothing ever picks the Pod up and it stays Pending. Remove nodeName and let the scheduler choose a real node (or use nodeSelector/affinity to influence the choice).",
     },
     {
       type: "heading",
@@ -619,7 +619,7 @@ const clusterArchitecture: DocsLesson = {
       language: "yaml",
       prompt:
         "A teammate wants a Pod to run only on SSD-backed nodes, without hard-coding a node name. Write a Pod that the scheduler will place only on nodes labeled disktype: ssd.",
-      hint: "Use spec.nodeSelector with the label, and leave nodeName unset so the scheduler still does the placement — it just restricts itself to matching nodes.",
+      hint: "Use spec.nodeSelector with the label, and leave nodeName unset so the scheduler still does the placement: it just restricts itself to matching nodes.",
       solution:
         "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  nodeSelector:\n    disktype: ssd\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
     },
@@ -682,7 +682,7 @@ const clusterArchitecture: DocsLesson = {
       type: "takeaways",
       items: [
         "The control plane decides (apiserver, etcd, scheduler, controllers); nodes do the work (kubelet, kube-proxy, runtime).",
-        "The API server is the only component that touches etcd — everything else watches and writes through the API.",
+        "The API server is the only component that touches etcd: everything else watches and writes through the API.",
         "A request flows apiserver + etcd -> controllers expand it -> scheduler assigns a node -> kubelet runs it and reports status.",
         "You own spec.containers; the scheduler owns spec.nodeName; the kubelet owns the whole status block.",
         "Match a symptom to the component that owns that step: Pending with no node points at the scheduler, not the kubelet.",
@@ -726,7 +726,7 @@ const clusterArchitecture: DocsLesson = {
           text: "The kube-scheduler could not (or did not) assign a node.",
           correct: true,
           explanation:
-            "Assigning a node is the scheduler's job. An empty nodeName means the Pod was never bound — check for unschedulable resources, taints, or a scheduler that is down.",
+            "Assigning a node is the scheduler's job. An empty nodeName means the Pod was never bound: check for unschedulable resources, taints, or a scheduler that is down.",
         },
         {
           id: "b",
@@ -768,14 +768,14 @@ const desiredVsActual: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Every managed object carries two halves of a story. The spec is what you asked for. The status is what Kubernetes currently observes. The whole system is machinery for driving the gap between those two to zero — and keeping it there.",
+      text: "Every managed object carries two halves of a story. The spec is what you asked for. The status is what Kubernetes currently observes. The whole system is machinery for driving the gap between those two to zero, and keeping it there.",
     },
     {
       type: "diagram",
       variant: "control-loop",
       title: "The reconciliation control loop",
       caption:
-        "Observe actual state, diff it against spec, act to close the gap — forever, not once.",
+        "Observe actual state, diff it against spec, act to close the gap: forever, not once.",
     },
     {
       type: "heading",
@@ -809,7 +809,7 @@ const desiredVsActual: DocsLesson = {
         },
         {
           code: "  generation: 4",
-          note: "bumps every time you change spec — the version number of your intent",
+          note: "bumps every time you change spec: the version number of your intent",
         },
         {
           code: "spec:",
@@ -863,7 +863,7 @@ const desiredVsActual: DocsLesson = {
         },
         {
           code: "  readyReplicas: 2",
-          note: "observed: only 2 are passing readiness right now — a live gap vs desired",
+          note: "observed: only 2 are passing readiness right now: a live gap vs desired",
         },
         {
           code: "  updatedReplicas: 3",
@@ -880,7 +880,7 @@ const desiredVsActual: DocsLesson = {
         },
         {
           code: '      status: "True"',
-          note: "a rolled-up verdict computed from observed state — you never set this by hand",
+          note: "a rolled-up verdict computed from observed state: you never set this by hand",
         },
       ],
     },
@@ -888,7 +888,7 @@ const desiredVsActual: DocsLesson = {
       type: "concept",
       term: "Reconciliation loop",
       definition:
-        "A controller's core routine: read the current actual state, diff it against the desired spec, take the smallest actions to close the gap, then repeat. It is level-triggered — it looks at where things ARE, not at a queue of past events — so a missed signal simply gets corrected on the next pass.",
+        "A controller's core routine: read the current actual state, diff it against the desired spec, take the smallest actions to close the gap, then repeat. It is level-triggered: it looks at where things ARE, not at a queue of past events, so a missed signal simply gets corrected on the next pass.",
     },
     {
       type: "heading",
@@ -921,7 +921,7 @@ const desiredVsActual: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "Change the spec, not the live objects",
-      text: "To change what the cluster does, edit the spec of the owning object and apply. Do not hand-edit the Pods a controller created — the controller owns them and will reconcile your change away. The spec is the single source of truth; live objects are just its current shadow.",
+      text: "To change what the cluster does, edit the spec of the owning object and apply. Do not hand-edit the Pods a controller created: the controller owns them and will reconcile your change away. The spec is the single source of truth; live objects are just its current shadow.",
     },
     {
       type: "heading",
@@ -936,7 +936,7 @@ const desiredVsActual: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "Self-healing cuts both ways",
-      text: "The loop enforces the spec even when the spec is what's wrong. If you deploy a broken image, Kubernetes will faithfully keep trying to run it, restarting the crashing Pods forever. Self-healing restores desired state — it does not judge whether your desired state is a good idea.",
+      text: "The loop enforces the spec even when the spec is what's wrong. If you deploy a broken image, Kubernetes will faithfully keep trying to run it, restarting the crashing Pods forever. Self-healing restores desired state: it does not judge whether your desired state is a good idea.",
     },
     {
       type: "compare",
@@ -962,7 +962,7 @@ const desiredVsActual: DocsLesson = {
         "This Deployment was meant to run 4 replicas, but after applying it only ever runs 1. The YAML is valid and the image is fine. What went wrong?",
       code: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  selector:\n    matchLabels:\n      app: web\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: web\n          image: klab/web-app:1.0.0\nstatus:\n  replicas: 4",
       answer:
-        "The desired count was written under status instead of spec. status is observed output owned by Kubernetes — the API server ignores (strips) what you put there, so it never becomes intent. With no spec.replicas, the Deployment defaults to 1 and the loop dutifully holds it at 1. Fix: move replicas: 4 up under spec, and delete the status block entirely.",
+        "The desired count was written under status instead of spec. status is observed output owned by Kubernetes: the API server ignores (strips) what you put there, so it never becomes intent. With no spec.replicas, the Deployment defaults to 1 and the loop dutifully holds it at 1. Fix: move replicas: 4 up under spec, and delete the status block entirely.",
     },
     {
       type: "heading",
@@ -971,7 +971,7 @@ const desiredVsActual: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Open the lab below. Change spec.replicas from 3 to 5 and apply. Watch status.readyReplicas climb as the controller creates Pods until actual state matches your declared intent — then try deleting a Pod and watch it come back.",
+      text: "Open the lab below. Change spec.replicas from 3 to 5 and apply. Watch status.readyReplicas climb as the controller creates Pods until actual state matches your declared intent, then try deleting a Pod and watch it come back.",
     },
     {
       type: "lab",
@@ -987,7 +987,7 @@ const desiredVsActual: DocsLesson = {
       language: "yaml",
       prompt:
         "Write a Deployment named api that declares a desired state of 2 replicas, selects Pods labeled app: api, and runs the container image klab/web-app:1.0.0. Put every field where its owner belongs.",
-      hint: "You only author metadata and spec. Never write a status block — Kubernetes fills that in. spec needs replicas, selector.matchLabels, and a template whose Pod labels match the selector.",
+      hint: "You only author metadata and spec. Never write a status block: Kubernetes fills that in. spec needs replicas, selector.matchLabels, and a template whose Pod labels match the selector.",
       solution:
         "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: api\n  template:\n    metadata:\n      labels:\n        app: api\n    spec:\n      containers:\n        - name: api\n          image: klab/web-app:1.0.0",
     },
@@ -1019,13 +1019,13 @@ const desiredVsActual: DocsLesson = {
           label: "A single Pod is wedged",
           cells: [
             "Delete that Pod (kubectl delete pod)",
-            "The controller recreates it from the same spec — a safe, deliberate self-heal",
+            "The controller recreates it from the same spec: a safe, deliberate self-heal",
           ],
         },
         {
           label: "status shows readyReplicas 2/3",
           cells: [
-            "Nothing in status — investigate the lagging Pod",
+            "Nothing in status: investigate the lagging Pod",
             "status is a readout; editing it changes no reality, only the diagnosis matters",
           ],
         },
@@ -1041,9 +1041,9 @@ const desiredVsActual: DocsLesson = {
       type: "takeaways",
       items: [
         "Kubernetes is declarative: you submit desired state (spec) and the platform converges reality to it.",
-        "spec is intent you write; status is observed reality Kubernetes writes — never hand-edit status to fix things.",
+        "spec is intent you write; status is observed reality Kubernetes writes: never hand-edit status to fix things.",
         "Controllers run a continuous reconciliation loop: observe, diff, act, repeat. It is level-triggered, so it self-corrects.",
-        "Drift closes automatically — delete a Pod and it comes back — but self-healing enforces even a bad spec.",
+        "Drift closes automatically: delete a Pod and it comes back, but self-healing enforces even a bad spec.",
         "To change behavior, edit the owning object's spec; poking controller-owned live objects gets reconciled away.",
       ],
     },
@@ -1099,7 +1099,7 @@ const desiredVsActual: DocsLesson = {
           text: "kubectl edit never actually saves changes to Pods.",
           correct: false,
           explanation:
-            "The edit was saved — it was then overwritten by reconciliation because it conflicted with the owner's spec.",
+            "The edit was saved: it was then overwritten by reconciliation because it conflicted with the owner's spec.",
         },
         {
           id: "c",
@@ -1151,7 +1151,7 @@ const apiObjects: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Kubernetes has no special-case commands. A Pod, a Service, a Deployment, a ConfigMap, a Node — all of them are just records in one REST API, stored in etcd, and shaped the same way. Once you can read one object, you can read them all, because every object shares the same five top-level fields.",
+      text: "Kubernetes has no special-case commands. A Pod, a Service, a Deployment, a ConfigMap, a Node: all of them are just records in one REST API, stored in etcd, and shaped the same way. Once you can read one object, you can read them all, because every object shares the same five top-level fields.",
     },
     {
       type: "diagram",
@@ -1167,7 +1167,7 @@ const apiObjects: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Read any manifest through five lenses. apiVersion and kind together name the type (the API server uses them to route the request). metadata carries identity — name, namespace, labels, annotations. spec is the desired state you declare. status is the observed state controllers write back. You author the first four; you never write status.",
+      text: "Read any manifest through five lenses. apiVersion and kind together name the type (the API server uses them to route the request). metadata carries identity: name, namespace, labels, annotations. spec is the desired state you declare. status is the observed state controllers write back. You author the first four; you never write status.",
     },
     {
       type: "annotatedCode",
@@ -1195,7 +1195,7 @@ const apiObjects: DocsLesson = {
         },
         {
           code: "  labels:",
-          note: "queryable identity — selectors and controllers match on these key:value pairs.",
+          note: "queryable identity: selectors and controllers match on these key:value pairs.",
         },
         {
           code: "    app: web",
@@ -1251,7 +1251,7 @@ const apiObjects: DocsLesson = {
         },
         {
           code: "  readyReplicas: 3",
-          note: "reality caught up with spec.replicas — the Deployment is healthy.",
+          note: "reality caught up with spec.replicas: the Deployment is healthy.",
         },
         {
           code: "  conditions:",
@@ -1287,7 +1287,7 @@ const apiObjects: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "Never write status",
-      text: "status is a read-only projection of reality maintained by controllers and the kubelet. Any status you type into a manifest is discarded on apply. When something is wrong, spec is your question and status is Kubernetes' answer — compare the two before you touch anything else.",
+      text: "status is a read-only projection of reality maintained by controllers and the kubelet. Any status you type into a manifest is discarded on apply. When something is wrong, spec is your question and status is Kubernetes' answer: compare the two before you touch anything else.",
     },
     {
       type: "heading",
@@ -1301,17 +1301,17 @@ const apiObjects: DocsLesson = {
       stages: [
         {
           label: "Identity (type + name)",
-          note: "The minimum that addresses an object: apiVersion + kind name the type, metadata.name names the instance. This alone is a valid, findable object — it just does nothing yet.",
+          note: "The minimum that addresses an object: apiVersion + kind name the type, metadata.name names the instance. This alone is a valid, findable object: it just does nothing yet.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web",
         },
         {
           label: "Declare intent (spec)",
-          note: "Add spec — the desired state. Now the object asks Kubernetes for one container running the web image. The kubelet will try to make this real.",
+          note: "Add spec: the desired state. Now the object asks Kubernetes for one container running the web image. The kubelet will try to make this real.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
         },
         {
           label: "Status appears (you didn't write it)",
-          note: "After you apply, the kubelet reports back. status.phase and podIP show up on their own — proof that status is observed, not authored.",
+          note: "After you apply, the kubelet reports back. status.phase and podIP show up on their own: proof that status is observed, not authored.",
           code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\nstatus:\n  phase: Running\n  podIP: 10.1.0.7",
         },
       ],
@@ -1425,7 +1425,7 @@ const apiObjects: DocsLesson = {
       language: "yaml",
       prompt:
         "Author a minimal but complete ConfigMap named app-config in the default namespace with a single data key GREETING set to hello. Get the apiVersion and kind right.",
-      hint: "ConfigMap is a core-group resource, so its apiVersion is bare 'v1'. It has no spec — its payload lives under a top-level data field.",
+      hint: "ConfigMap is a core-group resource, so its apiVersion is bare 'v1'. It has no spec: its payload lives under a top-level data field.",
       solution:
         "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app-config\n  namespace: default\ndata:\n  GREETING: hello",
     },
@@ -1444,9 +1444,9 @@ const apiObjects: DocsLesson = {
       items: [
         "Every Kubernetes resource is an API object with the same top-level fields: apiVersion, kind, metadata, spec, and (usually) status.",
         "apiVersion + kind form the GVK that routes your request; metadata identifies the object; spec is your intent; status is Kubernetes' observed reality.",
-        "You author apiVersion, kind, metadata, and spec. You never write status — controllers do.",
+        "You author apiVersion, kind, metadata, and spec. You never write status: controllers do.",
         "Core resources (Pod, Service, ConfigMap) use bare 'v1' and /api/v1; named groups (apps/v1, batch/v1) use a group prefix and /apis.",
-        "kubectl is just a REST client: it maps an object to a URL and a verb to an HTTP method — run with -v=8 to watch it.",
+        "kubectl is just a REST client: it maps an object to a URL and a verb to an HTTP method: run with -v=8 to watch it.",
       ],
     },
     {
@@ -1466,7 +1466,7 @@ const apiObjects: DocsLesson = {
           text: "spec",
           correct: true,
           explanation:
-            "Spec is the desired state you declare — the one part of the object you are meant to author.",
+            "Spec is the desired state you declare: the one part of the object you are meant to author.",
         },
         {
           id: "c",
@@ -1500,7 +1500,7 @@ const apiObjects: DocsLesson = {
           text: "GET /apis/v1/deployments/web",
           correct: false,
           explanation:
-            "This drops the group name and the namespace scoping — it is not a valid resource path.",
+            "This drops the group name and the namespace scoping: it is not a valid resource path.",
         },
       ],
     },
@@ -1576,8 +1576,8 @@ const labelsAnnotationsOwnership: DocsLesson = {
         {
           label: "Selectable",
           cells: [
-            "Yes — Services, controllers, kubectl -l, NetworkPolicies",
-            "No — never used for selection or routing",
+            "Yes: Services, controllers, kubectl -l, NetworkPolicies",
+            "No: never used for selection or routing",
           ],
         },
         {
@@ -1601,11 +1601,11 @@ const labelsAnnotationsOwnership: DocsLesson = {
       caption:
         "Same object, two jobs: labels are what Kubernetes matches on; annotations are what humans and tools read.",
       left: {
-        title: "labels — identifying",
+        title: "labels: identifying",
         code: "metadata:\n  labels:\n    app: web\n    tier: frontend\n    release: canary",
       },
       right: {
-        title: "annotations — non-identifying",
+        title: "annotations: non-identifying",
         code: "metadata:\n  annotations:\n    runbook: https://wiki/web-oncall\n    owner: platform-team\n    checksum/config: 9f2b1c4e",
       },
     },
@@ -1625,14 +1625,14 @@ const labelsAnnotationsOwnership: DocsLesson = {
         },
         {
           code: "  name: web-7d9f-abcde",
-          note: "identity within a namespace — controllers generate this suffix, you rarely type it",
+          note: "identity within a namespace: controllers generate this suffix, you rarely type it",
         },
         {
           code: "  namespace: default",
         },
         {
           code: "  labels:",
-          note: "IDENTIFYING — the only metadata selectors can match on",
+          note: "IDENTIFYING: the only metadata selectors can match on",
         },
         {
           code: "    app: web",
@@ -1648,7 +1648,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
         },
         {
           code: "  annotations:",
-          note: "NON-identifying — free-form, never selected, can be large",
+          note: "NON-identifying: free-form, never selected, can be large",
         },
         {
           code: '    kubectl.kubernetes.io/last-applied-configuration: \'{"apiVersion":"v1",...}\'',
@@ -1656,7 +1656,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
         },
         {
           code: "    checksum/config: 9f2b1c4e",
-          note: "a config hash — changing it forces the template to differ so a rollout triggers",
+          note: "a config hash: changing it forces the template to differ so a rollout triggers",
         },
         {
           code: "  ownerReferences:",
@@ -1667,7 +1667,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
         },
         {
           code: "      kind: ReplicaSet",
-          note: "the KIND of the parent — here a Pod is owned by a ReplicaSet",
+          note: "the KIND of the parent: here a Pod is owned by a ReplicaSet",
         },
         {
           code: "      name: web-7d9f",
@@ -1720,7 +1720,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A selector is a query over labels, and Kubernetes supports two flavors. Equality-based selectors match exact key/value pairs (app=web, tier!=cache) — this is what a Service's spec.selector uses. Set-based selectors match membership (environment in (prod, qa)), exclusion (tier notin (cache)), and key existence (partition, or !partition for absence) — used by Deployments, kubectl -l, and NetworkPolicies. Multiple requirements are ANDed together, so every clause must hold for an object to match.",
+      text: "A selector is a query over labels, and Kubernetes supports two flavors. Equality-based selectors match exact key/value pairs (app=web, tier!=cache): this is what a Service's spec.selector uses. Set-based selectors match membership (environment in (prod, qa)), exclusion (tier notin (cache)), and key existence (partition, or !partition for absence): used by Deployments, kubectl -l, and NetworkPolicies. Multiple requirements are ANDed together, so every clause must hold for an object to match.",
     },
     {
       type: "code",
@@ -1731,7 +1731,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "A selector is AND, and it is exact",
-      text: "Every clause in a selector must match for an object to be selected, and matching is exact — key AND value, character for character. Extra labels on the object are ignored, but a single typo, a value in annotations instead of labels, or a case mismatch means zero matches. When a Service shows zero endpoints, compare its spec.selector against the Pod's metadata.labels first.",
+      text: "Every clause in a selector must match for an object to be selected, and matching is exact: key AND value, character for character. Extra labels on the object are ignored, but a single typo, a value in annotations instead of labels, or a case mismatch means zero matches. When a Service shows zero endpoints, compare its spec.selector against the Pod's metadata.labels first.",
     },
     {
       type: "heading",
@@ -1740,7 +1740,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "You create a Deployment; you never create the Pods. The Deployment controller creates a ReplicaSet, and the ReplicaSet creates Pods, stamping each child with an ownerReference back to its parent. This tree is what the garbage collector walks: delete the Deployment and the collector removes the ReplicaSet it owns, which removes the Pods that ReplicaSet owns. Nothing is deleted by name-guessing — the collector follows ownerReference UIDs. An object whose every owner is gone becomes garbage and is collected automatically.",
+      text: "You create a Deployment; you never create the Pods. The Deployment controller creates a ReplicaSet, and the ReplicaSet creates Pods, stamping each child with an ownerReference back to its parent. This tree is what the garbage collector walks: delete the Deployment and the collector removes the ReplicaSet it owns, which removes the Pods that ReplicaSet owns. Nothing is deleted by name-guessing: the collector follows ownerReference UIDs. An object whose every owner is gone becomes garbage and is collected automatically.",
     },
     {
       type: "diagram",
@@ -1759,7 +1759,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "Foreground, background, and orphan deletion",
-      text: "Background (the kubectl default): the parent is deleted immediately and the collector removes children asynchronously afterward. Foreground (--cascade=foreground): the parent is marked with a deletion timestamp and is not actually removed until every blockOwnerDeletion child is deleted first — useful when order matters. Orphan (--cascade=orphan): the parent is deleted but ownerReferences are stripped from the children, so they keep running with no owner. Orphaning a ReplicaSet leaves its Pods live and unmanaged — an easy way to leak workloads.",
+      text: "Background (the kubectl default): the parent is deleted immediately and the collector removes children asynchronously afterward. Foreground (--cascade=foreground): the parent is marked with a deletion timestamp and is not actually removed until every blockOwnerDeletion child is deleted first: useful when order matters. Orphan (--cascade=orphan): the parent is deleted but ownerReferences are stripped from the children, so they keep running with no owner. Orphaning a ReplicaSet leaves its Pods live and unmanaged: an easy way to leak workloads.",
     },
     {
       type: "heading",
@@ -1773,7 +1773,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
         "A Service selecting tier: frontend has zero endpoints, yet this Pod is Ready and clearly meant to back it. What is wrong?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\n  labels:\n    app: web\n  annotations:\n    tier: frontend\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0",
       answer:
-        "tier: frontend is under annotations, not labels. Selectors only match labels, and annotations are never selected on, so the selector tier: frontend matches nothing and the EndpointSlice controller publishes zero endpoints. Move tier: frontend up into metadata.labels (the Pod can keep app: web too — extra labels are ignored by the selector).",
+        "tier: frontend is under annotations, not labels. Selectors only match labels, and annotations are never selected on, so the selector tier: frontend matches nothing and the EndpointSlice controller publishes zero endpoints. Move tier: frontend up into metadata.labels (the Pod can keep app: web too: extra labels are ignored by the selector).",
     },
     {
       type: "heading",
@@ -1795,7 +1795,7 @@ const labelsAnnotationsOwnership: DocsLesson = {
       type: "takeaways",
       items: [
         "Ask one question: does anything need to select on this? Yes means label; no means annotation.",
-        "Selectors are ANDed and exact — one wrong key, value, or a value stranded in annotations means zero matches.",
+        "Selectors are ANDed and exact: one wrong key, value, or a value stranded in annotations means zero matches.",
         "Set-based selectors add in, notin, and existence (key / !key); equality selectors match exact key=value.",
         "ownerReferences build the Deployment to ReplicaSet to Pod tree that garbage collection walks by UID.",
         "Background delete cleans up asynchronously, foreground waits for children, orphan strips ownership and leaks live workloads.",
@@ -1921,7 +1921,7 @@ const declarativeWorkflow: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "apply is create-or-update",
-      text: "kubectl apply creates the object if it does not exist and updates it if it does. Running it twice is safe and idempotent — the second run reports 'unchanged' rather than an error. kubectl create, by contrast, errors with AlreadyExists on the second run. That single difference is why apply is the backbone of every GitOps and CI pipeline.",
+      text: "kubectl apply creates the object if it does not exist and updates it if it does. Running it twice is safe and idempotent: the second run reports 'unchanged' rather than an error. kubectl create, by contrast, errors with AlreadyExists on the second run. That single difference is why apply is the backbone of every GitOps and CI pipeline.",
     },
     {
       type: "heading",
@@ -1930,7 +1930,7 @@ const declarativeWorkflow: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Apply is not a fire-and-forget mutation. It feeds a new desired state into the same reconciliation loop that drives everything else in Kubernetes: the API server records what you want, controllers observe the gap between desired and actual, and they act until the two converge. Your job is to make that desired state deliberate — render it, review the diff, apply it, then verify the real effect.",
+      text: "Apply is not a fire-and-forget mutation. It feeds a new desired state into the same reconciliation loop that drives everything else in Kubernetes: the API server records what you want, controllers observe the gap between desired and actual, and they act until the two converge. Your job is to make that desired state deliberate: render it, review the diff, apply it, then verify the real effect.",
     },
     {
       type: "diagram",
@@ -1984,7 +1984,7 @@ const declarativeWorkflow: DocsLesson = {
       language: "yaml",
       title: "A complete, apply-ready Deployment",
       caption:
-        "A self-describing manifest — named, labeled, and image-pinned — is the thing you commit to git and apply from CI. Every field is state apply keeps enforcing on each run.",
+        "A self-describing manifest: named, labeled, and image-pinned: is the thing you commit to git and apply from CI. Every field is state apply keeps enforcing on each run.",
       lines: [
         {
           code: "apiVersion: apps/v1",
@@ -2018,7 +2018,7 @@ const declarativeWorkflow: DocsLesson = {
         },
         {
           code: "  selector:",
-          note: "immutable after creation — apply cannot change it, so get it right the first time",
+          note: "immutable after creation: apply cannot change it, so get it right the first time",
         },
         {
           code: "    matchLabels:",
@@ -2050,7 +2050,7 @@ const declarativeWorkflow: DocsLesson = {
         },
         {
           code: "          image: klab/web-app:1.0.0",
-          note: "pin an explicit tag — a floating tag like :latest makes applies non-deterministic and defeats diffs",
+          note: "pin an explicit tag: a floating tag like :latest makes applies non-deterministic and defeats diffs",
         },
         {
           code: "          ports:",
@@ -2073,7 +2073,7 @@ const declarativeWorkflow: DocsLesson = {
       type: "concept",
       term: "last-applied-configuration (client-side apply)",
       definition:
-        "On a client-side apply, kubectl stores the manifest you sent in the annotation kubectl.kubernetes.io/last-applied-configuration and diffs your next file against it to learn which fields YOU manage. A field you dropped from the file is removed; a field a controller added is left alone because it never appeared in your snapshot. This is also why you should apply from the very first run — kubectl create never writes that annotation, so a later apply has no merge base and can mis-handle deletions.",
+        "On a client-side apply, kubectl stores the manifest you sent in the annotation kubectl.kubernetes.io/last-applied-configuration and diffs your next file against it to learn which fields YOU manage. A field you dropped from the file is removed; a field a controller added is left alone because it never appeared in your snapshot. This is also why you should apply from the very first run: kubectl create never writes that annotation, so a later apply has no merge base and can mis-handle deletions.",
     },
     {
       type: "concept",
@@ -2094,13 +2094,13 @@ const declarativeWorkflow: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Apply adds and updates, but by default it never deletes. If you remove a manifest from your directory, the object it created keeps running — orphaned from your source of truth. kubectl apply --prune closes that gap: it deletes objects that match a label selector but are no longer present in the applied set.",
+      text: "Apply adds and updates, but by default it never deletes. If you remove a manifest from your directory, the object it created keeps running: orphaned from your source of truth. kubectl apply --prune closes that gap: it deletes objects that match a label selector but are no longer present in the applied set.",
     },
     {
       type: "callout",
       tone: "warning",
       title: "--prune is scoped by a label selector, and that is the trap",
-      text: "kubectl apply --prune -l app=web -f dir/ will delete ANY object carrying app=web that is not in dir/ — including things you never meant to manage from that directory. A too-broad selector has taken out live workloads. Prune only with a narrow, dedicated label, and diff first.",
+      text: "kubectl apply --prune -l app=web -f dir/ will delete ANY object carrying app=web that is not in dir/, including things you never meant to manage from that directory. A too-broad selector has taken out live workloads. Prune only with a narrow, dedicated label, and diff first.",
     },
     {
       type: "heading",
@@ -2109,7 +2109,7 @@ const declarativeWorkflow: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Copy-pasting a manifest per environment guarantees they drift apart. Kustomize (built into kubectl via -k) keeps one base and layers small, environment-specific overlays on top. The base holds what every environment shares; each overlay patches only what differs — replica counts, images, resource limits.",
+      text: "Copy-pasting a manifest per environment guarantees they drift apart. Kustomize (built into kubectl via -k) keeps one base and layers small, environment-specific overlays on top. The base holds what every environment shares; each overlay patches only what differs: replica counts, images, resource limits.",
     },
     {
       type: "buildUp",
@@ -2128,7 +2128,7 @@ const declarativeWorkflow: DocsLesson = {
         },
         {
           label: "Prod overlay",
-          note: "overlays/prod references the base and patches ONLY what prod changes — here, replicas up to 5. The patch matches the base object by kind + name.",
+          note: "overlays/prod references the base and patches ONLY what prod changes: here, replicas up to 5. The patch matches the base object by kind + name.",
           code: "# overlays/prod/kustomization.yaml\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../../base\npatches:\n  - target:\n      kind: Deployment\n      name: web\n    patch: |\n      - op: replace\n        path: /spec/replicas\n        value: 5",
         },
       ],
@@ -2147,7 +2147,7 @@ const declarativeWorkflow: DocsLesson = {
           label: "Imperative",
           cells: [
             "kubectl create / run / scale / edit",
-            "The live cluster object — nothing on disk",
+            "The live cluster object: nothing on disk",
             "Manual: you must remember to re-run and reconcile by hand",
             "Quick experiments, one-off debugging, throwaway resources",
           ],
@@ -2197,9 +2197,9 @@ const declarativeWorkflow: DocsLesson = {
       type: "takeaways",
       items: [
         "Imperative commands mutate the cluster now and leave no artifact; declarative apply enforces files that are your reviewable source of truth.",
-        "Always render, diff, apply, then verify — a clean diff proves intent, not that traffic actually works.",
+        "Always render, diff, apply, then verify: a clean diff proves intent, not that traffic actually works.",
         "Client-side apply diffs against the last-applied-configuration annotation; server-side apply tracks per-field ownership in managedFields and surfaces conflicts.",
-        "Apply never deletes by default — use --prune with a narrow label to remove objects that left the files, and treat the selector scope with respect.",
+        "Apply never deletes by default: use --prune with a narrow label to remove objects that left the files, and treat the selector scope with respect.",
         "Kustomize keeps one base and small per-environment overlays so environments never drift apart.",
       ],
     },
@@ -2254,7 +2254,7 @@ const declarativeWorkflow: DocsLesson = {
           text: "Switch to kubectl create so the conflict check is skipped.",
           correct: false,
           explanation:
-            "create is not idempotent and abandons apply's merge and ownership tracking entirely — it does not fix the underlying disagreement.",
+            "create is not idempotent and abandons apply's merge and ownership tracking entirely: it does not fix the underlying disagreement.",
         },
       ],
     },

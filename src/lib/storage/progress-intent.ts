@@ -17,7 +17,7 @@ import {
  * intent optimistically to its local cache (via `applyIntent`, which reuses the
  * existing pure reducers so guest behavior is unchanged) AND pushes it to the server,
  * where each intent lowers to an idempotent keyed upsert. XP/streak/penalty are never
- * transmitted as totals — they are derived on each side from grow-only facts.
+ * transmitted as totals: they are derived on each side from grow-only facts.
  *
  * `solved.xp` is the level's GROSS xp; both sides net out the hint penalty (the client
  * inside `recordSolved`, the server against its `hint_reveals` rows), so the totals agree.

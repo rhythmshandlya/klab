@@ -31,7 +31,7 @@ export function formatDuration(ms: number): string {
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
-/** Public display name — anonymous-plugin accounts show as "Guest". */
+/** Public display name: anonymous-plugin accounts show as "Guest". */
 export function displayName(name: string, isAnonymous: boolean): string {
   return isAnonymous ? "Guest" : name;
 }

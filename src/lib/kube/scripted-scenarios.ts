@@ -1,15 +1,22 @@
-import type { ProblemCapability } from "@/lib/domain/types";
+import type { ProblemCapability, ProblemLevel } from "@/lib/domain/types";
 import { err, ok, type Result } from "@/lib/utils/result";
 
 import type { LogLine } from "./images/log-sink";
+import { evaluateLevelConstraints } from "./manifest-constraints";
+import { parseKubernetesManifests } from "./manifest-parser";
 import type { ParsedManifest } from "./manifest-parser";
 import type { AppliedResourceRef, ClusterSnapshot, ProbeResult } from "./simulator";
+import { evaluateWorkspaceSemantics } from "./workspace-semantics";
 
 export interface ScriptedScenarioRuntime {
   readonly capabilities: ReadonlySet<ProblemCapability>;
   boot(): Result<AppliedResourceRef[], string>;
   snapshot(): ClusterSnapshot;
   apply(manifests: readonly ParsedManifest[]): Result<AppliedResourceRef[], string>;
+  applyFiles?(
+    level: ProblemLevel,
+    files: Readonly<Record<string, string>>,
+  ): Result<AppliedResourceRef[], string>;
   probe(url: string): ProbeResult;
   logs(namespace: string, pod: string, container?: string): LogLine[];
 }
@@ -68,12 +75,36 @@ const IMMUTABLE_SELECTOR_CAPABILITIES = new Set<ProblemCapability>([
   "rollouts",
 ]);
 
+const MANIFEST_ASSESSMENT_CAPABILITIES = new Set<ProblemCapability>([
+  "pods",
+  "services",
+  "deployments",
+  "replicasets",
+  "namespaces",
+  "nodes",
+  "events",
+  "logs",
+  "http-probes",
+  "dns",
+  "rollouts",
+  "image-pulls",
+  "container-restarts",
+  "container-lifecycle",
+  "multi-container",
+  "configmaps",
+  "secrets",
+  "workload-controllers",
+  "network-policy",
+  "scheduling",
+]);
+
 const CAPABILITIES: Readonly<Record<string, ReadonlySet<ProblemCapability>>> = {
   "private-registry-pull": PRIVATE_REGISTRY_CAPABILITIES,
   "graceful-shutdown-502": GRACEFUL_SHUTDOWN_CAPABILITIES,
   "recreate-strategy-outage": RECREATE_OUTAGE_CAPABILITIES,
   "rollout-maxsurge-capacity": ROLLOUT_MAXSURGE_CAPABILITIES,
   "immutable-selector": IMMUTABLE_SELECTOR_CAPABILITIES,
+  "manifest-assessment": MANIFEST_ASSESSMENT_CAPABILITIES,
 };
 
 export function scriptedScenarioCapabilities(scenarioId: string): ReadonlySet<ProblemCapability> {
@@ -88,6 +119,7 @@ export function createScriptedScenarioRuntime(
   if (scenarioId === "recreate-strategy-outage") return new RecreateStrategyScenario();
   if (scenarioId === "rollout-maxsurge-capacity") return new RolloutMaxSurgeScenario();
   if (scenarioId === "immutable-selector") return new ImmutableSelectorScenario();
+  if (scenarioId === "manifest-assessment") return new ManifestAssessmentScenario();
   return undefined;
 }
 
@@ -102,6 +134,92 @@ export function emptyScriptedSnapshot(): ClusterSnapshot {
     nodes: [],
     events: [],
   };
+}
+
+/**
+ * Deterministic policy lab for Kubernetes APIs the browser control plane does not
+ * execute. Apply parses every editable file and evaluates the level's declared
+ * manifest constraints. The visible assessment workload becomes Ready only when all
+ * rules pass, so learners must still edit, Apply, inspect, and validate.
+ */
+class ManifestAssessmentScenario implements ScriptedScenarioRuntime {
+  readonly capabilities = MANIFEST_ASSESSMENT_CAPABILITIES;
+  private fixed = false;
+  private issues: string[] = ["The submitted manifests have not passed static review"];
+
+  boot(): Result<AppliedResourceRef[], string> {
+    this.fixed = false;
+    this.issues = ["The submitted manifests have not passed static review"];
+    return ok([
+      { kind: "Deployment", name: "manifest-assessment", namespace: "default" },
+      { kind: "Service", name: "assessment-svc", namespace: "default" },
+    ]);
+  }
+
+  snapshot(): ClusterSnapshot {
+    return manifestAssessmentSnapshot(this.fixed, this.issues);
+  }
+
+  apply(_manifests: readonly ParsedManifest[]): Result<AppliedResourceRef[], string> {
+    return err("This policy lab requires the complete editable workspace.");
+  }
+
+  applyFiles(
+    level: ProblemLevel,
+    files: Readonly<Record<string, string>>,
+  ): Result<AppliedResourceRef[], string> {
+    const mergedFiles = Object.fromEntries(
+      level.files.map((file) => [file.path, files[file.path] ?? file.initialValue]),
+    );
+    const resources: AppliedResourceRef[] = [];
+
+    for (const file of level.files.filter((candidate) => candidate.access === "editable")) {
+      const parsed = parseKubernetesManifests(mergedFiles[file.path] ?? file.initialValue);
+      if (!parsed.ok) return err(`${file.path}: ${parsed.error.message}`);
+      resources.push(
+        ...parsed.value.map((manifest) => ({
+          kind: manifest.kind,
+          name: manifest.name,
+          namespace: manifest.namespace,
+        })),
+      );
+    }
+
+    const constraintIssues = evaluateLevelConstraints(level, mergedFiles)
+      .filter((result) => !result.passed)
+      .map((result) => result.detail);
+    this.issues = [...constraintIssues, ...evaluateWorkspaceSemantics(level, mergedFiles)];
+    this.fixed = this.issues.length === 0;
+    return ok(resources);
+  }
+
+  probe(url: string): ProbeResult {
+    const host = safeHostname(url);
+    if (host !== "assessment-svc" && host !== "assessment-svc.default.svc.cluster.local") {
+      return { ok: false, status: 0, body: "", reason: `Service ${host || url} not found` };
+    }
+    return this.fixed
+      ? { ok: true, status: 200, body: "manifest assessment passed\n" }
+      : {
+          ok: false,
+          status: 422,
+          body: "manifest assessment failed\n",
+          reason: "One or more production requirements are not satisfied",
+        };
+  }
+
+  logs(namespace: string, pod: string): LogLine[] {
+    if (namespace !== "default" || pod !== "manifest-assessment") return [];
+    return [
+      scriptedLog(
+        pod,
+        "policy-engine",
+        this.fixed
+          ? "all production requirements satisfied"
+          : `configuration rejected: ${this.issues[0] ?? "inspect the scenario requirements"}`,
+      ),
+    ];
+  }
 }
 
 class PrivateRegistryScenario implements ScriptedScenarioRuntime {
@@ -220,7 +338,7 @@ class GracefulShutdownScenario implements ScriptedScenarioRuntime {
 }
 
 /**
- * Problem 20 — Recreate Strategy Outage. A Recreate rollout terminated every old pod
+ * Problem 20: Recreate Strategy Outage. A Recreate rollout terminated every old pod
  * before the new release passed readiness, so the Service has zero ready endpoints.
  * Switching to RollingUpdate (maxUnavailable 0) lets the controller keep old pods
  * serving until the new ones are Ready.
@@ -284,7 +402,7 @@ class RecreateStrategyScenario implements ScriptedScenarioRuntime {
 }
 
 /**
- * Problem 19 — Rollout Cannot Fit maxSurge. The cluster has only enough capacity for
+ * Problem 19: Rollout Cannot Fit maxSurge. The cluster has only enough capacity for
  * the desired replica count. With maxSurge>0 the controller tries to create extra
  * surge pods that cannot schedule (Pending, Insufficient cpu), and maxUnavailable:0
  * prevents it from freeing room, so the new release never lands. Setting maxSurge:0
@@ -352,7 +470,7 @@ class RolloutMaxSurgeScenario implements ScriptedScenarioRuntime {
 }
 
 /**
- * Problem 21 — Immutable Deployment Selector. The Service now selects pods carrying
+ * Problem 21: Immutable Deployment Selector. The Service now selects pods carrying
  * `tier: api`, but the pods lack that label. A teammate tried to add it through the
  * Deployment selector, which the API rejects (selectors are immutable). The safe fix
  * is to leave the selector alone and add `tier: api` to the pod template labels.
@@ -411,6 +529,98 @@ class ImmutableSelectorScenario implements ScriptedScenarioRuntime {
   logs(_namespace: string, _pod: string, _container?: string): LogLine[] {
     return [];
   }
+}
+
+function manifestAssessmentSnapshot(fixed: boolean, issues: readonly string[]): ClusterSnapshot {
+  const podName = "manifest-assessment";
+  const pod = {
+    metadata: {
+      name: podName,
+      namespace: "default",
+      labels: { app: "manifest-assessment", assessment: fixed ? "passed" : "pending" },
+    },
+    spec: {
+      nodeName: "node-1",
+      containers: [{ name: "policy-engine", image: "klab/manifest-assessment:1.0.0" }],
+    },
+    status: {
+      phase: "Running",
+      podIP: "10.0.0.90",
+      conditions: [{ type: "Ready", status: fixed ? "True" : "False" }],
+      containerStatuses: [
+        {
+          name: "policy-engine",
+          image: "klab/manifest-assessment:1.0.0",
+          imageID: "scripted://manifest-assessment-1.0.0",
+          ready: fixed,
+          restartCount: 0,
+          state: { running: { startedAt: new Date("2026-08-11T00:00:00Z") } },
+        },
+      ],
+    },
+  };
+  const service = {
+    metadata: { name: "assessment-svc", namespace: "default" },
+    spec: {
+      clusterIP: "10.96.0.99",
+      selector: { app: "manifest-assessment" },
+      ports: [{ name: "http", port: 80, targetPort: 8080, protocol: "TCP" }],
+    },
+  };
+
+  return {
+    pods: [pod],
+    services: [service],
+    deployments: [
+      {
+        metadata: { name: "manifest-assessment", namespace: "default" },
+        spec: {
+          replicas: 1,
+          selector: { matchLabels: { app: "manifest-assessment" } },
+          template: pod,
+        },
+        status: { replicas: 1, readyReplicas: fixed ? 1 : 0, unavailableReplicas: fixed ? 0 : 1 },
+      },
+    ],
+    replicaSets: [],
+    endpointSlices: [
+      {
+        metadata: {
+          name: "assessment-svc-scripted",
+          namespace: "default",
+          labels: { "kubernetes.io/service-name": "assessment-svc" },
+        },
+        addressType: "IPv4",
+        endpoints: fixed
+          ? [
+              {
+                addresses: ["10.0.0.90"],
+                conditions: { ready: true },
+                targetRef: { name: podName },
+              },
+            ]
+          : [],
+        ports: [{ name: "http", port: 8080, protocol: "TCP" }],
+      },
+    ],
+    namespaces: [{ metadata: { name: "default" } }],
+    nodes: [{ metadata: { name: "node-1" } }],
+    events: fixed
+      ? []
+      : [
+          {
+            metadata: { name: "manifest-assessment-rejected", namespace: "default" },
+            involvedObject: {
+              kind: "Deployment",
+              name: "manifest-assessment",
+              namespace: "default",
+            },
+            type: "Warning",
+            reason: "ConfigRejected",
+            message: issues[0] ?? "One or more production requirements are not satisfied",
+          },
+        ],
+  } as unknown as ClusterSnapshot;
 }
 
 function privateRegistrySnapshot(fixed: boolean): ClusterSnapshot {

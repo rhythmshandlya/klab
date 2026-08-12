@@ -71,6 +71,12 @@ function createAuth() {
           defaultValue: false,
           input: false,
         },
+        isOfficial: {
+          type: "boolean",
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
       },
       deleteUser: {
         enabled: true,

@@ -28,13 +28,13 @@ const logs: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A container log is simply whatever the process wrote to its standard output and standard error streams. Kubernetes does not parse or understand it — it captures those bytes and hands them back to you. That gives logs a special role in debugging: status and events tell you what the platform observed from the outside, while logs tell you what the application itself claims happened on the inside. When a Pod restarts or serves errors, read both: logs explain the process, events explain the platform reaction.",
+      text: "A container log is simply whatever the process wrote to its standard output and standard error streams. Kubernetes does not parse or understand it: it captures those bytes and hands them back to you. That gives logs a special role in debugging: status and events tell you what the platform observed from the outside, while logs tell you what the application itself claims happened on the inside. When a Pod restarts or serves errors, read both: logs explain the process, events explain the platform reaction.",
     },
     {
       type: "callout",
       tone: "key",
       title: "The stdout/stderr contract",
-      text: "The Kubernetes logging convention (and the 12-factor rule) is that a containerized process writes its logs to stdout and stderr and never manages its own log files. The container runtime redirects both streams into a file on the node, and `kubectl logs` reads that file. If your app writes to /var/log/app.log instead, `kubectl logs` sees nothing — the stream, not the file, is the interface.",
+      text: "The Kubernetes logging convention (and the 12-factor rule) is that a containerized process writes its logs to stdout and stderr and never manages its own log files. The container runtime redirects both streams into a file on the node, and `kubectl logs` reads that file. If your app writes to /var/log/app.log instead, `kubectl logs` sees nothing: the stream, not the file, is the interface.",
     },
     {
       type: "annotatedCode",
@@ -48,7 +48,7 @@ const logs: DocsLesson = {
         },
         {
           code: '  "ts": "2026-07-10T09:12:44Z",',
-          note: "an explicit timestamp from the app — do not rely on the collector's clock",
+          note: "an explicit timestamp from the app: do not rely on the collector's clock",
         },
         {
           code: '  "level": "error",',
@@ -56,7 +56,7 @@ const logs: DocsLesson = {
         },
         {
           code: '  "msg": "connection refused",',
-          note: "the human-readable event — this is the line you scan for during an incident",
+          note: "the human-readable event: this is the line you scan for during an incident",
         },
         {
           code: '  "svc": "checkout",',
@@ -80,7 +80,7 @@ const logs: DocsLesson = {
       variant: "debug-loop",
       title: "The logs debugging loop",
       caption:
-        "Observe status, read logs for the process cause, confirm with events, then act — and repeat.",
+        "Observe status, read logs for the process cause, confirm with events, then act, and repeat.",
     },
     {
       type: "heading",
@@ -111,7 +111,7 @@ const logs: DocsLesson = {
         {
           label: "Follow it live",
           detail:
-            "`-f` streams new lines as they are written — the log equivalent of tail -f. Ctrl-C to stop.",
+            "`-f` streams new lines as they are written: the log equivalent of tail -f. Ctrl-C to stop.",
           command: "kubectl logs -f web --since=5m",
           output:
             '{"level":"info","msg":"GET /readyz 404"}\n{"level":"warn","msg":"readiness not yet green"}',
@@ -135,7 +135,7 @@ const logs: DocsLesson = {
         },
         {
           label: "Scope to the incident, on the instance that crashed",
-          note: "--previous reads the terminated instance (the one that actually failed), and --since=1h ignores anything older than the incident window. Note: -f (follow) cannot be combined with --previous — a dead instance produces no new lines.",
+          note: "--previous reads the terminated instance (the one that actually failed), and --since=1h ignores anything older than the incident window. Note: -f (follow) cannot be combined with --previous: a dead instance produces no new lines.",
           code: "kubectl logs web -c api --previous --since=1h",
         },
       ],
@@ -191,13 +191,13 @@ const logs: DocsLesson = {
       type: "concept",
       term: "--previous (-p)",
       definition:
-        "Each time the kubelet restarts a container it is a fresh instance with its own log stream. `kubectl logs` shows the CURRENT instance by default; the instance that actually crashed is the previous one. `kubectl logs --previous` reads that terminated instance's captured output — the only place the fatal error usually lives.",
+        "Each time the kubelet restarts a container it is a fresh instance with its own log stream. `kubectl logs` shows the CURRENT instance by default; the instance that actually crashed is the previous one. `kubectl logs --previous` reads that terminated instance's captured output: the only place the fatal error usually lives.",
     },
     {
       type: "callout",
       tone: "warning",
       title: "Current logs of a crashing Pod are often empty",
-      text: "During CrashLoopBackOff the container spends most of its time waiting to be restarted, so there is no running instance and `kubectl logs` returns little or nothing. The crash message belongs to the instance that already died. Do not conclude 'it crashed silently' — reach for `--previous` before you believe there are no logs.",
+      text: "During CrashLoopBackOff the container spends most of its time waiting to be restarted, so there is no running instance and `kubectl logs` returns little or nothing. The crash message belongs to the instance that already died. Do not conclude 'it crashed silently': reach for `--previous` before you believe there are no logs.",
     },
     {
       type: "demo",
@@ -218,7 +218,7 @@ const logs: DocsLesson = {
           detail:
             "Between restarts there is no live container, so the default logs command has almost nothing to show.",
           command: "kubectl logs payment-7d9",
-          output: "(no output — the container is waiting to be restarted)",
+          output: "(no output: the container is waiting to be restarted)",
         },
         {
           label: "Read the instance that died",
@@ -240,7 +240,7 @@ const logs: DocsLesson = {
         "An engineer is investigating a Pod stuck in CrashLoopBackOff. They ran the command below, saw an empty result, and told the channel 'there are no logs, it must be crashing silently before it can log anything.' What did they get wrong, and what should they run?",
       code: "$ kubectl get pod payment-7d9\nNAME          READY   STATUS             RESTARTS   AGE\npayment-7d9   0/1     CrashLoopBackOff   5          3m\n\n$ kubectl logs payment-7d9\n$ ",
       answer:
-        "They read the CURRENT container instance, which is sitting in backoff and has not run long enough to print anything — so the empty output is expected, not evidence of a silent crash. The crash happened in the PREVIOUS instance, whose captured stdout/stderr still exists. Run `kubectl logs payment-7d9 --previous` to see the fatal line from the attempt that actually died.",
+        "They read the CURRENT container instance, which is sitting in backoff and has not run long enough to print anything, so the empty output is expected, not evidence of a silent crash. The crash happened in the PREVIOUS instance, whose captured stdout/stderr still exists. Run `kubectl logs payment-7d9 --previous` to see the fatal line from the attempt that actually died.",
     },
     {
       type: "heading",
@@ -266,7 +266,7 @@ const logs: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "`kubectl logs` is not magic: the container runtime redirects each container's stdout and stderr into files on the node it runs on, under paths like /var/log/pods and /var/log/containers. When you run the command, the API server asks that node's kubelet to read the relevant file and stream it back. Because the bytes live in node files, they are bounded by disk — which is why long-term logging is done by a separate agent.",
+      text: "`kubectl logs` is not magic: the container runtime redirects each container's stdout and stderr into files on the node it runs on, under paths like /var/log/pods and /var/log/containers. When you run the command, the API server asks that node's kubelet to read the relevant file and stream it back. Because the bytes live in node files, they are bounded by disk, which is why long-term logging is done by a separate agent.",
     },
     {
       type: "concept",
@@ -308,7 +308,7 @@ const logs: DocsLesson = {
         },
         {
           code: "    - name: app",
-          note: "the real workload — but it logs to a FILE, not stdout, so kubectl cannot see it directly",
+          note: "the real workload, but it logs to a FILE, not stdout, so kubectl cannot see it directly",
         },
         {
           code: "      image: klab/web-app:1.0.0",
@@ -348,7 +348,7 @@ const logs: DocsLesson = {
         },
         {
           code: "    - name: logs",
-          note: "an emptyDir is enough — it only needs to outlive neither container, just to be shared between them",
+          note: "an emptyDir is enough: it only needs to outlive neither container, just to be shared between them",
         },
         {
           code: "      emptyDir: {}",
@@ -359,7 +359,7 @@ const logs: DocsLesson = {
       type: "takeaways",
       items: [
         "Logs are the process's own account written to stdout/stderr; status and events are the platform's outside view.",
-        "On any CrashLoopBackOff, reach for --previous — the current instance is usually empty and the crash detail lives in the terminated one.",
+        "On any CrashLoopBackOff, reach for --previous: the current instance is usually empty and the crash detail lives in the terminated one.",
         "In multi-container Pods always pass -c; scope big logs with --tail and --since, and use -f to watch live (never with --previous).",
         "Node log files rotate by size and count and are deleted with the Pod, so ship logs to a backend for retention.",
         "A sidecar can turn a file-logging app into a stdout stream that both kubectl and the node agent can collect.",
@@ -405,7 +405,7 @@ const logs: DocsLesson = {
           text: "Node log files rotate by size and count, so older lines can be dropped.",
           correct: true,
           explanation:
-            "The kubelet caps each container log file (default ~10Mi, 5 files); once rotated out, `kubectl logs` can no longer show them — a backend is needed for retention.",
+            "The kubelet caps each container log file (default ~10Mi, 5 files); once rotated out, `kubectl logs` can no longer show them: a backend is needed for retention.",
         },
         {
           id: "b",
@@ -462,7 +462,7 @@ const events: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "An Event is not a log line from your application. It is a short record the platform writes about itself: the scheduler saying where a Pod landed, the kubelet saying it pulled an image, a probe saying a container failed a health check. When something is stuck or broken, events are the fastest way to answer the only question that matters at first: what did Kubernetes try to do, and why did it stop? Events are their own namespaced API objects — each points at a single involved object and carries a Reason, a human Message, a Type of Normal or Warning, and timestamps. Read them time-ordered and they reconstruct the story of a failure step by step.",
+      text: "An Event is not a log line from your application. It is a short record the platform writes about itself: the scheduler saying where a Pod landed, the kubelet saying it pulled an image, a probe saying a container failed a health check. When something is stuck or broken, events are the fastest way to answer the only question that matters at first: what did Kubernetes try to do, and why did it stop? Events are their own namespaced API objects: each points at a single involved object and carries a Reason, a human Message, a Type of Normal or Warning, and timestamps. Read them time-ordered and they reconstruct the story of a failure step by step.",
     },
     {
       type: "diagram",
@@ -478,7 +478,7 @@ const events: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "By default kubectl get events returns rows in an unhelpful order. Almost always sort by the last time each event was seen, so the most recent activity sits at the bottom where a terminal naturally shows it. Look for repeated Warning rows tied to the same object — that repetition is usually the smoking gun.",
+      text: "By default kubectl get events returns rows in an unhelpful order. Almost always sort by the last time each event was seen, so the most recent activity sits at the bottom where a terminal naturally shows it. Look for repeated Warning rows tied to the same object: that repetition is usually the smoking gun.",
     },
     {
       type: "demo",
@@ -496,7 +496,7 @@ const events: DocsLesson = {
         {
           label: "Connect the Reason back to the YAML",
           detail:
-            "Unhealthy from a readiness probe means the container is running but failing its check. Open the readinessProbe section of the manifest — a 404 says the path is wrong (this image serves /healthz, not /readyz).",
+            "Unhealthy from a readiness probe means the container is running but failing its check. Open the readinessProbe section of the manifest: a 404 says the path is wrong (this image serves /healthz, not /readyz).",
           command: "kubectl get pod web -o yaml | grep -A5 readinessProbe",
         },
       ],
@@ -511,7 +511,7 @@ const events: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "Events expire, and they are namespaced",
-      text: "The API server garbage-collects events roughly an hour after they last fired (the default TTL is one hour). If you look an hour after an incident, the evidence may simply be gone — capture it while it is fresh. Events also live in a namespace: kubectl get events shows only the current namespace unless you add -n <ns> or -A for all namespaces.",
+      text: "The API server garbage-collects events roughly an hour after they last fired (the default TTL is one hour). If you look an hour after an incident, the evidence may simply be gone: capture it while it is fresh. Events also live in a namespace: kubectl get events shows only the current namespace unless you add -n <ns> or -A for all namespaces.",
     },
     {
       type: "heading",
@@ -520,7 +520,7 @@ const events: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "You rarely list the whole namespace first. More often you already suspect one object and run kubectl describe on it. describe ends with an Events section scoped to just that object — the same records, but pre-filtered and already in time order, with an Age column and a From column naming which component wrote each one.",
+      text: "You rarely list the whole namespace first. More often you already suspect one object and run kubectl describe on it. describe ends with an Events section scoped to just that object: the same records, but pre-filtered and already in time order, with an Age column and a From column naming which component wrote each one.",
     },
     {
       type: "demo",
@@ -550,7 +550,7 @@ const events: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Newer kubectl ships a dedicated kubectl events command (get events still works). It sorts by time by default, formats the age column like describe does, and adds a --for flag to scope to one object and --watch to stream new events live as they arrive — handy while you re-apply a fix and want to see the cluster react.",
+      text: "Newer kubectl ships a dedicated kubectl events command (get events still works). It sorts by time by default, formats the age column like describe does, and adds a --for flag to scope to one object and --watch to stream new events live as they arrive: handy while you re-apply a fix and want to see the cluster react.",
     },
     {
       type: "demo",
@@ -637,10 +637,10 @@ const events: DocsLesson = {
       language: "yaml",
       title: "Why does this Pod never go Ready?",
       prompt:
-        "This Pod runs but stays 0/1 Ready, and kubectl describe pod web shows a repeating Warning: Unhealthy — Readiness probe failed: HTTP probe failed with statuscode: 404. The image is klab/web-app:1.0.0. What is wrong, and how do the events prove it?",
+        "This Pod runs but stays 0/1 Ready, and kubectl describe pod web shows a repeating Warning: Unhealthy: Readiness probe failed: HTTP probe failed with statuscode: 404. The image is klab/web-app:1.0.0. What is wrong, and how do the events prove it?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\n  labels:\n    app: web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080\n      readinessProbe:\n        httpGet:\n          path: /readyz\n          port: 8080",
       answer:
-        "The readiness probe hits /readyz, but this image returns 404 on /readyz (it serves 200 on /healthz). The container is healthy and running — nothing crashed — so the only symptom is the repeating Unhealthy readiness event and a Pod that never joins Service endpoints. The Reason (Unhealthy, not BackOff or FailedScheduling) tells you it is a probe problem, not a scheduling or image problem. Fix: point the probe at /healthz.",
+        "The readiness probe hits /readyz, but this image returns 404 on /readyz (it serves 200 on /healthz). The container is healthy and running: nothing crashed, so the only symptom is the repeating Unhealthy readiness event and a Pod that never joins Service endpoints. The Reason (Unhealthy, not BackOff or FailedScheduling) tells you it is a probe problem, not a scheduling or image problem. Fix: point the probe at /healthz.",
     },
     {
       type: "heading",
@@ -661,11 +661,11 @@ const events: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "Events are the platform narrating its own decisions — not your app's logs. Read them first.",
+        "Events are the platform narrating its own decisions: not your app's logs. Read them first.",
         "Always sort by time (kubectl get events --sort-by=.lastTimestamp) and watch for repeated Warning rows on one object.",
-        "kubectl describe <object> ends with an Events section already scoped and time-ordered — usually where the answer is.",
+        "kubectl describe <object> ends with an Events section already scoped and time-ordered: usually where the answer is.",
         "The Reason field is a diagnosis: FailedScheduling, ImagePullBackOff, BackOff, Unhealthy, and FailedMount each point at a different next command.",
-        "Events are namespaced and expire after about an hour — capture the evidence while the incident is live.",
+        "Events are namespaced and expire after about an hour: capture the evidence while the incident is live.",
       ],
     },
     {
@@ -714,7 +714,7 @@ const events: DocsLesson = {
           text: "Events are cluster-wide, so a namespace filter can never hide them.",
           correct: false,
           explanation:
-            "Events are namespaced — the wrong namespace can also hide them — but the classic 'nothing an hour later' cause is expiry.",
+            "Events are namespaced: the wrong namespace can also hide them, but the classic 'nothing an hour later' cause is expiry.",
         },
         {
           id: "c",
@@ -764,7 +764,7 @@ const probes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A running container is not the same as a working one. A process can be up but still warming a cache, waiting on a migration, or wedged in a deadlock. Probes are how the kubelet asks a container two different questions: 'Are you ready to receive traffic?' and 'Are you alive, or should I restart you?' Getting the two confused is one of the most common — and most damaging — mistakes in production Kubernetes.",
+      text: "A running container is not the same as a working one. A process can be up but still warming a cache, waiting on a migration, or wedged in a deadlock. Probes are how the kubelet asks a container two different questions: 'Are you ready to receive traffic?' and 'Are you alive, or should I restart you?' Getting the two confused is one of the most common, and most damaging: mistakes in production Kubernetes.",
     },
     {
       type: "diagram",
@@ -784,7 +784,7 @@ const probes: DocsLesson = {
       type: "concept",
       term: "readinessProbe",
       definition:
-        "When it fails, the Pod's IP is removed from its Service EndpointSlices, so new traffic stops arriving — but the container is NOT restarted. When it passes again, the Pod is re-added. Use it to gate traffic during warm-up or while a dependency is unavailable.",
+        "When it fails, the Pod's IP is removed from its Service EndpointSlices, so new traffic stops arriving, but the container is NOT restarted. When it passes again, the Pod is re-added. Use it to gate traffic during warm-up or while a dependency is unavailable.",
     },
     {
       type: "concept",
@@ -802,7 +802,7 @@ const probes: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "The most common probe mistake",
-      text: "Do not use liveness as a dependency check. If your liveness probe fails because the database is slow, Kubernetes will restart a perfectly healthy process — and every replica at once — turning a partial outage into a cluster-wide restart storm. Dependency health belongs in readiness (stop taking traffic), never in liveness (restart).",
+      text: "Do not use liveness as a dependency check. If your liveness probe fails because the database is slow, Kubernetes will restart a perfectly healthy process, and every replica at once: turning a partial outage into a cluster-wide restart storm. Dependency health belongs in readiness (stop taking traffic), never in liveness (restart).",
     },
     {
       type: "heading",
@@ -904,7 +904,7 @@ const probes: DocsLesson = {
         },
         {
           code: "          path: /healthz",
-          note: "a cheap 'is the process responsive' check — no dependency calls",
+          note: "a cheap 'is the process responsive' check: no dependency calls",
         },
         {
           code: "          port: 8080",
@@ -925,7 +925,7 @@ const probes: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The httpGet field above is just one of four probe mechanisms. Any of the three probe types can use any mechanism — pick the one that actually reflects your app's health.",
+      text: "The httpGet field above is just one of four probe mechanisms. Any of the three probe types can use any mechanism: pick the one that actually reflects your app's health.",
     },
     {
       type: "steps",
@@ -933,7 +933,7 @@ const probes: DocsLesson = {
       items: [
         {
           title: "httpGet",
-          text: "The kubelet sends an HTTP GET; any 200-399 status is a pass. The best default for web servers — pair it with a lightweight /healthz handler.",
+          text: "The kubelet sends an HTTP GET; any 200-399 status is a pass. The best default for web servers: pair it with a lightweight /healthz handler.",
         },
         {
           title: "tcpSocket",
@@ -941,7 +941,7 @@ const probes: DocsLesson = {
         },
         {
           title: "exec",
-          text: "The kubelet runs a command inside the container; exit code 0 is a pass. Flexible but the most expensive — it forks a process every period.",
+          text: "The kubelet runs a command inside the container; exit code 0 is a pass. Flexible but the most expensive: it forks a process every period.",
         },
         {
           title: "grpc",
@@ -958,7 +958,7 @@ const probes: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "The four numbers that decide behavior",
-      text: "initialDelaySeconds: how long to wait before the FIRST probe (0 by default). periodSeconds: how often to probe after that. timeoutSeconds: how long one probe may take before it counts as a failure (1s by default — surprisingly easy to trip). failureThreshold: how many consecutive failures trigger the action. Effective time-to-act = initialDelaySeconds + failureThreshold x periodSeconds. Compute that number before you ship a liveness probe.",
+      text: "initialDelaySeconds: how long to wait before the FIRST probe (0 by default). periodSeconds: how often to probe after that. timeoutSeconds: how long one probe may take before it counts as a failure (1s by default: surprisingly easy to trip). failureThreshold: how many consecutive failures trigger the action. Effective time-to-act = initialDelaySeconds + failureThreshold x periodSeconds. Compute that number before you ship a liveness probe.",
     },
     {
       type: "concept",
@@ -978,12 +978,12 @@ const probes: DocsLesson = {
       stages: [
         {
           label: "Just a container",
-          note: "No probes. Kubernetes assumes the container is Ready as soon as it starts and never restarts it for being unresponsive — only if the process exits.",
+          note: "No probes. Kubernetes assumes the container is Ready as soon as it starts and never restarts it for being unresponsive: only if the process exits.",
           code: "spec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080",
         },
         {
           label: "Add readiness",
-          note: "Now the Pod only receives Service traffic once /readyz answers. If it later fails, the Pod is pulled from endpoints but keeps running — no restart, no data loss.",
+          note: "Now the Pod only receives Service traffic once /readyz answers. If it later fails, the Pod is pulled from endpoints but keeps running: no restart, no data loss.",
           code: "spec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080\n      readinessProbe:\n        httpGet:\n          path: /readyz\n          port: 8080\n        periodSeconds: 5\n        failureThreshold: 3",
         },
         {
@@ -1003,10 +1003,10 @@ const probes: DocsLesson = {
       language: "yaml",
       title: "Why does this Pod never stay up?",
       prompt:
-        "This app needs about 40 seconds to warm its cache before /healthz returns 200. The Pod starts, runs for a bit, gets killed, and repeats forever — a CrashLoop that isn't caused by the app crashing. What is wrong, and how should it be fixed?",
+        "This app needs about 40 seconds to warm its cache before /healthz returns 200. The Pod starts, runs for a bit, gets killed, and repeats forever: a CrashLoop that isn't caused by the app crashing. What is wrong, and how should it be fixed?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: slow-web\nspec:\n  containers:\n    - name: web\n      image: klab/web-app:1.0.0\n      ports:\n        - containerPort: 8080\n      livenessProbe:\n        httpGet:\n          path: /healthz\n          port: 8080\n        initialDelaySeconds: 5\n        periodSeconds: 5\n        failureThreshold: 3",
       answer:
-        "The liveness probe is policing a slow start. It begins at 5s and, after 3 failures at 5s each, gives up around 20s — but the app needs ~40s to become healthy. The kubelet kills and restarts the container before it can finish booting, forever. Liveness is the wrong tool for a slow start: a restart doesn't help, because restarting just resets the 40s clock. Fix: add a startupProbe with a generous failureThreshold (for example periodSeconds 10, failureThreshold 30 = up to 300s) so liveness stays disabled until the app is up. The slow-boot concern is a startup/readiness problem, never a liveness one.",
+        "The liveness probe is policing a slow start. It begins at 5s and, after 3 failures at 5s each, gives up around 20s, but the app needs ~40s to become healthy. The kubelet kills and restarts the container before it can finish booting, forever. Liveness is the wrong tool for a slow start: a restart doesn't help, because restarting just resets the 40s clock. Fix: add a startupProbe with a generous failureThreshold (for example periodSeconds 10, failureThreshold 30 = up to 300s) so liveness stays disabled until the app is up. The slow-boot concern is a startup/readiness problem, never a liveness one.",
     },
     {
       type: "heading",
@@ -1067,7 +1067,7 @@ const probes: DocsLesson = {
       type: "takeaways",
       items: [
         "Readiness gates traffic (removes from endpoints, no restart); liveness gates restarts (kills the container); startup protects slow boots and disables the other two until it passes.",
-        "Never put a dependency check in a liveness probe — it turns a partial outage into a restart storm. Dependency health belongs in readiness.",
+        "Never put a dependency check in a liveness probe: it turns a partial outage into a restart storm. Dependency health belongs in readiness.",
         "Effective time to act = initialDelaySeconds + failureThreshold x periodSeconds. Compute it before shipping a liveness probe.",
         "Prefer a startupProbe over a large initialDelaySeconds for slow starters: generous ceiling, fast reaction once running.",
         "Pick the mechanism that reflects real health: httpGet for web, tcpSocket for raw ports, exec for scripts, grpc for gRPC services.",
@@ -1112,7 +1112,7 @@ const probes: DocsLesson = {
           text: "Add a startupProbe with a generous failureThreshold so liveness is held off until the app is ready.",
           correct: true,
           explanation:
-            "The startupProbe gives the slow boot a long window and disables liveness until it passes — exactly what slow starts need.",
+            "The startupProbe gives the slow boot a long window and disables liveness until it passes: exactly what slow starts need.",
         },
         {
           id: "b",
@@ -1132,7 +1132,7 @@ const probes: DocsLesson = {
           text: "Point liveness at the database to confirm dependencies.",
           correct: false,
           explanation:
-            "Liveness must never do dependency checks — that causes restart storms and does not address the slow boot.",
+            "Liveness must never do dependency checks: that causes restart storms and does not address the slow boot.",
         },
       ],
     },
@@ -1194,7 +1194,7 @@ const kubectlDebugging: DocsLesson = {
         },
         {
           title: "describe (focus)",
-          text: "kubectl describe on the broken object adds the Events log, container state, exit codes, and the last probe result — the fields the table view hides.",
+          text: "kubectl describe on the broken object adds the Events log, container state, exit codes, and the last probe result: the fields the table view hides.",
         },
         {
           title: "logs (listen)",
@@ -1260,7 +1260,7 @@ const kubectlDebugging: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "get tells you a Pod is unhealthy; describe tells you why. It stitches together the container state, restart count, the last probe result, and the Events feed — a timeline of what the scheduler and kubelet did to this object. Read the Events from the bottom up; the newest Warning is usually the headline.",
+      text: "get tells you a Pod is unhealthy; describe tells you why. It stitches together the container state, restart count, the last probe result, and the Events feed: a timeline of what the scheduler and kubelet did to this object. Read the Events from the bottom up; the newest Warning is usually the headline.",
     },
     {
       type: "demo",
@@ -1290,7 +1290,7 @@ const kubectlDebugging: DocsLesson = {
       type: "concept",
       term: "Events are ephemeral and namespaced",
       definition:
-        "Events live in a namespace and the API server garbage-collects them (about an hour by default). If describe shows no events, they may have expired — reproduce the failure, or check controller logs. kubectl get events --field-selector reason=Unhealthy --sort-by=.lastTimestamp lists them across a namespace.",
+        "Events live in a namespace and the API server garbage-collects them (about an hour by default). If describe shows no events, they may have expired: reproduce the failure, or check controller logs. kubectl get events --field-selector reason=Unhealthy --sort-by=.lastTimestamp lists them across a namespace.",
     },
     {
       type: "heading",
@@ -1314,7 +1314,7 @@ const kubectlDebugging: DocsLesson = {
         {
           label: "Recover the crashed instance",
           detail:
-            "--previous prints the logs of the container that already died — usually the actual error message.",
+            "--previous prints the logs of the container that already died: usually the actual error message.",
           command: "kubectl logs web-7d9c5b8f6c-4x2kd --previous",
           output:
             "2026-07-10T09:14:01Z INFO  starting web-app 1.0.0 on :8080\n2026-07-10T09:14:02Z FATAL could not open config /etc/app/config.yaml: no such file or directory\nexit status 1",
@@ -1365,7 +1365,7 @@ const kubectlDebugging: DocsLesson = {
         {
           label: "Confirm from your side of the tunnel",
           detail:
-            "Now curl on your laptop reaches the container directly. Same 404 on /readyz — proof the Pod itself is the problem, not the Service or DNS.",
+            "Now curl on your laptop reaches the container directly. Same 404 on /readyz: proof the Pod itself is the problem, not the Service or DNS.",
           command: "curl -s -o /dev/null -w '%{http_code}\\n' localhost:8080/readyz",
           output: "404",
         },
@@ -1380,7 +1380,7 @@ const kubectlDebugging: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "No shell in the image? Bring your own",
-      text: 'Distroless and scratch images ship no sh, no ps, no curl — so kubectl exec -- sh fails with "executable file not found". kubectl debug attaches an EPHEMERAL container to the running Pod. It joins the target Pod\'s namespaces (with --target it shares the process namespace too), so your busybox toolbox can see the same network, filesystem mounts, and processes as the crashing app — without rebuilding the image or restarting the Pod.',
+      text: 'Distroless and scratch images ship no sh, no ps, no curl, so kubectl exec -- sh fails with "executable file not found". kubectl debug attaches an EPHEMERAL container to the running Pod. It joins the target Pod\'s namespaces (with --target it shares the process namespace too), so your busybox toolbox can see the same network, filesystem mounts, and processes as the crashing app: without rebuilding the image or restarting the Pod.',
     },
     {
       type: "demo",
@@ -1390,7 +1390,7 @@ const kubectlDebugging: DocsLesson = {
       steps: [
         {
           label: "exec has nothing to run",
-          detail: "A distroless image contains only the app binary — no /bin/sh to exec into.",
+          detail: "A distroless image contains only the app binary: no /bin/sh to exec into.",
           command: "kubectl exec -it api-6b4f9c7d-2mzql -- sh",
           output:
             'error: Internal error occurred: error executing command in container: failed to exec in container: failed to start exec: exec: "sh": executable file not found in $PATH',
@@ -1425,7 +1425,7 @@ const kubectlDebugging: DocsLesson = {
         'An on-call engineer is debugging a Pod stuck in Pending and runs the session below. They conclude "the app logs nothing, it must be broken code." What did they get wrong?',
       code: '$ kubectl get pod worker-0\nNAME       READY   STATUS    RESTARTS   AGE\nworker-0   0/1     Pending   0          4m\n\n$ kubectl logs worker-0\nError from server (BadRequest): container "worker" in pod "worker-0" is waiting to start: ContainerCreating\n\n$ kubectl logs worker-0 --previous\nError from server (BadRequest): previous terminated container "worker" not found',
       answer:
-        "A Pending Pod has never been scheduled to a node, so no container has started and there are no logs to read — current or previous. Pending is a scheduling state, not an application state. The right first command is kubectl describe pod worker-0 (or kubectl get events), which reveals the scheduling reason: FailedScheduling with a message like 'insufficient cpu' or 'pod has unbound immediate PersistentVolumeClaims'. Reach for logs only once a container has actually run.",
+        "A Pending Pod has never been scheduled to a node, so no container has started and there are no logs to read: current or previous. Pending is a scheduling state, not an application state. The right first command is kubectl describe pod worker-0 (or kubectl get events), which reveals the scheduling reason: FailedScheduling with a message like 'insufficient cpu' or 'pod has unbound immediate PersistentVolumeClaims'. Reach for logs only once a container has actually run.",
     },
     {
       type: "challenge",
@@ -1510,7 +1510,7 @@ const kubectlDebugging: DocsLesson = {
       items: [
         "Run the same loop every time: get to widen, describe to focus, logs to listen, exec/debug to reach in, patch to act.",
         "get -o wide separates scheduling problems (no node) from app problems; -o yaml exposes status fields; --field-selector filters cheaply at the server.",
-        "describe is where the Events and container exit codes live — read Events newest-first, and remember they expire in about an hour.",
+        "describe is where the Events and container exit codes live: read Events newest-first, and remember they expire in about an hour.",
         "CrashLoopBackOff needs kubectl logs --previous; the live container has already died.",
         "Distroless images have no shell: kubectl debug attaches an ephemeral toolbox container that shares the Pod's namespaces.",
       ],

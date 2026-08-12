@@ -305,6 +305,6 @@ export const gracefulShutdown502s = {
       "Measure real endpoint-propagation latency, budget preStop and termination grace above it, preserve rollout capacity, and sample traffic during termination in release tests.",
     relatedConcepts: ["lifecycle-hooks", "rollouts", "services", "endpointslices", "debugging"],
     docsHref: "/docs/workloads/init-sidecars-lifecycle",
-    recommendedNextSlugs: ["rolling-update-gone-wrong", "zombie-replicaset"],
+    recommendedNextSlugs: ["zombie-replicaset"],
   },
 } satisfies ProblemLevel;

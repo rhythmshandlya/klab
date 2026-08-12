@@ -17,7 +17,7 @@ import { createTestDb, seedUser, type TestDb } from "./pglite";
 
 /**
  * community-repo is read-only aggregation, so fixtures are inserted directly (explicit
- * XP and timestamps) rather than going through applyIntents — ordering assertions need
+ * XP and timestamps) rather than going through applyIntents: ordering assertions need
  * deterministic values.
  */
 

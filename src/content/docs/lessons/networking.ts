@@ -32,7 +32,7 @@ const services: DocsLesson = {
     { type: "heading", id: "anatomy", text: "Anatomy of a Service" },
     {
       type: "paragraph",
-      text: "A Service has only three things that matter: which Pods it routes to (selector), the port clients connect to (port), and the port the container listens on (targetPort). Read every Service through these three lenses.",
+      text: "A Service has only three things that matter, which Pods it routes to (selector), the port clients connect to (port), and the port the container listens on (targetPort). Read every Service through these three lenses.",
     },
     {
       type: "annotatedCode",
@@ -44,14 +44,14 @@ const services: DocsLesson = {
         { code: "kind: Service" },
         {
           code: "metadata:",
-          note: "identity: name + namespace — this also becomes the DNS name clients use",
+          note: "identity: name + namespace: this also becomes the DNS name clients use",
         },
         { code: "  name: web-svc" },
         { code: "  namespace: default" },
         { code: "spec:" },
         {
           code: "  selector:",
-          note: "HOW the Service finds Pods — must match a Pod's labels exactly",
+          note: "HOW the Service finds Pods: must match a Pod's labels exactly",
         },
         { code: "    app: web", note: "an exact key:value pair from the Pod's metadata.labels" },
         { code: "  ports:" },
@@ -75,7 +75,7 @@ const services: DocsLesson = {
       stages: [
         {
           label: "Skeleton",
-          note: "Minimum valid object: apiVersion, kind, a name, and an empty spec. It routes nowhere yet — no selector, no ports.",
+          note: "Minimum valid object: apiVersion, kind, a name, and an empty spec. It routes nowhere yet: no selector, no ports.",
           code: "apiVersion: v1\nkind: Service\nmetadata:\n  name: web-svc\nspec: {}",
         },
         {
@@ -107,14 +107,14 @@ const services: DocsLesson = {
       },
       right: {
         title: "Service selector",
-        code: "spec:\n  selector:\n    app: web\n# matches — extra Pod labels are ignored",
+        code: "spec:\n  selector:\n    app: web\n# matches: extra Pod labels are ignored",
       },
     },
     {
       type: "callout",
       tone: "key",
       title: "The three ports people confuse",
-      text: "containerPort (in the Pod spec) is where the app listens. targetPort (in the Service) is where the Service sends traffic — it usually equals containerPort. port (in the Service) is what clients connect to. Three different numbers that must agree end to end.",
+      text: "containerPort (in the Pod spec) is where the app listens. targetPort (in the Service) is where the Service sends traffic: it usually equals containerPort. port (in the Service) is what clients connect to. Three different numbers that must agree end to end.",
     },
     { type: "heading", id: "spot-the-bug", text: "Read a broken Service" },
     {
@@ -145,7 +145,7 @@ const services: DocsLesson = {
       rows: [
         {
           label: "ClusterIP",
-          cells: ["Inside the cluster only", "Default — service-to-service traffic"],
+          cells: ["Inside the cluster only", "Default: service-to-service traffic"],
         },
         {
           label: "NodePort",
@@ -225,7 +225,7 @@ const dns: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Service gives you a stable ClusterIP, but nobody wants to hard-code virtual IPs into config. Kubernetes runs an in-cluster DNS server (CoreDNS) that turns Service and Pod objects into names your apps can resolve. CoreDNS runs as a Deployment in kube-system, fronted by a Service (historically named kube-dns) at a fixed ClusterIP such as 10.96.0.10. When a Pod starts, the kubelet writes that DNS IP into the Pod's /etc/resolv.conf, so every process in the Pod resolves Service names automatically. The mental model: DNS answers 'what address is behind this name?' — it does NOT decide whether traffic succeeds. Resolving web-svc gets you the Service's ClusterIP; the Service's EndpointSlices then decide which Ready Pod receives the request. A name can resolve perfectly and still return connection-refused when there are zero endpoints.",
+      text: "A Service gives you a stable ClusterIP, but nobody wants to hard-code virtual IPs into config. Kubernetes runs an in-cluster DNS server (CoreDNS) that turns Service and Pod objects into names your apps can resolve. CoreDNS runs as a Deployment in kube-system, fronted by a Service (historically named kube-dns) at a fixed ClusterIP such as 10.96.0.10. When a Pod starts, the kubelet writes that DNS IP into the Pod's /etc/resolv.conf, so every process in the Pod resolves Service names automatically. The mental model: DNS answers 'what address is behind this name?': it does NOT decide whether traffic succeeds. Resolving web-svc gets you the Service's ClusterIP; the Service's EndpointSlices then decide which Ready Pod receives the request. A name can resolve perfectly and still return connection-refused when there are zero endpoints.",
     },
     {
       type: "diagram",
@@ -267,7 +267,7 @@ const dns: DocsLesson = {
       lines: [
         {
           code: "nameserver 10.96.0.10",
-          note: "the CoreDNS Service ClusterIP — every lookup goes here first",
+          note: "the CoreDNS Service ClusterIP: every lookup goes here first",
         },
         {
           code: "search default.svc.cluster.local svc.cluster.local cluster.local",
@@ -283,7 +283,7 @@ const dns: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "The ndots:5 tax",
-      text: "Because ndots is 5, a name like api.backend (1 dot) is first tried as api.backend.default.svc.cluster.local, then api.backend.svc.cluster.local, then api.backend.cluster.local — three failing lookups — before it is ever tried as the literal api.backend. For external hostnames this multiplies DNS traffic and adds latency. Fix it by using a fully qualified name with a trailing dot (example.com.), which resolves in one query and skips the search list.",
+      text: "Because ndots is 5, a name like api.backend (1 dot) is first tried as api.backend.default.svc.cluster.local, then api.backend.svc.cluster.local, then api.backend.cluster.local: three failing lookups: before it is ever tried as the literal api.backend. For external hostnames this multiplies DNS traffic and adds latency. Fix it by using a fully qualified name with a trailing dot (example.com.), which resolves in one query and skips the search list.",
     },
     {
       type: "heading",
@@ -321,11 +321,11 @@ const dns: DocsLesson = {
       caption:
         "Same selector, different DNS answer. The clusterIP field is the only change that matters.",
       left: {
-        title: "ClusterIP Service — one VIP",
+        title: "ClusterIP Service: one VIP",
         code: "$ dig +short cache.default.svc.cluster.local\n10.96.42.7\n# one stable virtual IP; kube-proxy balances behind it",
       },
       right: {
-        title: "Headless (clusterIP: None) — Pod IPs",
+        title: "Headless (clusterIP: None): Pod IPs",
         code: "$ dig +short cache.default.svc.cluster.local\n10.244.1.9\n10.244.2.4\n10.244.3.6\n# one A record per Ready Pod; client picks",
       },
     },
@@ -336,13 +336,13 @@ const dns: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "When a Service port has a name, CoreDNS also publishes an SRV record that advertises both the port number and the target host, so clients can discover the port without hard-coding it. The SRV name is _<port-name>._<protocol>.<service>.<namespace>.svc.cluster.local, so a named 'http' port yields _http._tcp.web-svc.default.svc.cluster.local, whose answer '0 100 80 web-svc.default.svc.cluster.local.' carries the port (80) and target host. This matters most with headless Services, where the SRV targets are the individual Pod hostnames — a client can enumerate every replica and its port in one query.",
+      text: "When a Service port has a name, CoreDNS also publishes an SRV record that advertises both the port number and the target host, so clients can discover the port without hard-coding it. The SRV name is _<port-name>._<protocol>.<service>.<namespace>.svc.cluster.local, so a named 'http' port yields _http._tcp.web-svc.default.svc.cluster.local, whose answer '0 100 80 web-svc.default.svc.cluster.local.' carries the port (80) and target host. This matters most with headless Services, where the SRV targets are the individual Pod hostnames: a client can enumerate every replica and its port in one query.",
     },
     {
       type: "callout",
       tone: "info",
       title: "Pods get DNS too",
-      text: "Beyond Services, a Pod can be resolved by its IP under the pod domain: 10-244-1-9.default.pod.cluster.local (dashes, not dots). Pods created by a StatefulSet or given a hostname/subdomain also get proper A records. Which resolver a Pod uses is set by spec.dnsPolicy — the default ClusterFirst sends cluster-suffixed names to CoreDNS and forwards everything else upstream; Default (confusingly) means 'inherit the node's resolv.conf' and skips cluster DNS.",
+      text: "Beyond Services, a Pod can be resolved by its IP under the pod domain: 10-244-1-9.default.pod.cluster.local (dashes, not dots). Pods created by a StatefulSet or given a hostname/subdomain also get proper A records. Which resolver a Pod uses is set by spec.dnsPolicy: the default ClusterFirst sends cluster-suffixed names to CoreDNS and forwards everything else upstream; Default (confusingly) means 'inherit the node's resolv.conf' and skips cluster DNS.",
     },
     {
       type: "heading",
@@ -356,7 +356,7 @@ const dns: DocsLesson = {
         "This client Pod lives in the 'frontend' namespace and needs to reach a Service 'web-svc' that lives in the 'backend' namespace. Connections fail with a name-resolution error. What is wrong, and what are two ways to fix it?",
       code: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: client\n  namespace: frontend\nspec:\n  containers:\n    - name: app\n      image: klab/web-app:1.0.0\n      env:\n        - name: UPSTREAM_URL\n          value: http://web-svc/",
       answer:
-        "The short name web-svc only resolves within the caller's own namespace. The client is in 'frontend', so the resolver expands web-svc to web-svc.frontend.svc.cluster.local (the first search domain) — but the Service is in 'backend', so that record does not exist. Short names never cross namespaces. Fix by qualifying the namespace: http://web-svc.backend/ (which the search list completes to ...svc.cluster.local), or use the full FQDN http://web-svc.backend.svc.cluster.local/ for an unambiguous, search-independent name.",
+        "The short name web-svc only resolves within the caller's own namespace. The client is in 'frontend', so the resolver expands web-svc to web-svc.frontend.svc.cluster.local (the first search domain), but the Service is in 'backend', so that record does not exist. Short names never cross namespaces. Fix by qualifying the namespace: http://web-svc.backend/ (which the search list completes to ...svc.cluster.local), or use the full FQDN http://web-svc.backend.svc.cluster.local/ for an unambiguous, search-independent name.",
     },
     {
       type: "challenge",
@@ -404,7 +404,7 @@ const dns: DocsLesson = {
       items: [
         "CoreDNS turns Services into names of the form <svc>.<ns>.svc.cluster.local, resolving to the Service ClusterIP.",
         "DNS only finds the address; EndpointSlices still decide whether traffic reaches a Ready Pod.",
-        "Short names resolve only within the caller's namespace because the first search domain is <your-ns>.svc.cluster.local — qualify with the namespace to cross it.",
+        "Short names resolve only within the caller's namespace because the first search domain is <your-ns>.svc.cluster.local: qualify with the namespace to cross it.",
         "ndots:5 makes short and low-dot names trigger several search-domain lookups; a trailing-dot FQDN resolves in one query.",
         "Headless Services (clusterIP: None) return per-Pod A records, and named ports add SRV records for port discovery.",
       ],
@@ -501,7 +501,7 @@ const ingress: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Read every Ingress through four lenses: which controller handles it (ingressClassName), which hostnames and paths it matches (rules), how each path is matched (pathType), and how HTTPS is terminated (tls). Everything below hangs off those.",
+      text: "Read every Ingress through four lenses, which controller handles it (ingressClassName), which hostnames and paths it matches (rules), how each path is matched (pathType), and how HTTPS is terminated (tls). Everything below hangs off those.",
     },
     {
       type: "annotatedCode",
@@ -511,7 +511,7 @@ const ingress: DocsLesson = {
       lines: [
         {
           code: "apiVersion: networking.k8s.io/v1",
-          note: "the stable v1 API — older betas (extensions/v1beta1) are gone",
+          note: "the stable v1 API: older betas (extensions/v1beta1) are gone",
         },
         {
           code: "kind: Ingress",
@@ -531,7 +531,7 @@ const ingress: DocsLesson = {
         },
         {
           code: "  ingressClassName: nginx",
-          note: "WHICH controller owns this Ingress — must match an installed IngressClass",
+          note: "WHICH controller owns this Ingress: must match an installed IngressClass",
         },
         {
           code: "  tls:",
@@ -577,7 +577,7 @@ const ingress: DocsLesson = {
         },
         {
           code: "                name: api-svc",
-          note: "the target Service — it still needs Ready endpoints of its own",
+          note: "the target Service: it still needs Ready endpoints of its own",
         },
         {
           code: "                port:",
@@ -673,7 +673,7 @@ const ingress: DocsLesson = {
           label: "Prefix",
           cells: [
             "Path split on element boundaries: /api matches /api and /api/v1, not /apifoo",
-            "The common case — routing a URL subtree to a Service",
+            "The common case: routing a URL subtree to a Service",
           ],
         },
         {
@@ -696,7 +696,7 @@ const ingress: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "ingressClassName, not the old annotation",
-      text: "Modern Ingress selects its controller with spec.ingressClassName, which references an IngressClass object. The legacy kubernetes.io/ingress.class annotation still works in some controllers but is deprecated. If neither is set and no IngressClass is marked default, no controller claims the Ingress and nothing routes — a silent failure with a healthy-looking object.",
+      text: "Modern Ingress selects its controller with spec.ingressClassName, which references an IngressClass object. The legacy kubernetes.io/ingress.class annotation still works in some controllers but is deprecated. If neither is set and no IngressClass is marked default, no controller claims the Ingress and nothing routes: a silent failure with a healthy-looking object.",
     },
     {
       type: "heading",
@@ -733,7 +733,7 @@ const ingress: DocsLesson = {
       language: "yaml",
       prompt:
         "Write an Ingress named blog-ingress handled by the nginx class. For host blog.example.com, route the exact path /health to health-svc on port 80, and route everything under / (a prefix) to blog-svc on port 80.",
-      hint: "You need spec.ingressClassName, one rule with host set, and two paths — one pathType: Exact for /health and one pathType: Prefix for /. Each backend uses service.name and service.port.number.",
+      hint: "You need spec.ingressClassName, one rule with host set, and two paths: one pathType: Exact for /health and one pathType: Prefix for /. Each backend uses service.name and service.port.number.",
       solution:
         "apiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: blog-ingress\nspec:\n  ingressClassName: nginx\n  rules:\n    - host: blog.example.com\n      http:\n        paths:\n          - path: /health\n            pathType: Exact\n            backend:\n              service:\n                name: health-svc\n                port:\n                  number: 80\n          - path: /\n            pathType: Prefix\n            backend:\n              service:\n                name: blog-svc\n                port:\n                  number: 80",
     },
@@ -753,7 +753,7 @@ const ingress: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "Ingress is L7 HTTP(S) routing rules; it never touches Pods directly — a controller does the work.",
+        "Ingress is L7 HTTP(S) routing rules; it never touches Pods directly: a controller does the work.",
         "No ingress controller (or no matching IngressClass) means the object exists but nothing routes.",
         "Route with host + path; pathType (Prefix, Exact, ImplementationSpecific) decides how paths are compared.",
         "spec.ingressClassName picks the controller; the kubernetes.io/ingress.class annotation is the deprecated way.",
@@ -784,7 +784,7 @@ const ingress: DocsLesson = {
           text: "DNS is no longer needed.",
           correct: false,
           explanation:
-            "External DNS still points clients at the controller, and cluster DNS still resolves the backend Service — both layers still matter.",
+            "External DNS still points clients at the controller, and cluster DNS still resolves the backend Service: both layers still matter.",
         },
       ],
     },
@@ -796,7 +796,7 @@ const ingress: DocsLesson = {
       options: [
         {
           id: "a",
-          text: "No ingress controller is claiming it — ingressClassName is unset and there is no default IngressClass.",
+          text: "No ingress controller is claiming it: ingressClassName is unset and there is no default IngressClass.",
           correct: true,
           explanation:
             "An Ingress is inert until a controller for its class programs a proxy; with no class and no controller, the rules do nothing.",
@@ -837,7 +837,7 @@ const serviceTypesGateway: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Every Service builds on the same core: a selector plus ports. The type field only decides the reach of the stable address it hands out — internal-only, per-node, or a real external load balancer. Pick the type by asking who needs to reach these Pods and from where, not by defaulting to whatever the last manifest used.",
+      text: "Every Service builds on the same core: a selector plus ports. The type field only decides the reach of the stable address it hands out: internal-only, per-node, or a real external load balancer. Pick the type by asking who needs to reach these Pods and from where, not by defaulting to whatever the last manifest used.",
     },
     {
       type: "diagram",
@@ -853,7 +853,7 @@ const serviceTypesGateway: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "There are four values for spec.type — ClusterIP, NodePort, LoadBalancer, ExternalName — plus a fifth mode that is not a type at all: a headless Service, created by setting clusterIP: None on an otherwise normal ClusterIP Service. Each raises the reach of its predecessor, except ExternalName and headless, which change the routing behavior entirely.",
+      text: "There are four values for spec.type: ClusterIP, NodePort, LoadBalancer, ExternalName: plus a fifth mode that is not a type at all: a headless Service, created by setting clusterIP: None on an otherwise normal ClusterIP Service. Each raises the reach of its predecessor, except ExternalName and headless, which change the routing behavior entirely.",
     },
     {
       type: "decisionTable",
@@ -864,7 +864,7 @@ const serviceTypesGateway: DocsLesson = {
           label: "ClusterIP",
           cells: [
             "Inside the cluster only, via a virtual IP",
-            "Default — service-to-service (east-west) traffic",
+            "Default: service-to-service (east-west) traffic",
             "Gets a stable clusterIP and DNS name; the foundation the other types extend.",
           ],
         },
@@ -887,9 +887,9 @@ const serviceTypesGateway: DocsLesson = {
         {
           label: "ExternalName",
           cells: [
-            "Anywhere DNS resolves — points outside the cluster",
+            "Anywhere DNS resolves: points outside the cluster",
             "Alias an in-cluster name to an external hostname",
-            "No selector, no ports, no proxying — returns a CNAME record only.",
+            "No selector, no ports, no proxying: returns a CNAME record only.",
           ],
         },
         {
@@ -906,7 +906,7 @@ const serviceTypesGateway: DocsLesson = {
       type: "concept",
       term: "ClusterIP is the substrate",
       definition:
-        "NodePort and LoadBalancer do not replace ClusterIP — they add to it. A LoadBalancer Service still has a clusterIP and a nodePort; the external load balancer forwards to the nodePort, which forwards to the clusterIP, which balances across endpoints. Removing type: LoadBalancer just peels back the outermost layer.",
+        "NodePort and LoadBalancer do not replace ClusterIP: they add to it. A LoadBalancer Service still has a clusterIP and a nodePort; the external load balancer forwards to the nodePort, which forwards to the clusterIP, which balances across endpoints. Removing type: LoadBalancer just peels back the outermost layer.",
     },
     {
       type: "heading",
@@ -915,7 +915,7 @@ const serviceTypesGateway: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A NodePort adds exactly one field to a ClusterIP Service — a third port number. Getting the three ports straight is the whole skill: clients hit the nodePort on a node, the node forwards to the Service port, and the Service forwards to targetPort on the Pod.",
+      text: "A NodePort adds exactly one field to a ClusterIP Service: a third port number. Getting the three ports straight is the whole skill: clients hit the nodePort on a node, the node forwards to the Service port, and the Service forwards to targetPort on the Pod.",
     },
     {
       type: "annotatedCode",
@@ -944,7 +944,7 @@ const serviceTypesGateway: DocsLesson = {
         },
         {
           code: "  selector:",
-          note: "unchanged — reach does not affect which Pods are selected",
+          note: "unchanged: reach does not affect which Pods are selected",
         },
         {
           code: "    app: web",
@@ -957,7 +957,7 @@ const serviceTypesGateway: DocsLesson = {
         },
         {
           code: "      port: 80",
-          note: "the ClusterIP port — in-cluster clients still use this",
+          note: "the ClusterIP port: in-cluster clients still use this",
         },
         {
           code: "      targetPort: 8080",
@@ -991,7 +991,7 @@ const serviceTypesGateway: DocsLesson = {
         },
         {
           label: "Restrict the source range",
-          note: "loadBalancerSourceRanges narrows who the load balancer will accept from — a common hardening step once external traffic works.",
+          note: "loadBalancerSourceRanges narrows who the load balancer will accept from: a common hardening step once external traffic works.",
           code: "apiVersion: v1\nkind: Service\nmetadata:\n  name: web-svc\nspec:\n  type: LoadBalancer\n  loadBalancerSourceRanges:\n    - 203.0.113.0/24\n  selector:\n    app: web\n  ports:\n    - port: 80\n      targetPort: 8080",
         },
       ],
@@ -1000,7 +1000,7 @@ const serviceTypesGateway: DocsLesson = {
       type: "callout",
       tone: "warning",
       title: "LoadBalancer needs a provider",
-      text: "type: LoadBalancer only provisions an external IP if something is watching for it — a cloud controller manager on a managed cluster, or MetalLB on bare metal. On a plain kind/minikube cluster the Service sits in <pending> forever because no controller fulfills the request. That pending state is not a bug in your manifest.",
+      text: "type: LoadBalancer only provisions an external IP if something is watching for it: a cloud controller manager on a managed cluster, or MetalLB on bare metal. On a plain kind/minikube cluster the Service sits in <pending> forever because no controller fulfills the request. That pending state is not a bug in your manifest.",
     },
     {
       type: "concept",
@@ -1026,7 +1026,7 @@ const serviceTypesGateway: DocsLesson = {
         "This Service is meant to expose the web app on a fixed node port, but kubectl apply is rejected. What is wrong?",
       code: "apiVersion: v1\nkind: Service\nmetadata:\n  name: web-svc\nspec:\n  type: NodePort\n  selector:\n    app: web\n  ports:\n    - port: 80\n      targetPort: 8080\n      nodePort: 8080",
       answer:
-        "nodePort: 8080 is outside the allowed node-port range (30000-32767 by default), so the API server rejects it with 'provided port is not in the valid range'. The nodePort must be a high port like 30080 — it is a separate number from port and targetPort. Fix: set nodePort to a value in 30000-32767, or drop the field and let Kubernetes allocate one.",
+        "nodePort: 8080 is outside the allowed node-port range (30000-32767 by default), so the API server rejects it with 'provided port is not in the valid range'. The nodePort must be a high port like 30080: it is a separate number from port and targetPort. Fix: set nodePort to a value in 30000-32767, or drop the field and let Kubernetes allocate one.",
     },
     {
       type: "heading",
@@ -1035,7 +1035,7 @@ const serviceTypesGateway: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Services expose Pods, but HTTP edge routing — host and path rules, header matching, traffic splitting — lives above them. Ingress was the first answer; Gateway API is its successor. The key idea is role separation: instead of one Ingress object owned by everyone, Gateway API splits the concern into three resources owned by three different roles.",
+      text: "Services expose Pods, but HTTP edge routing: host and path rules, header matching, traffic splitting: lives above them. Ingress was the first answer; Gateway API is its successor. The key idea is role separation: instead of one Ingress object owned by everyone, Gateway API splits the concern into three resources owned by three different roles.",
     },
     {
       type: "steps",
@@ -1043,11 +1043,11 @@ const serviceTypesGateway: DocsLesson = {
       items: [
         {
           title: "GatewayClass",
-          text: "Cluster-scoped, owned by the infrastructure provider. Names the controller that implements Gateways — the parallel of IngressClass or StorageClass.",
+          text: "Cluster-scoped, owned by the infrastructure provider. Names the controller that implements Gateways: the parallel of IngressClass or StorageClass.",
         },
         {
           title: "Gateway",
-          text: "Owned by the cluster operator. Declares the actual listeners: which ports, protocols, and hostnames the edge accepts, plus TLS config.",
+          text: "Owned by the cluster operator. Declares the actual listeners, which ports, protocols, and hostnames the edge accepts, plus TLS config.",
         },
         {
           title: "HTTPRoute",
@@ -1070,7 +1070,7 @@ const serviceTypesGateway: DocsLesson = {
       lines: [
         {
           code: "apiVersion: gateway.networking.k8s.io/v1",
-          note: "Gateway API is a separate API group, installed via CRDs — not the core v1 group",
+          note: "Gateway API is a separate API group, installed via CRDs: not the core v1 group",
         },
         {
           code: "kind: HTTPRoute",
@@ -1086,7 +1086,7 @@ const serviceTypesGateway: DocsLesson = {
         },
         {
           code: "  parentRefs:",
-          note: "which Gateway this route attaches to — the app dev references infra they do not own",
+          note: "which Gateway this route attaches to: the app dev references infra they do not own",
         },
         {
           code: "    - name: prod-gateway",
@@ -1106,7 +1106,7 @@ const serviceTypesGateway: DocsLesson = {
         },
         {
           code: "        - path:",
-          note: "match rule — PathPrefix /app is explicit and typed, unlike Ingress's controller-specific path semantics",
+          note: "match rule: PathPrefix /app is explicit and typed, unlike Ingress's controller-specific path semantics",
         },
         {
           code: "            type: PathPrefix",
@@ -1116,7 +1116,7 @@ const serviceTypesGateway: DocsLesson = {
         },
         {
           code: "      backendRefs:",
-          note: "where matching traffic goes — a Service and its port; add weight here to split traffic",
+          note: "where matching traffic goes: a Service and its port; add weight here to split traffic",
         },
         {
           code: "        - name: web-svc",
@@ -1152,7 +1152,7 @@ const serviceTypesGateway: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "Gateway API is portable across controllers",
-      text: "Because matches, filters, and traffic splitting are first-class fields instead of annotations, an HTTPRoute means the same thing on every conformant controller. That portability — plus role separation — is the main reason Gateway API is the recommended successor to Ingress for new HTTP edge routing.",
+      text: "Because matches, filters, and traffic splitting are first-class fields instead of annotations, an HTTPRoute means the same thing on every conformant controller. That portability: plus role separation: is the main reason Gateway API is the recommended successor to Ingress for new HTTP edge routing.",
     },
     {
       type: "takeaways",
@@ -1161,7 +1161,7 @@ const serviceTypesGateway: DocsLesson = {
         "ExternalName is a DNS CNAME with no proxy; headless (clusterIP: None) returns per-Pod A records for StatefulSets and client-side balancing.",
         "nodePort must fall in 30000-32767 and is a third number distinct from port and targetPort; LoadBalancer needs a provider or it stays <pending>.",
         "Gateway API splits edge routing into GatewayClass (infra), Gateway (operator), and HTTPRoute (app dev) for clean role separation.",
-        "An HTTPRoute attaches to a Gateway via parentRefs and forwards to Services via backendRefs — the typed successor to Ingress.",
+        "An HTTPRoute attaches to a Gateway via parentRefs and forwards to Services via backendRefs: the typed successor to Ingress.",
       ],
     },
     {
@@ -1188,7 +1188,7 @@ const serviceTypesGateway: DocsLesson = {
           text: "NodePort",
           correct: false,
           explanation:
-            "NodePort extends ClusterIP by opening a static port on every node — it adds external reach rather than being internal-only.",
+            "NodePort extends ClusterIP by opening a static port on every node: it adds external reach rather than being internal-only.",
         },
       ],
     },
@@ -1202,7 +1202,7 @@ const serviceTypesGateway: DocsLesson = {
           text: "HTTPRoute",
           correct: true,
           explanation:
-            "HTTPRoute holds the app-level host/path rules and attaches to a Gateway via parentRefs — the resource meant for application teams.",
+            "HTTPRoute holds the app-level host/path rules and attaches to a Gateway via parentRefs: the resource meant for application teams.",
         },
         {
           id: "b",

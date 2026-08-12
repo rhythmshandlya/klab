@@ -139,7 +139,12 @@ describe("level solvability (real Webernetes boot per level)", () => {
       { timeout: PER_LEVEL_TIMEOUT },
       async () => {
         expect(solution, `level ${level.slug} is missing an entry in solutions.ts`).toBeDefined();
-        const brokenReady = BROKEN_STATE_READY[level.slug];
+        const brokenReady =
+          BROKEN_STATE_READY[level.slug] ??
+          (level.engine.kind === "scripted" && level.engine.scenarioId === "manifest-assessment"
+            ? (snapshot: ClusterSnapshot) =>
+                snapshot.pods.some((pod) => pod.metadata?.name === "manifest-assessment")
+            : undefined);
         expect(
           brokenReady,
           `level ${level.slug} is missing a broken-state predicate in this test`,

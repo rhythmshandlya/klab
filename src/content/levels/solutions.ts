@@ -1,10 +1,13 @@
 /**
  * Canonical solutions for every level, keyed by slug: the editable files as a learner
  * would leave them after the intended fix. Consumed by the level solvability
- * integration test (broken state must fail validation; this state must pass) — and
+ * integration test (broken state must fail validation; this state must pass), and
  * doubling as reviewable documentation of each level's intended fix. Nothing in the
  * app imports this module, so it never reaches the client bundle.
  */
+
+import { ARCHITECTURE_BUILD_SOLUTIONS } from "./architecture-builds";
+import { PRODUCTION_REPAIR_SOLUTIONS } from "./production-repairs";
 
 export interface LevelSolution {
   /** Editable file contents after the intended fix, keyed by file path. */
@@ -14,6 +17,18 @@ export interface LevelSolution {
 }
 
 export const LEVEL_SOLUTIONS: Record<string, LevelSolution> = {
+  ...Object.fromEntries(
+    Object.entries(PRODUCTION_REPAIR_SOLUTIONS).map(([slug, files]) => [
+      slug,
+      { fix: "Satisfy the incident's production manifest requirements", files },
+    ]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(ARCHITECTURE_BUILD_SOLUTIONS).map(([slug, files]) => [
+      slug,
+      { fix: "Complete the reference architecture and satisfy every production gate", files },
+    ]),
+  ),
   "recreate-strategy-outage": {
     fix: "Switch the Deployment strategy from Recreate to RollingUpdate with maxUnavailable 0",
     files: {

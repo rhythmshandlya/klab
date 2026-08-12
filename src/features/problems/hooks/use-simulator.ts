@@ -72,7 +72,7 @@ export function useSimulator(level: SimulatorBootSpec | null): UseSimulator {
 
   // Read the level via a ref so the boot effect depends only on the stable simulator
   // instance. Otherwise a change in the `level` prop identity would tear the cluster
-  // down (cleanup calls close()) mid-session — emptying it while validators run.
+  // down (cleanup calls close()) mid-session: emptying it while validators run.
   const levelRef = useRef(level);
   useEffect(() => {
     levelRef.current = level;

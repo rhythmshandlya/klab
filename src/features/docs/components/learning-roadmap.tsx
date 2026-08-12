@@ -14,21 +14,19 @@ type StageStatus = "done" | "current" | "upcoming";
 const SECTION_OUTCOME: Record<string, string> = {
   Foundations: "Read any manifest and explain what the cluster does with it.",
   Workloads: "Pick and run the right workload type for any application.",
-  Networking: "Route traffic to your pods — and debug it when it doesn't arrive.",
+  Networking: "Route traffic to your pods, and debug it when it doesn't arrive.",
   "Observability & Debugging":
     "Trace a failure from symptom to cause using logs, events, and probes.",
   Operations: "Ship changes safely and keep workloads healthy under load.",
   "Real Incidents": "Debug real-world outages end to end, the way you would on call.",
 };
 
-const REAL_INCIDENTS = "Real Incidents";
-
 /**
  * The docs landing roadmap: every section is one stage on a single connected
  * vertical path, so the course reads as a route that leads somewhere rather than a
  * catalog. Each lesson is a rich card (activity chips + cross-links into Playground
- * and Problems). The final "Real Incidents" section is pulled out as a distinct
- * "Apply it" band — the payoff, not row six.
+ * and Problems). Real Incidents stays in the same explained course path so learners
+ * reach practical debugging in context instead of jumping to a separate block.
  */
 export function LearningRoadmap({
   sections,
@@ -37,8 +35,7 @@ export function LearningRoadmap({
   sections: readonly CurriculumSection[];
   completed: Set<string>;
 }) {
-  const stages = sections.filter((section) => section.title !== REAL_INCIDENTS);
-  const incidents = sections.find((section) => section.title === REAL_INCIDENTS);
+  const stages = sections;
 
   // The "current" stage is the first that still has an incomplete lesson.
   const currentIndex = stages.findIndex(
@@ -46,37 +43,33 @@ export function LearningRoadmap({
   );
 
   return (
-    <div className="space-y-4">
-      <ol className="relative">
-        {stages.map((section, index) => {
-          const status: StageStatus =
-            currentIndex === -1 || index < currentIndex
-              ? "done"
-              : index === currentIndex
-                ? "current"
-                : "upcoming";
-          const isLast = index === stages.length - 1;
-          return (
-            <li key={section.title} className="relative flex gap-4 pb-6 last:pb-0">
-              {!isLast ? (
-                <span
-                  className={cn(
-                    "absolute top-9 left-[15px] w-px",
-                    status === "done" ? "bg-green/40" : "bg-border",
-                  )}
-                  style={{ height: "calc(100% - 1rem)" }}
-                  aria-hidden
-                />
-              ) : null}
-              <StageDot status={status} number={index + 1} />
-              <Stage section={section} status={status} completed={completed} />
-            </li>
-          );
-        })}
-      </ol>
-
-      {incidents ? <RealIncidentsBand section={incidents} completed={completed} /> : null}
-    </div>
+    <ol className="relative">
+      {stages.map((section, index) => {
+        const status: StageStatus =
+          currentIndex === -1 || index < currentIndex
+            ? "done"
+            : index === currentIndex
+              ? "current"
+              : "upcoming";
+        const isLast = index === stages.length - 1;
+        return (
+          <li key={section.title} className="relative flex gap-4 pb-6 last:pb-0">
+            {!isLast ? (
+              <span
+                className={cn(
+                  "absolute top-9 left-[15px] w-px",
+                  status === "done" ? "bg-green/40" : "bg-border",
+                )}
+                style={{ height: "calc(100% - 1rem)" }}
+                aria-hidden
+              />
+            ) : null}
+            <StageDot status={status} number={index + 1} />
+            <Stage section={section} status={status} completed={completed} />
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -238,45 +231,5 @@ function PracticeLink({
         aria-hidden
       />
     </Link>
-  );
-}
-
-/**
- * "Apply it" band — spotlights Real Incidents as the capstone rather than a sixth
- * flat row. Amber accent + framing set it apart from the learning stages above.
- */
-function RealIncidentsBand({
-  section,
-  completed,
-}: {
-  section: CurriculumSection;
-  completed: Set<string>;
-}) {
-  const done = section.lessons.filter((lesson) => completed.has(lesson.key)).length;
-  return (
-    <section className="border-amber/30 from-amber/5 rounded-lg border bg-gradient-to-br to-transparent p-5">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-amber flex items-center gap-2">
-            <icons.warning className="size-4" aria-hidden />
-            <span className="text-[11px] font-semibold tracking-[0.1em] uppercase">Apply it</span>
-          </div>
-          <h2 className="text-foreground mt-1.5 text-base font-semibold tracking-tight">
-            {section.title}
-          </h2>
-          <p className="text-muted mt-1 text-[13px] leading-relaxed">
-            {SECTION_OUTCOME[section.title]}
-          </p>
-        </div>
-        <span className="text-subtle shrink-0 text-xs tabular-nums">
-          {done}/{section.lessons.length}
-        </span>
-      </div>
-      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        {section.lessons.map((lesson) => (
-          <LessonCard key={lesson.key} lesson={lesson} done={completed.has(lesson.key)} />
-        ))}
-      </div>
-    </section>
   );
 }

@@ -195,7 +195,7 @@ export const recreateStrategyOutage = {
     {
       id: "hint-1",
       title: "Read the strategy, not the pods",
-      body: "The new pods eventually pass readiness — the outage is the gap while the old ones are already gone. What Deployment strategy kills old pods before creating new ones?",
+      body: "The new pods eventually pass readiness: the outage is the gap while the old ones are already gone. What Deployment strategy kills old pods before creating new ones?",
       xpPenalty: 25,
     },
     {
@@ -245,7 +245,7 @@ export const recreateStrategyOutage = {
     {
       id: "r-service-503",
       evidenceId: "service-503",
-      label: "checkout-svc returns 503 — no ready backends during the recreate window",
+      label: "checkout-svc returns 503: no ready backends during the recreate window",
       hiddenLabel: "Service reachability tested",
       source: "network",
       trigger: {

@@ -25,7 +25,7 @@ const serviceHadNoEndpoints: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "Impact",
-      text: "Duration 21 minutes. 100% of checkout requests failed with 503. Root cause: a label refactor changed the Deployment's Pod template labels but not the Service selector, so the EndpointSlice controller could not match any Pods. No data was lost — this was a pure routing outage.",
+      text: "Duration 21 minutes. 100% of checkout requests failed with 503. Root cause: a label refactor changed the Deployment's Pod template labels but not the Service selector, so the EndpointSlice controller could not match any Pods. No data was lost: this was a pure routing outage.",
     },
     {
       type: "diagram",
@@ -44,36 +44,36 @@ const serviceHadNoEndpoints: DocsLesson = {
         "Each step is a real command an on-call engineer ran, in order. Notice how the evidence narrows the search instead of guessing.",
       steps: [
         {
-          label: "02:14 — Alert fires",
+          label: "02:14: Alert fires",
           detail:
-            "Synthetic checkout probe reports 503s. The Service DNS name resolved fine, so this was not a DNS problem — the request reached the Service and died there.",
+            "Synthetic checkout probe reports 503s. The Service DNS name resolved fine, so this was not a DNS problem: the request reached the Service and died there.",
           command: "curl -s -o /dev/null -w '%{http_code}\\n' http://web-svc/",
           output: "503",
         },
         {
-          label: "02:16 — Check endpoints first",
+          label: "02:16: Check endpoints first",
           detail:
             "Before touching pods, ask whether the Service has any backends at all. This one had none.",
           command: "kubectl get endpoints web-svc",
           output: "NAME      ENDPOINTS   AGE\nweb-svc   <none>      42d",
         },
         {
-          label: "02:18 — Describe the Service",
+          label: "02:18: Describe the Service",
           detail: "Read the selector the Service is actually using. It selects app=web.",
           command: "kubectl describe svc web-svc",
           output:
             "Name:       web-svc\nSelector:   app=web\nType:       ClusterIP\nPort:       http 80/TCP\nTargetPort: 8080/TCP\nEndpoints:  <none>",
         },
         {
-          label: "02:21 — Inspect the Pods and their labels",
+          label: "02:21: Inspect the Pods and their labels",
           detail:
-            "The Pods are Running and Ready — but their labels read app=web-frontend, not app=web. That single mismatch is the whole outage.",
+            "The Pods are Running and Ready, but their labels read app=web-frontend, not app=web. That single mismatch is the whole outage.",
           command: "kubectl get pods --show-labels",
           output:
             "NAME                   READY   STATUS    LABELS\nweb-7d9c8b6f5-abcde    1/1     Running   app=web-frontend,pod-template-hash=7d9c8b6f5\nweb-7d9c8b6f5-fghij    1/1     Running   app=web-frontend,pod-template-hash=7d9c8b6f5",
         },
         {
-          label: "02:33 — Recovery",
+          label: "02:33: Recovery",
           detail:
             "After aligning the Service selector to app=web-frontend and re-applying, the EndpointSlice controller published two Ready endpoints and 503s stopped immediately.",
           command: "kubectl get endpoints web-svc",
@@ -89,7 +89,7 @@ const serviceHadNoEndpoints: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Service does not know about Pods directly. The EndpointSlice controller continuously watches for Pods whose labels match the Service's selector AND that report Ready, then publishes their IPs as endpoints. kube-proxy programs those endpoints into the dataplane. Break either link — the label match or the readiness gate — and the endpoint list goes empty. Empty endpoints is the symptom; a selector mismatch or NotReady Pods is the cause.",
+      text: "A Service does not know about Pods directly. The EndpointSlice controller continuously watches for Pods whose labels match the Service's selector AND that report Ready, then publishes their IPs as endpoints. kube-proxy programs those endpoints into the dataplane. Break either link: the label match or the readiness gate, and the endpoint list goes empty. Empty endpoints is the symptom; a selector mismatch or NotReady Pods is the cause.",
     },
     {
       type: "concept",
@@ -152,7 +152,7 @@ const serviceHadNoEndpoints: DocsLesson = {
         },
         {
           code: "        app: web-frontend",
-          note: "Pods now carry app=web-frontend — the new name",
+          note: "Pods now carry app=web-frontend: the new name",
         },
         {
           code: "    spec:",
@@ -195,7 +195,7 @@ const serviceHadNoEndpoints: DocsLesson = {
         },
         {
           code: "    app: web",
-          note: "STILL the old name — matches zero Pods, so endpoints = <none>",
+          note: "STILL the old name: matches zero Pods, so endpoints = <none>",
         },
         {
           code: "  ports:",
@@ -221,7 +221,7 @@ const serviceHadNoEndpoints: DocsLesson = {
         "The Deployment is healthy and its two Pods are Running and Ready. The Service exists. Yet `kubectl get endpoints web-svc` shows <none>. Where is the fault?",
       code: "# Pod template labels\nlabels:\n  app: web-frontend\n---\n# Service selector\nspec:\n  selector:\n    app: web",
       answer:
-        "The Service selector is app=web, but the Pods are labeled app=web-frontend. Selector matching is exact and key-for-key, so the EndpointSlice controller finds no matching Pods and publishes zero endpoints. The Pods being Ready is irrelevant — they were never candidates. Fix: change the Service selector to app: web-frontend (or re-align the Pod labels back to app: web), so the two agree.",
+        "The Service selector is app=web, but the Pods are labeled app=web-frontend. Selector matching is exact and key-for-key, so the EndpointSlice controller finds no matching Pods and publishes zero endpoints. The Pods being Ready is irrelevant: they were never candidates. Fix: change the Service selector to app: web-frontend (or re-align the Pod labels back to app: web), so the two agree.",
     },
     {
       type: "heading",
@@ -254,7 +254,7 @@ const serviceHadNoEndpoints: DocsLesson = {
         },
         {
           code: "    app: web-frontend",
-          note: "now identical to the Pod template label — endpoints populate within a second",
+          note: "now identical to the Pod template label: endpoints populate within a second",
         },
         {
           code: "  ports:",
@@ -265,7 +265,7 @@ const serviceHadNoEndpoints: DocsLesson = {
         },
         {
           code: "      targetPort: 8080",
-          note: "matches containerPort — unchanged, and never the real fault here",
+          note: "matches containerPort: unchanged, and never the real fault here",
         },
       ],
     },
@@ -279,7 +279,7 @@ const serviceHadNoEndpoints: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "Two ways to get empty endpoints",
-      text: "Selector mismatch (no Pod matches) and readiness failure (Pods match but none are Ready) produce the identical <none> symptom. `kubectl get pods --show-labels` distinguishes them: if labels don't match the selector it's a selector bug; if they match but READY shows 0/1 it's a readiness bug — check the readinessProbe path and target port.",
+      text: "Selector mismatch (no Pod matches) and readiness failure (Pods match but none are Ready) produce the identical <none> symptom. `kubectl get pods --show-labels` distinguishes them: if labels don't match the selector it's a selector bug; if they match but READY shows 0/1 it's a readiness bug: check the readinessProbe path and target port.",
     },
     {
       type: "compare",
@@ -315,7 +315,7 @@ const serviceHadNoEndpoints: DocsLesson = {
           label: "All Pods NotReady",
           cells: [
             "Pods match the selector but READY shows 0/1",
-            "Point readinessProbe at a real ready endpoint (klab/web-app:1.0.0 returns 200 on /healthz but 404 on /readyz — a probe on /readyz keeps every Pod NotReady forever)",
+            "Point readinessProbe at a real ready endpoint (klab/web-app:1.0.0 returns 200 on /healthz but 404 on /readyz: a probe on /readyz keeps every Pod NotReady forever)",
           ],
         },
         {
@@ -354,7 +354,7 @@ const serviceHadNoEndpoints: DocsLesson = {
       items: [
         "Empty endpoints is a symptom; the cause is always either 'no Pod matches the selector' or 'no matching Pod is Ready'.",
         "Debug in order: get endpoints -> describe svc (read the selector) -> get pods --show-labels (compare labels and READY).",
-        "A Service selector and the target Pod labels are a coupled contract — change one side and you must change the other.",
+        "A Service selector and the target Pod labels are a coupled contract: change one side and you must change the other.",
         "A Deployment reporting Available says nothing about whether a Service can route to its Pods.",
         "Prevent it with label discipline (single source of truth) and readiness probes that point at a genuinely-ready endpoint.",
       ],
@@ -401,7 +401,7 @@ const serviceHadNoEndpoints: DocsLesson = {
       options: [
         {
           id: "a",
-          text: "Align the selector and Pod labels — set the Service selector to app=web-frontend (or relabel the Pods to app=web).",
+          text: "Align the selector and Pod labels: set the Service selector to app=web-frontend (or relabel the Pods to app=web).",
           correct: true,
           explanation:
             "The mismatch is the whole bug. Once selector and labels agree, the controller matches the Ready Pods and endpoints populate.",
@@ -418,7 +418,7 @@ const serviceHadNoEndpoints: DocsLesson = {
           text: "Scale the Deployment to more replicas.",
           correct: false,
           explanation:
-            "More Pods with the wrong label still match zero — scaling can't fix a selector mismatch.",
+            "More Pods with the wrong label still match zero: scaling can't fix a selector mismatch.",
         },
         {
           id: "d",
@@ -448,7 +448,7 @@ const cpuThrottling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "At 14:02 the pager fired: checkout p99 latency jumped from 80ms to 900ms and a fraction of requests began timing out. No deploy had gone out. CPU dashboards looked calm — average utilisation across the Pods sat near 20% of their limit. Adding replicas barely helped. The culprit was not a lack of Pods; it was a CPU limit throttling each Pod for tens of milliseconds at a time. This postmortem walks the timeline, the root cause, the fix, and how to stop it recurring.",
+      text: "At 14:02 the pager fired: checkout p99 latency jumped from 80ms to 900ms and a fraction of requests began timing out. No deploy had gone out. CPU dashboards looked calm: average utilisation across the Pods sat near 20% of their limit. Adding replicas barely helped. The culprit was not a lack of Pods; it was a CPU limit throttling each Pod for tens of milliseconds at a time. This postmortem walks the timeline, the root cause, the fix, and how to stop it recurring.",
     },
     {
       type: "demo",
@@ -457,14 +457,14 @@ const cpuThrottling: DocsLesson = {
         "How the on-call engineer went from a latency alert to the throttling root cause.",
       steps: [
         {
-          label: "14:02 — Alert",
+          label: "14:02: Alert",
           detail: "p99 latency SLO breached. Error rate climbing from client-side timeouts.",
           command: "kubectl -n shop get deploy checkout",
           output:
             "NAME       READY   UP-TO-DATE   AVAILABLE   AGE\ncheckout   6/6     6            6           40d",
         },
         {
-          label: "14:06 — Rule out a bad rollout",
+          label: "14:06: Rule out a bad rollout",
           detail:
             "No recent change; all Pods Ready. Average CPU is well under the limit, so this does not look like classic saturation.",
           command: "kubectl -n shop top pod -l app=checkout",
@@ -472,21 +472,21 @@ const cpuThrottling: DocsLesson = {
             "NAME             CPU(cores)   MEMORY\ncheckout-7c...   58m          210Mi\ncheckout-9d...   61m          208Mi",
         },
         {
-          label: "14:11 — Scaling up does little",
+          label: "14:11: Scaling up does little",
           detail:
             "More replicas spread load but each Pod is still individually throttled during request bursts, so tail latency stays high.",
           command: "kubectl -n shop scale deploy checkout --replicas=10",
           output: "deployment.apps/checkout scaled",
         },
         {
-          label: "14:18 — Read the throttling metric",
+          label: "14:18: Read the throttling metric",
           detail:
             "Inside a Pod, the cgroup CPU stats show the container is being throttled in most scheduling periods.",
           command: "kubectl -n shop exec checkout-7c... -- cat /sys/fs/cgroup/cpu.stat",
           output: "nr_periods 48210\nnr_throttled 41880\nthrottled_usec 903221000",
         },
         {
-          label: "14:25 — Root cause + fix",
+          label: "14:25: Root cause + fix",
           detail:
             "The Deployment set cpu limit 250m. Bursty request handling exhausted the CFS quota each period. Raised the request and removed the tight limit; latency recovered within a minute.",
           command: "kubectl -n shop rollout status deploy checkout",
@@ -508,13 +508,13 @@ const cpuThrottling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The reason this incident looked so confusing is that CPU and memory fail in completely different ways. Kubernetes treats CPU as a compressible resource: when a container wants more than its limit, the kernel simply pauses it — it slows down but keeps running. Memory is incompressible: there is no way to give a process 'less' of the memory it already wrote, so exceeding a memory limit ends with the kernel killing the container (OOMKilled).",
+      text: "The reason this incident looked so confusing is that CPU and memory fail in completely different ways. Kubernetes treats CPU as a compressible resource: when a container wants more than its limit, the kernel simply pauses it: it slows down but keeps running. Memory is incompressible: there is no way to give a process 'less' of the memory it already wrote, so exceeding a memory limit ends with the kernel killing the container (OOMKilled).",
     },
     {
       type: "concept",
       term: "Compressible resource",
       definition:
-        "A resource that can be throttled and handed back over time without destroying work in progress. CPU is compressible — the scheduler withholds CPU time and the process stalls, then resumes. Because it is never killed for exceeding a CPU limit, the symptom is latency, not a crash.",
+        "A resource that can be throttled and handed back over time without destroying work in progress. CPU is compressible: the scheduler withholds CPU time and the process stalls, then resumes. Because it is never killed for exceeding a CPU limit, the symptom is latency, not a crash.",
     },
     {
       type: "callout",
@@ -529,7 +529,7 @@ const cpuThrottling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A CPU limit is enforced by the Linux CFS bandwidth controller, not by a magic average. The kernel divides time into periods (default 100ms) and grants the container a quota of CPU-time per period equal to its limit. A limit of 250m means 0.25 CPU-seconds per second, i.e. 25ms of CPU time in every 100ms period. Once the container spends that 25ms, it is throttled — frozen until the next period begins. Requests behave differently: a request is used for scheduling and to set the container's relative CPU weight; it does not cap anything.",
+      text: "A CPU limit is enforced by the Linux CFS bandwidth controller, not by a magic average. The kernel divides time into periods (default 100ms) and grants the container a quota of CPU-time per period equal to its limit. A limit of 250m means 0.25 CPU-seconds per second, i.e. 25ms of CPU time in every 100ms period. Once the container spends that 25ms, it is throttled: frozen until the next period begins. Requests behave differently: a request is used for scheduling and to set the container's relative CPU weight; it does not cap anything.",
     },
     {
       type: "annotatedCode",
@@ -610,11 +610,11 @@ const cpuThrottling: DocsLesson = {
         },
         {
           code: "              cpu: 250m",
-          note: "THE BUG: 25ms of CPU per 100ms period — a short burst blows the quota and stalls the Pod for the rest of the period",
+          note: "THE BUG: 25ms of CPU per 100ms period: a short burst blows the quota and stalls the Pod for the rest of the period",
         },
         {
           code: "              memory: 256Mi",
-          note: "memory limit is fine to keep — it protects the node and OOMKills a leak instead of throttling",
+          note: "memory limit is fine to keep: it protects the node and OOMKills a leak instead of throttling",
         },
         {
           code: "          readinessProbe:",
@@ -638,7 +638,7 @@ const cpuThrottling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The dashboards showed ~60m average against a 250m limit, so the team assumed there was headroom. But averages hide bursts. Real CPU usage is spiky: a single checkout request might need a 40ms burst on one core. Within a 100ms period the container spends its 25ms quota after 25ms of that burst and is throttled for the remaining ~75ms — adding tens of milliseconds of pure wait to that request. Averaged over a whole second, utilisation still looks like 20% while p99 latency has quietly exploded.",
+      text: "The dashboards showed ~60m average against a 250m limit, so the team assumed there was headroom. But averages hide bursts. Real CPU usage is spiky: a single checkout request might need a 40ms burst on one core. Within a 100ms period the container spends its 25ms quota after 25ms of that burst and is throttled for the remaining ~75ms: adding tens of milliseconds of pure wait to that request. Averaged over a whole second, utilisation still looks like 20% while p99 latency has quietly exploded.",
     },
     {
       type: "callout",
@@ -664,7 +664,7 @@ const cpuThrottling: DocsLesson = {
         "This app is Running with zero restarts, average CPU near 20% of its limit, yet p99 latency is 10x normal and readiness flaps. What in this spec explains it?",
       code: "resources:\n  requests:\n    cpu: 100m\n    memory: 128Mi\n  limits:\n    cpu: 250m\n    memory: 256Mi",
       answer:
-        "The cpu limit of 250m is the problem. It caps the container at 25ms of CPU per 100ms CFS period. A bursty request handler exhausts that quota partway through a burst and is throttled (paused) for the rest of the period, adding large tail latency and occasionally starving the readiness probe — all while the one-second average stays low and the container is never killed. Zero restarts + high throttled-period ratio confirms throttling, not OOM. Fix: raise the request to match real steady-state need and raise or remove the CPU limit.",
+        "The cpu limit of 250m is the problem. It caps the container at 25ms of CPU per 100ms CFS period. A bursty request handler exhausts that quota partway through a burst and is throttled (paused) for the rest of the period, adding large tail latency and occasionally starving the readiness probe: all while the one-second average stays low and the container is never killed. Zero restarts + high throttled-period ratio confirms throttling, not OOM. Fix: raise the request to match real steady-state need and raise or remove the CPU limit.",
     },
     {
       type: "heading",
@@ -673,17 +673,17 @@ const cpuThrottling: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Two changes fixed it. First, the request was raised to reflect what a Pod actually needs at steady state, so the scheduler places it on a node with real CPU to give and its relative weight under contention is honest. Second, the punishingly tight CPU limit was removed — for a latency-sensitive service that already has an honest request, a CPU limit mostly buys throttling with no upside. The memory limit stayed, because memory is incompressible and you still want a leak to be OOMKilled rather than take down the node.",
+      text: "Two changes fixed it. First, the request was raised to reflect what a Pod actually needs at steady state, so the scheduler places it on a node with real CPU to give and its relative weight under contention is honest. Second, the punishingly tight CPU limit was removed: for a latency-sensitive service that already has an honest request, a CPU limit mostly buys throttling with no upside. The memory limit stayed, because memory is incompressible and you still want a leak to be OOMKilled rather than take down the node.",
     },
     {
       type: "compare",
       caption: "Same workload, resources rewritten. Left throttles; right does not.",
       left: {
-        title: "Before — throttled",
+        title: "Before: throttled",
         code: "resources:\n  requests:\n    cpu: 100m\n    memory: 128Mi\n  limits:\n    cpu: 250m      # 25ms / 100ms\n    memory: 256Mi",
       },
       right: {
-        title: "After — right-sized",
+        title: "After: right-sized",
         code: "resources:\n  requests:\n    cpu: 500m      # honest steady-state\n    memory: 256Mi\n  limits:\n    # cpu limit removed on purpose\n    memory: 512Mi  # keep the memory limit",
       },
     },
@@ -691,7 +691,7 @@ const cpuThrottling: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "Removing the CPU limit is not 'no limits'",
-      text: "The request still guarantees CPU under contention and drives scheduling and the CPU weight, so a Pod without a CPU limit cannot freely starve its neighbours — it only gets to use idle CPU that would otherwise go to waste. If your platform requires limits (e.g. a Guaranteed QoS mandate, where limits must equal requests), set the CPU limit generously above the observed p99 burst rather than at the average. Keep the memory limit either way.",
+      text: "The request still guarantees CPU under contention and drives scheduling and the CPU weight, so a Pod without a CPU limit cannot freely starve its neighbours: it only gets to use idle CPU that would otherwise go to waste. If your platform requires limits (e.g. a Guaranteed QoS mandate, where limits must equal requests), set the CPU limit generously above the observed p99 burst rather than at the average. Keep the memory limit either way.",
     },
     {
       type: "heading",
@@ -706,8 +706,8 @@ const cpuThrottling: DocsLesson = {
         {
           label: "Failure mode when over budget",
           cells: [
-            "Throttled — paused by CFS, stays Running, latency spikes",
-            "OOMKilled — container terminated and restarted",
+            "Throttled: paused by CFS, stays Running, latency spikes",
+            "OOMKilled: container terminated and restarted",
           ],
         },
         {
@@ -721,7 +721,7 @@ const cpuThrottling: DocsLesson = {
           label: "Set the limit to",
           cells: [
             "High above burst, or omit it for latency-sensitive apps",
-            "Always set it — it caps a leak and protects the node",
+            "Always set it: it caps a leak and protects the node",
           ],
         },
         {
@@ -751,7 +751,7 @@ const cpuThrottling: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "CPU is compressible: exceeding a CPU limit throttles (pauses) the container — it stays Running with zero restarts. Memory is incompressible: exceeding a memory limit OOMKills it.",
+        "CPU is compressible: exceeding a CPU limit throttles (pauses) the container: it stays Running with zero restarts. Memory is incompressible: exceeding a memory limit OOMKills it.",
         "A CPU limit is CFS quota per 100ms period; bursty work can be throttled hard even while the one-second average sits far below the limit.",
         "Alert on the throttled-period ratio, not average CPU. High ratio + high tail latency + no restarts = throttling.",
         "Fix by right-sizing the request to real steady-state need and raising or removing the CPU limit; keep the memory limit.",
@@ -804,7 +804,7 @@ const cpuThrottling: DocsLesson = {
           text: "container_cpu_cfs_throttled_periods_total divided by container_cpu_cfs_periods_total.",
           correct: true,
           explanation:
-            "That ratio measures the fraction of scheduling periods in which the container was paused — the direct fingerprint of throttling.",
+            "That ratio measures the fraction of scheduling periods in which the container was paused: the direct fingerprint of throttling.",
         },
         {
           id: "b",
@@ -818,7 +818,7 @@ const cpuThrottling: DocsLesson = {
           text: "The Pod restart count.",
           correct: false,
           explanation:
-            "Restarts indicate crashes or OOMKills, not throttling — a throttled container keeps running.",
+            "Restarts indicate crashes or OOMKills, not throttling: a throttled container keeps running.",
         },
         {
           id: "d",
@@ -869,23 +869,23 @@ const dnsOutage: DocsLesson = {
       title: "What happened, in order",
       items: [
         {
-          title: "13:52 — NetworkPolicy applied",
+          title: "13:52: NetworkPolicy applied",
           text: "A default-deny egress policy is rolled out to the payments namespace to lock down outbound traffic ahead of an audit. It allows egress to the ledger app on TCP 8080 and nothing else.",
         },
         {
-          title: "14:02 — Alerts fire",
+          title: "14:02: Alerts fire",
           text: "Every payments Pod reports request failures. Error rate for the namespace hits 100%. On-call is paged with 'payments down'.",
         },
         {
-          title: "14:06 — First wrong theory",
+          title: "14:06: First wrong theory",
           text: "The team suspects CoreDNS crashed. But CoreDNS Pods in kube-system are Running, 0 restarts, and Pods in other namespaces resolve names fine. The blast radius is exactly one namespace.",
         },
         {
-          title: "14:14 — Real cause found",
+          title: "14:14: Real cause found",
           text: "A shell inside a payments Pod shows dig timing out against 10.96.0.10:53. The recently applied NetworkPolicy has no egress rule for port 53 to kube-dns.",
         },
         {
-          title: "14:19 — Mitigation",
+          title: "14:19: Mitigation",
           text: "An allow-dns egress rule permitting UDP and TCP 53 to CoreDNS is applied. Resolution recovers within seconds; error rate returns to zero.",
         },
       ],
@@ -912,7 +912,7 @@ const dnsOutage: DocsLesson = {
         {
           label: "Try to resolve from inside a payments Pod",
           detail:
-            "dig hangs and returns no answer. The query to the cluster DNS ServiceIP never gets a response — a classic dropped-packet signature, not NXDOMAIN.",
+            "dig hangs and returns no answer. The query to the cluster DNS ServiceIP never gets a response: a classic dropped-packet signature, not NXDOMAIN.",
           command: "kubectl -n payments exec deploy/checkout -- dig +time=2 web-svc",
           output: ";; connection timed out; no servers could be reached",
         },
@@ -945,13 +945,13 @@ const dnsOutage: DocsLesson = {
         "This NetworkPolicy was meant to restrict outbound traffic to just the ledger service. Instead it broke all DNS resolution for every Pod in the namespace. What is wrong?",
       code: "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: payments-egress\n  namespace: payments\nspec:\n  podSelector: {}\n  policyTypes:\n    - Egress\n  egress:\n    - to:\n        - podSelector:\n            matchLabels:\n              app: ledger\n      ports:\n        - protocol: TCP\n          port: 8080",
       answer:
-        "podSelector: {} selects every Pod in the namespace, and listing Egress in policyTypes switches the namespace from allow-all-egress to deny-all-egress-except-what-is-listed. The only allowed egress is TCP 8080 to app: ledger. DNS lives in kube-system (CoreDNS, reached on UDP/TCP port 53 via the kube-dns ServiceIP) and is not in the allow list, so every DNS query is dropped. Applications cannot resolve any name — internal or external. The fix is to add an egress rule permitting UDP and TCP port 53 to the kube-dns Pods before applying any default-deny egress policy.",
+        "podSelector: {} selects every Pod in the namespace, and listing Egress in policyTypes switches the namespace from allow-all-egress to deny-all-egress-except-what-is-listed. The only allowed egress is TCP 8080 to app: ledger. DNS lives in kube-system (CoreDNS, reached on UDP/TCP port 53 via the kube-dns ServiceIP) and is not in the allow list, so every DNS query is dropped. Applications cannot resolve any name: internal or external. The fix is to add an egress rule permitting UDP and TCP port 53 to the kube-dns Pods before applying any default-deny egress policy.",
     },
     {
       type: "callout",
       tone: "key",
       title: "The one rule every egress policy needs",
-      text: "The moment you put Egress in a NetworkPolicy's policyTypes, that namespace denies all outbound traffic that is not explicitly allowed — and DNS is outbound traffic. Always pair a default-deny egress policy with an allow rule for UDP and TCP port 53 to CoreDNS, or nothing in the namespace will resolve a name.",
+      text: "The moment you put Egress in a NetworkPolicy's policyTypes, that namespace denies all outbound traffic that is not explicitly allowed, and DNS is outbound traffic. Always pair a default-deny egress policy with an allow rule for UDP and TCP port 53 to CoreDNS, or nothing in the namespace will resolve a name.",
     },
     {
       type: "heading",
@@ -979,7 +979,7 @@ const dnsOutage: DocsLesson = {
         },
         {
           code: "  namespace: payments",
-          note: "policies are namespaced — this only affects Pods in payments",
+          note: "policies are namespaced: this only affects Pods in payments",
         },
         {
           code: "spec:",
@@ -1010,7 +1010,7 @@ const dnsOutage: DocsLesson = {
         },
         {
           code: "              kubernetes.io/metadata.name: kube-system",
-          note: "auto-applied label on every namespace (1.21+) — reliable to select kube-system",
+          note: "auto-applied label on every namespace (1.21+): reliable to select kube-system",
         },
         {
           code: "          podSelector:",
@@ -1021,14 +1021,14 @@ const dnsOutage: DocsLesson = {
         },
         {
           code: "              k8s-app: kube-dns",
-          note: "the label CoreDNS Pods carry — narrows egress to just the DNS Pods",
+          note: "the label CoreDNS Pods carry: narrows egress to just the DNS Pods",
         },
         {
           code: "      ports:",
         },
         {
           code: "        - protocol: UDP",
-          note: "the primary DNS transport — most queries go over UDP 53",
+          note: "the primary DNS transport: most queries go over UDP 53",
         },
         {
           code: "          port: 53",
@@ -1071,7 +1071,7 @@ const dnsOutage: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Even after DNS egress was restored, the incident review found CoreDNS was running hot — far more queries than the traffic justified. The cause is how Kubernetes builds a Pod's /etc/resolv.conf. Each query name is expanded against a list of search domains, and the ndots option decides when. With ndots:5, any name containing fewer than 5 dots is first tried as a relative name against every search domain before it is ever tried as an absolute name. That is great for short in-cluster names but expensive for external ones.",
+      text: "Even after DNS egress was restored, the incident review found CoreDNS was running hot: far more queries than the traffic justified. The cause is how Kubernetes builds a Pod's /etc/resolv.conf. Each query name is expanded against a list of search domains, and the ndots option decides when. With ndots:5, any name containing fewer than 5 dots is first tried as a relative name against every search domain before it is ever tried as an absolute name. That is great for short in-cluster names but expensive for external ones.",
     },
     {
       type: "annotatedCode",
@@ -1082,11 +1082,11 @@ const dnsOutage: DocsLesson = {
       lines: [
         {
           code: "nameserver 10.96.0.10",
-          note: "the cluster DNS ServiceIP (kube-dns) — all queries go here",
+          note: "the cluster DNS ServiceIP (kube-dns): all queries go here",
         },
         {
           code: "search payments.svc.cluster.local svc.cluster.local cluster.local",
-          note: "suffixes tried, in order, for relative names — this is why 'web-svc' resolves",
+          note: "suffixes tried, in order, for relative names: this is why 'web-svc' resolves",
         },
         {
           code: "options ndots:5",
@@ -1104,14 +1104,14 @@ const dnsOutage: DocsLesson = {
       },
       right: {
         title: "Absolute: api.stripe.com.",
-        code: "1) api.stripe.com   -> answer\n# trailing dot means ndots is ignored\n# 1 query (x2 for A + AAAA) — no wasted lookups",
+        code: "1) api.stripe.com   -> answer\n# trailing dot means ndots is ignored\n# 1 query (x2 for A + AAAA): no wasted lookups",
       },
     },
     {
       type: "callout",
       tone: "warning",
       title: "ndots:5 multiplies external lookups",
-      text: "Every external hostname with fewer than 5 dots generates one query per search domain before the real one — often 4x the traffic, doubled again for A and AAAA records. On a busy namespace this can push CoreDNS into throttling. Use a trailing dot on known-external names (api.stripe.com.) or lower ndots via dnsConfig for Pods that mostly talk to the internet.",
+      text: "Every external hostname with fewer than 5 dots generates one query per search domain before the real one: often 4x the traffic, doubled again for A and AAAA records. On a busy namespace this can push CoreDNS into throttling. Use a trailing dot on known-external names (api.stripe.com.) or lower ndots via dnsConfig for Pods that mostly talk to the internet.",
     },
     {
       type: "challenge",
@@ -1137,7 +1137,7 @@ const dnsOutage: DocsLesson = {
           label: "Allow DNS in every egress policy",
           cells: [
             "Whitelists UDP/TCP 53 to kube-dns so default-deny never breaks resolution",
-            "Easy to forget — bake it into policy templates and CI checks",
+            "Easy to forget: bake it into policy templates and CI checks",
           ],
         },
         {
@@ -1166,10 +1166,10 @@ const dnsOutage: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "Listing Egress in a NetworkPolicy's policyTypes makes the namespace deny outbound by default — forget UDP/TCP 53 to kube-dns and every name in the namespace stops resolving.",
+        "Listing Egress in a NetworkPolicy's policyTypes makes the namespace deny outbound by default: forget UDP/TCP 53 to kube-dns and every name in the namespace stops resolving.",
         "Triage DNS and routing as separate layers: dig proves resolution, curl proves reachability. A timeout on dig points at drops (policy/CNI), NXDOMAIN points at a wrong name.",
         "ndots:5 turns each external hostname into a burst of search-domain lookups; a trailing dot or a lower ndots removes the waste.",
-        "CoreDNS is a shared, cluster-wide dependency — cache it with NodeLocal DNSCache and scale it before it becomes a single point of failure.",
+        "CoreDNS is a shared, cluster-wide dependency: cache it with NodeLocal DNSCache and scale it before it becomes a single point of failure.",
         "When failures feel cluster-wide and hit everything at once, suspect a shared layer (DNS, CNI, the API server) before blaming individual apps.",
       ],
     },
@@ -1217,7 +1217,7 @@ const dnsOutage: DocsLesson = {
           text: "CoreDNS was deleted by the scheduler.",
           correct: false,
           explanation:
-            "CoreDNS is healthy and other namespaces resolve fine, so the DNS service itself is up — the blast radius is one namespace.",
+            "CoreDNS is healthy and other namespaces resolve fine, so the DNS service itself is up: the blast radius is one namespace.",
         },
         {
           id: "c",

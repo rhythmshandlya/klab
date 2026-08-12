@@ -36,7 +36,7 @@ const NAMESPACE = "default";
 /**
  * Inline lab entry: a compact card in the reading flow. Starting the lab opens a
  * full workspace in a modal overlay (Radix Dialog) instead of expanding a cramped
- * box inline — reading stays clean, and the lab gets real editor + terminal room.
+ * box inline: reading stays clean, and the lab gets real editor + terminal room.
  */
 export function InteractiveLab({ lab }: { lab: Lab }) {
   const [open, setOpen] = useState(false);
@@ -118,7 +118,7 @@ function LiveLab({ lab }: { lab: Lab }) {
   const runCommand = useCallback(
     async (line: string): Promise<TerminalRunResult> => {
       if (!sim.ready)
-        return { output: "Cluster is still booting — try again in a moment.", isError: true };
+        return { output: "Cluster is still booting: try again in a moment.", isError: true };
       const result = await runCommandLine(line, {
         simulator: sim.simulator,
         namespace: NAMESPACE,
@@ -220,7 +220,7 @@ function LiveLab({ lab }: { lab: Lab }) {
                 <XtermTerminal
                   onCommand={runCommand}
                   welcome={[
-                    "klab lab terminal — type a command and press Enter.",
+                    "klab lab terminal: type a command and press Enter.",
                     "Try: kubectl get pods",
                   ]}
                 />

@@ -109,6 +109,12 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
 
 /** XP needed per player level (display only). */
 const XP_PER_LEVEL = 500;
+const DIFFICULTY_RANK: Record<Difficulty, number> = {
+  beginner: 0,
+  intermediate: 1,
+  advanced: 2,
+  architect: 3,
+};
 
 function hashString(value: string): number {
   let hash = 5381;
@@ -119,6 +125,70 @@ function hashString(value: string): number {
 function localDay(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function hasSolvedPrerequisites(level: LevelSummary, solved: ReadonlySet<string>): boolean {
+  return level.prerequisites.every((slug) => solved.has(slug));
+}
+
+export function pickDailyChallenge(
+  catalog: readonly LevelSummary[],
+  solved: ReadonlySet<string>,
+  attempted: ReadonlySet<string>,
+  day: string,
+): LevelSummary | undefined {
+  const unsolved = catalog.filter((level) => !solved.has(level.slug));
+  const freshAndReady = unsolved.filter(
+    (level) => !attempted.has(level.slug) && hasSolvedPrerequisites(level, solved),
+  );
+  const ready = unsolved.filter((level) => hasSolvedPrerequisites(level, solved));
+  const candidates = freshAndReady.length > 0 ? freshAndReady : ready;
+  if (candidates.length === 0) return undefined;
+
+  const stableCandidates = [...candidates].sort((a, b) => a.slug.localeCompare(b.slug));
+  return stableCandidates[hashString(day) % stableCandidates.length];
+}
+
+export function recommendProblems(
+  catalog: readonly LevelSummary[],
+  solved: ReadonlySet<string>,
+  attempted: ReadonlySet<string>,
+  saved: ReadonlySet<string>,
+  excludedSlug?: string,
+): LevelSummary[] {
+  const practiced = catalog.filter((level) => solved.has(level.slug) || attempted.has(level.slug));
+  const practicedConcepts = new Set(practiced.flatMap((level) => level.concepts));
+  const practicedPaths = new Set(practiced.flatMap((level) => level.learningPaths));
+  const targetDifficulty = Math.min(
+    3,
+    Math.floor(solved.size / Math.max(2, Math.ceil(catalog.length / 8))),
+  );
+
+  const candidates = catalog.filter(
+    (level) =>
+      !solved.has(level.slug) &&
+      !attempted.has(level.slug) &&
+      level.slug !== excludedSlug &&
+      hasSolvedPrerequisites(level, solved),
+  );
+
+  return candidates
+    .map((level) => {
+      const conceptAffinity = level.concepts.filter((concept) =>
+        practicedConcepts.has(concept),
+      ).length;
+      const pathAffinity = level.learningPaths.filter((path) => practicedPaths.has(path)).length;
+      const score =
+        (saved.has(level.slug) ? 8 : 0) +
+        conceptAffinity * 3 +
+        pathAffinity * 2 -
+        Math.abs(DIFFICULTY_RANK[level.difficulty] - targetDifficulty) * 4 +
+        level.successRate / 100;
+      return { level, score };
+    })
+    .sort((a, b) => b.score - a.score || a.level.slug.localeCompare(b.level.slug))
+    .slice(0, 3)
+    .map(({ level }) => level);
 }
 
 export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
@@ -345,19 +415,23 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
     mutateProgress({ kind: "setSaved", slug, saved: !saved.has(slug) });
   };
 
-  const availableUnsolved = catalog.filter(
-    (l) => statusOf(l) === "unsolved" || statusOf(l) === "in-progress",
-  );
-  const dailyChallenge =
-    availableUnsolved.length > 0
-      ? availableUnsolved[hashString(localDay()) % availableUnsolved.length]
-      : catalog[hashString(localDay()) % Math.max(1, catalog.length)];
-  const continueLearning = catalog
-    .filter((l) => attempted.has(l.slug) && !solved.has(l.slug))
-    .slice(0, 3);
-  const recommended = catalog
-    .filter((l) => !solved.has(l.slug) && l.slug !== dailyChallenge?.slug)
-    .slice(0, 3);
+  const { dailyChallenge, continueLearning, recommended } = useMemo(() => {
+    const daily = pickDailyChallenge(catalog, solved, attempted, localDay());
+    const continuing = catalog
+      .filter((level) => attempted.has(level.slug) && !solved.has(level.slug))
+      .sort(
+        (a, b) =>
+          Number(saved.has(b.slug)) - Number(saved.has(a.slug)) ||
+          DIFFICULTY_RANK[a.difficulty] - DIFFICULTY_RANK[b.difficulty] ||
+          a.slug.localeCompare(b.slug),
+      )
+      .slice(0, 3);
+    return {
+      dailyChallenge: daily,
+      continueLearning: continuing,
+      recommended: recommendProblems(catalog, solved, attempted, saved, daily?.slug),
+    };
+  }, [attempted, catalog, saved, solved]);
 
   const topicsShown = showAllTopics ? topicCounts : topicCounts.slice(0, 8);
   const activeFilterCount =
@@ -468,7 +542,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                 { id: "all", label: "All Problems", count: catalog.length },
                 {
                   id: "architects",
-                  label: "Final Boss",
+                  label: "Architecture",
                   count: catalog.filter((level) => level.challengeMode === "build").length,
                 },
                 {
@@ -602,12 +676,6 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
               title="Daily Challenge"
               icon={<icons.challenge className="text-amber size-4" aria-hidden />}
             >
-              {solved.has(dailyChallenge.slug) ? (
-                <p className="text-green mb-2 flex items-center gap-1.5 text-xs font-medium">
-                  <icons.success className="size-3.5" aria-hidden />
-                  Completed today
-                </p>
-              ) : null}
               <p className="text-foreground text-sm font-semibold">{dailyChallenge.title}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <Badge tone={DIFFICULTY_META[dailyChallenge.difficulty].tone}>
@@ -622,7 +690,7 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
                 href={`/problems/${dailyChallenge.slug}`}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 mt-3 flex h-8 items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors"
               >
-                View Challenge
+                {attempted.has(dailyChallenge.slug) ? "Resume Challenge" : "Start Challenge"}
                 <icons.arrowRight className="size-3.5" aria-hidden />
               </Link>
             </RailCard>
@@ -673,7 +741,11 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
               title="Recommended for You"
               icon={<icons.docsInteractive className="text-purple size-4" aria-hidden />}
             >
-              <p className="text-subtle mb-2 text-xs">Based on your progress</p>
+              <p className="text-subtle mb-2 text-xs">
+                {solvedCount > 0
+                  ? "Ranked from the skills and paths you have practiced"
+                  : "A beginner-friendly place to start"}
+              </p>
               <ul className="space-y-1">
                 {recommended.map((level) => (
                   <li key={level.slug}>
@@ -704,8 +776,8 @@ export function ProblemsDashboard({ catalog }: { catalog: LevelSummary[] }) {
             title="Your Progress"
             icon={<icons.trophy className="text-green size-4" aria-hidden />}
             action={
-              <Link href="/community" className="text-blue text-xs hover:underline">
-                View all
+              <Link href="/problems?view=completed" className="text-blue text-xs hover:underline">
+                View solved
               </Link>
             }
           >
@@ -1113,7 +1185,7 @@ function ProblemRow({
         {level.challengeMode === "build" ? (
           <span className="text-purple inline-flex items-center gap-1 text-[10px] font-medium tracking-wide uppercase">
             <icons.cluster className="size-3" aria-hidden />
-            System build
+            Architecture build
           </span>
         ) : null}
         {level.incidentSource ? (

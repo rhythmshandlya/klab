@@ -76,7 +76,7 @@ describe("progress-repo over pglite", () => {
     }
   });
 
-  it("is idempotent — applying the same batch twice equals once", async () => {
+  it("is idempotent: applying the same batch twice equals once", async () => {
     const { db, client } = await createTestDb();
     try {
       const uid = await seedUser(db);
@@ -94,7 +94,7 @@ describe("progress-repo over pglite", () => {
     }
   });
 
-  it("setSaved is absolute — a false intent removes the bookmark", async () => {
+  it("setSaved is absolute: a false intent removes the bookmark", async () => {
     const { db, client } = await createTestDb();
     try {
       const uid = await seedUser(db);

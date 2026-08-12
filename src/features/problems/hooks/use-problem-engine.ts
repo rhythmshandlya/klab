@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ProblemLevel } from "@/lib/domain/types";
 import { createProblemEngine, type ProblemEngine } from "@/lib/kube/problem-engine";
@@ -39,7 +39,9 @@ export interface UseProblemEngine {
 }
 
 export function useProblemEngine(level: ProblemLevel): UseProblemEngine {
-  const [engine] = useState(() => createProblemEngine(level.engine));
+  // Client navigation can replace the level without remounting the workspace.
+  // Recreate the runtime so engine state never leaks across two problem routes.
+  const engine = useMemo(() => createProblemEngine(level.engine), [level.engine]);
   const [status, setStatus] = useState<SimulatorStatus>("booting");
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ClusterSnapshot>(EMPTY);

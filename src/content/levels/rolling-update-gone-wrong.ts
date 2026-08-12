@@ -6,7 +6,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * Level: Rolling Update Gone Wrong.
  *
  * v2.0.0 shipped with a broken build: the process runs but serves 500 on every path,
- * including /healthz — so with a CORRECT readiness probe the new pods never become
+ * including /healthz, so with a CORRECT readiness probe the new pods never become
  * Ready. The probe isn't the bug; the release is. Fix: roll the image back to 1.0.0.
  */
 
@@ -77,7 +77,7 @@ export const rollingUpdateGoneWrong = {
   concepts: ["deployments", "rollouts", "replicasets", "readiness-probes", "debugging"],
   blurb: "Last night's release never went Ready, and the rollout took the site with it.",
   story:
-    "v2.0.0 went out at 23:40. The rollout replaced the old pods — and the new ones have been 'starting' for nine hours, never turning Ready. Customers get 503s, the release channel is on fire, and the author of v2.0.0 is unreachable. Stop the bleeding first; blame later.",
+    "v2.0.0 went out at 23:40. The rollout replaced the old pods, and the new ones have been 'starting' for nine hours, never turning Ready. Customers get 503s, the release channel is on fire, and the author of v2.0.0 is unreachable. Stop the bleeding first; blame later.",
   objective: "Restore web-svc to serving HTTP 200 with all replicas Ready.",
   learningObjectives: [
     "Read ReplicaSet history to distinguish a rollout failure from a probe defect.",
@@ -241,20 +241,20 @@ export const rollingUpdateGoneWrong = {
     {
       id: "hint-1",
       title: "What changed nine hours ago?",
-      body: "A rollout means new pods from a new template. `kubectl describe pod <pod>` — which image are the stuck pods actually running?",
+      body: "A rollout means new pods from a new template. `kubectl describe pod <pod>`, which image are the stuck pods actually running?",
       xpPenalty: 25,
     },
     {
       id: "hint-2",
       title: "Is the app itself healthy?",
-      body: "The readiness probe only reports what the app tells it. Read the app's own logs (`kubectl logs <pod>`) and probe /healthz yourself. Is the probe wrong — or is the app really failing?",
+      body: "The readiness probe only reports what the app tells it. Read the app's own logs (`kubectl logs <pod>`) and probe /healthz yourself. Is the probe wrong, or is the app really failing?",
       xpPenalty: 40,
       unlockAfter: ["r-v2-image"],
     },
     {
       id: "hint-3",
       title: "Roll it back",
-      body: "v2.0.0 logs a FATAL build error and serves 500 on every path — no probe setting can fix a broken release. Set the image back to klab/web-app:1.0.0 and Apply.",
+      body: "v2.0.0 logs a FATAL build error and serves 500 on every path: no probe setting can fix a broken release. Set the image back to klab/web-app:1.0.0 and Apply.",
       xpPenalty: 60,
       unlockAfter: ["r-fatal-log"],
     },
@@ -299,7 +299,7 @@ export const rollingUpdateGoneWrong = {
     {
       id: "r-healthz-500",
       evidenceId: "healthz-500",
-      label: "GET /healthz returns 500 — the app really is sick",
+      label: "GET /healthz returns 500: the app really is sick",
       hiddenLabel: "Health endpoint tested",
       source: "network",
       trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/healthz", status: 500 },
@@ -307,11 +307,11 @@ export const rollingUpdateGoneWrong = {
   ],
   postSolveExplanation: {
     rootCause:
-      "v2.0.0 shipped with a broken build (missing asset manifest) that made /healthz — and everything else — return 500.",
+      "v2.0.0 shipped with a broken build (missing asset manifest) that made /healthz, and everything else: return 500.",
     whyItFailed:
       "The readiness probe was configured correctly and did its job: it refused to mark broken pods Ready, so they never joined the Service. But the rollout had already replaced the old pods, leaving zero healthy endpoints. The probe wasn't the bug; the release was.",
     whatFixedIt:
-      "Rolling the image back to klab/web-app:1.0.0 created pods that passed /healthz, became Ready, and restored the Service. In real life you'd follow up by fixing the v2 build — after the incident is over.",
+      "Rolling the image back to klab/web-app:1.0.0 created pods that passed /healthz, became Ready, and restored the Service. In real life you'd follow up by fixing the v2 build: after the incident is over.",
     prevention:
       "Use progressive delivery with availability budgets, retain revision history, and automatically halt or roll back releases that fail readiness and traffic checks.",
     relatedConcepts: ["deployments", "rollouts", "readiness-probes"],

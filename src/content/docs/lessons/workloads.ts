@@ -87,7 +87,7 @@ const pods: DocsLesson = {
         },
         {
           code: "  containers:",
-          note: "a list — a Pod can hold more than one container",
+          note: "a list: a Pod can hold more than one container",
         },
         {
           code: "    - name: web",
@@ -165,7 +165,7 @@ const pods: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The two most confused Pod states are phase and readiness. STATUS in kubectl get pods is the lifecycle phase (Pending, Running, Succeeded, Failed). READY (the 1/1 column) is a separate condition that counts how many containers currently pass their readiness probe. A Pod can sit at Running 1/1 STATUS with 0/1 READY for a long time — the process is alive, but it is telling Kubernetes not to send it traffic yet.",
+      text: "The two most confused Pod states are phase and readiness. STATUS in kubectl get pods is the lifecycle phase (Pending, Running, Succeeded, Failed). READY (the 1/1 column) is a separate condition that counts how many containers currently pass their readiness probe. A Pod can sit at Running 1/1 STATUS with 0/1 READY for a long time: the process is alive, but it is telling Kubernetes not to send it traffic yet.",
     },
     {
       type: "callout",
@@ -177,7 +177,7 @@ const pods: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "restartPolicy defaults to Always",
-      text: "For a Pod, restartPolicy is Always unless you change it. That is right for long-running servers but wrong for a one-shot task, where you want OnFailure or Never — otherwise a Pod that finishes successfully gets restarted forever.",
+      text: "For a Pod, restartPolicy is Always unless you change it. That is right for long-running servers but wrong for a one-shot task, where you want OnFailure or Never: otherwise a Pod that finishes successfully gets restarted forever.",
     },
     {
       type: "heading",
@@ -186,7 +186,7 @@ const pods: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "The default and correct shape is one application container per Pod. Reach for a second container only when it must share the first one's network or filesystem and share its lifecycle — a sidecar that ships logs, a proxy, or an init container that runs to completion before the app starts. If two things can scale or fail independently, they belong in separate Pods.",
+      text: "The default and correct shape is one application container per Pod. Reach for a second container only when it must share the first one's network or filesystem and share its lifecycle: a sidecar that ships logs, a proxy, or an init container that runs to completion before the app starts. If two things can scale or fail independently, they belong in separate Pods.",
     },
     {
       type: "heading",
@@ -241,11 +241,11 @@ const pods: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "A Pod is the smallest schedulable unit — containers in it share one IP, localhost, and lifecycle.",
+        "A Pod is the smallest schedulable unit: containers in it share one IP, localhost, and lifecycle.",
         "STATUS (phase) and READY (readiness) are independent: a Pod can be Running but NotReady.",
         "Readiness gates traffic; liveness and restartPolicy control restarts. Do not confuse them.",
         "Default to one application container per Pod; add sidecars only when they must share context.",
-        "Create bare Pods only for debugging — run real workloads through a controller so they self-heal.",
+        "Create bare Pods only for debugging: run real workloads through a controller so they self-heal.",
       ],
     },
     {
@@ -404,7 +404,7 @@ const deployments: DocsLesson = {
         },
         {
           code: "  selector:",
-          note: "which Pods this Deployment owns — this is immutable after creation",
+          note: "which Pods this Deployment owns: this is immutable after creation",
         },
         {
           code: "    matchLabels:",
@@ -429,7 +429,7 @@ const deployments: DocsLesson = {
         },
         {
           code: "      maxUnavailable: 0",
-          note: "never drop below replicas Ready Pods — zero-downtime",
+          note: "never drop below replicas Ready Pods: zero-downtime",
         },
         {
           code: "  template:",
@@ -443,7 +443,7 @@ const deployments: DocsLesson = {
         },
         {
           code: "        app: web",
-          note: "the label the selector matches — the contract's other half",
+          note: "the label the selector matches: the contract's other half",
         },
         {
           code: "    spec:",
@@ -478,7 +478,7 @@ const deployments: DocsLesson = {
       stages: [
         {
           label: "Skeleton",
-          note: "Minimum shape: kind, a name, and a template with one container. No replicas field defaults to 1. No selector yet — the API server will reject this until a selector is added.",
+          note: "Minimum shape: kind, a name, and a template with one container. No replicas field defaults to 1. No selector yet: the API server will reject this until a selector is added.",
           code: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: web\n          image: web:1.0",
         },
         {
@@ -514,7 +514,7 @@ const deployments: DocsLesson = {
       },
       right: {
         title: "spec.template.metadata.labels",
-        code: "template:\n  metadata:\n    labels:\n      app: web\n      tier: frontend\n# valid — template adds tier, selector still matched",
+        code: "template:\n  metadata:\n    labels:\n      app: web\n      tier: frontend\n# valid: template adds tier, selector still matched",
       },
     },
     {
@@ -524,7 +524,7 @@ const deployments: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Change anything under spec.template — usually the image — and the Deployment computes a new template hash. It creates a fresh ReplicaSet for that hash and scales it up while scaling the old one down, respecting maxSurge and maxUnavailable. When the new ReplicaSet is fully Ready, the old one is scaled to zero but kept for rollback.",
+      text: "Change anything under spec.template: usually the image, and the Deployment computes a new template hash. It creates a fresh ReplicaSet for that hash and scales it up while scaling the old one down, respecting maxSurge and maxUnavailable. When the new ReplicaSet is fully Ready, the old one is scaled to zero but kept for rollback.",
     },
     {
       type: "diagram",
@@ -542,13 +542,13 @@ const deployments: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "Revision history and rollback",
-      text: "Each superseded ReplicaSet is kept (up to spec.revisionHistoryLimit, default 10) so you can undo a bad release. `kubectl rollout undo deploy/web` scales the previous ReplicaSet back up and the current one down — a rollback is just another rolling update in reverse. `kubectl rollout status deploy/web` watches progress; `kubectl rollout history` lists revisions.",
+      text: "Each superseded ReplicaSet is kept (up to spec.revisionHistoryLimit, default 10) so you can undo a bad release. `kubectl rollout undo deploy/web` scales the previous ReplicaSet back up and the current one down: a rollback is just another rolling update in reverse. `kubectl rollout status deploy/web` watches progress; `kubectl rollout history` lists revisions.",
     },
     {
       type: "callout",
       tone: "warning",
       title: "Only template changes trigger a rollout",
-      text: "Editing spec.replicas scales the current ReplicaSet — it does NOT create a new revision. Only changes under spec.template (image, env, resources, labels) produce a new ReplicaSet and a rollout. This is why scaling is instant and cheap while an image bump is a controlled, reversible release.",
+      text: "Editing spec.replicas scales the current ReplicaSet: it does NOT create a new revision. Only changes under spec.template (image, env, resources, labels) produce a new ReplicaSet and a rollout. This is why scaling is instant and cheap while an image bump is a controlled, reversible release.",
     },
     {
       type: "heading",
@@ -562,7 +562,7 @@ const deployments: DocsLesson = {
         "kubectl apply on this manifest fails with `selector does not match template labels`. The intent is a web Deployment. What is wrong, and how do you fix it?",
       code: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: api\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: web\n          image: web:1.0",
       answer:
-        "The selector requires app: api, but the Pod template labels the Pods app: web. Since matchLabels is not a subset of the template labels, the Deployment could never own the Pods it creates, so the API server rejects it outright. Fix: make them agree — change selector.matchLabels to app: web (or relabel the template to app: api). Because the selector is immutable after creation, getting this right on the first apply matters.",
+        "The selector requires app: api, but the Pod template labels the Pods app: web. Since matchLabels is not a subset of the template labels, the Deployment could never own the Pods it creates, so the API server rejects it outright. Fix: make them agree: change selector.matchLabels to app: web (or relabel the template to app: api). Because the selector is immutable after creation, getting this right on the first apply matters.",
     },
     {
       type: "heading",
@@ -630,10 +630,10 @@ const deployments: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "A Deployment owns ReplicaSets, which own Pods — you edit the Deployment template, never individual Pods.",
+        "A Deployment owns ReplicaSets, which own Pods: you edit the Deployment template, never individual Pods.",
         "spec.selector.matchLabels must be a subset of spec.template.metadata.labels, and the selector is immutable after creation.",
         "Only changes under spec.template create a new ReplicaSet and trigger a rollout; changing replicas just scales the current one.",
-        "maxSurge and maxUnavailable govern rollout speed vs. availability — maxUnavailable: 0 buys zero downtime.",
+        "maxSurge and maxUnavailable govern rollout speed vs. availability: maxUnavailable: 0 buys zero downtime.",
         "Old ReplicaSets are retained (revisionHistoryLimit) so kubectl rollout undo can reverse a bad release.",
       ],
     },
@@ -680,7 +680,7 @@ const deployments: DocsLesson = {
         },
         {
           id: "b",
-          text: "No — scaling adjusts the current ReplicaSet without a new revision.",
+          text: "No: scaling adjusts the current ReplicaSet without a new revision.",
           correct: true,
           explanation:
             "Replica count lives outside the Pod template, so scaling resizes the active ReplicaSet in place rather than starting a rollout.",
@@ -728,7 +728,7 @@ const replicaSets: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A ReplicaSet has one job: keep exactly spec.replicas Pods that match its selector running at all times. Its controller runs a continuous reconcile loop — it counts Pods matching the selector, compares that to the desired count, and takes action. Too few Pods? It creates more from the Pod template. Too many? It deletes the surplus. A Pod crashed, was evicted, or its node died? The count drops, and the controller creates a replacement. The ReplicaSet never heals a Pod; it only maintains a population.",
+      text: "A ReplicaSet has one job: keep exactly spec.replicas Pods that match its selector running at all times. Its controller runs a continuous reconcile loop: it counts Pods matching the selector, compares that to the desired count, and takes action. Too few Pods? It creates more from the Pod template. Too many? It deletes the surplus. A Pod crashed, was evicted, or its node died? The count drops, and the controller creates a replacement. The ReplicaSet never heals a Pod; it only maintains a population.",
     },
     {
       type: "paragraph",
@@ -799,7 +799,7 @@ const replicaSets: DocsLesson = {
         },
         {
           code: "        app: web",
-          note: "must satisfy the selector above — this is what links them",
+          note: "must satisfy the selector above: this is what links them",
         },
         {
           code: "    spec:",
@@ -863,13 +863,13 @@ const replicaSets: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "Adoption is by label, not by creation",
-      text: "A ReplicaSet does not only manage Pods it created. Any Pod that matches its selector and has no controlling owner gets adopted — the ReplicaSet stamps its ownerReference onto it and counts it toward the replica total. This is why a stray Pod with matching labels can make a ReplicaSet report more replicas than you expected, and why label hygiene matters.",
+      text: "A ReplicaSet does not only manage Pods it created. Any Pod that matches its selector and has no controlling owner gets adopted: the ReplicaSet stamps its ownerReference onto it and counts it toward the replica total. This is why a stray Pod with matching labels can make a ReplicaSet report more replicas than you expected, and why label hygiene matters.",
     },
     {
       type: "callout",
       tone: "key",
       title: "What a Deployment update does to ReplicaSets",
-      text: "When you change a Deployment's Pod template (say a new image), the Deployment does not edit the existing ReplicaSet. It creates a brand-new ReplicaSet for the new template — distinguished by a pod-template-hash label the Deployment injects into the selector — scales it up while scaling the old one down to 0. The old ReplicaSet is not deleted; it is kept at replicas: 0 as rollout history so kubectl rollout undo can scale it back up. revisionHistoryLimit (default 10) controls how many of these empty ReplicaSets are retained.",
+      text: "When you change a Deployment's Pod template (say a new image), the Deployment does not edit the existing ReplicaSet. It creates a brand-new ReplicaSet for the new template: distinguished by a pod-template-hash label the Deployment injects into the selector: scales it up while scaling the old one down to 0. The old ReplicaSet is not deleted; it is kept at replicas: 0 as rollout history so kubectl rollout undo can scale it back up. revisionHistoryLimit (default 10) controls how many of these empty ReplicaSets are retained.",
     },
     {
       type: "heading",
@@ -883,7 +883,7 @@ const replicaSets: DocsLesson = {
         "kubectl apply on this manifest fails with 'selector does not match template labels'. Why?",
       code: "apiVersion: apps/v1\nkind: ReplicaSet\nmetadata:\n  name: web\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: web\n      tier: frontend\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: web\n          image: nginx:1.27",
       answer:
-        "The selector requires two labels — app: web AND tier: frontend — but the Pod template only sets app: web. A Pod the ReplicaSet created would not match its own selector, so the API server rejects it at validation time. Every key in matchLabels must appear in template.metadata.labels. Fix: add tier: frontend to the template labels, or drop it from the selector.",
+        "The selector requires two labels: app: web AND tier: frontend, but the Pod template only sets app: web. A Pod the ReplicaSet created would not match its own selector, so the API server rejects it at validation time. Every key in matchLabels must appear in template.metadata.labels. Fix: add tier: frontend to the template labels, or drop it from the selector.",
     },
     {
       type: "heading",
@@ -923,7 +923,7 @@ const replicaSets: DocsLesson = {
       items: [
         "A ReplicaSet keeps a labeled set of Pods at spec.replicas by continuously reconciling count, not by healing individual Pods.",
         "The selector's matchLabels must be a subset of the template's labels, or the API server rejects the object.",
-        "ReplicaSets own their Pods via ownerReferences and can adopt any matching, unowned Pod — so labels decide membership.",
+        "ReplicaSets own their Pods via ownerReferences and can adopt any matching, unowned Pod, so labels decide membership.",
         "A Deployment update creates a new ReplicaSet and scales the old one to 0, keeping it for rollback rather than deleting it.",
         "Create Deployments, not ReplicaSets, unless you have a narrow reason to manage replicas without rollout semantics.",
       ],
@@ -953,7 +953,7 @@ const replicaSets: DocsLesson = {
           text: "Its existing Pods are updated in place to the new image.",
           correct: false,
           explanation:
-            "Pods are immutable in template terms — the Deployment replaces them by shifting Pods from the old ReplicaSet to a new one, not by editing running Pods.",
+            "Pods are immutable in template terms: the Deployment replaces them by shifting Pods from the old ReplicaSet to a new one, not by editing running Pods.",
         },
         {
           id: "d",
@@ -1046,11 +1046,11 @@ const statefulSets: DocsLesson = {
         },
         {
           code: "  serviceName: web",
-          note: "MUST name a headless Service (clusterIP: None) — it governs the per-Pod DNS domain",
+          note: "MUST name a headless Service (clusterIP: None): it governs the per-Pod DNS domain",
         },
         {
           code: "  replicas: 3",
-          note: "creates web-0, web-1, web-2 — the ordinals are stable, not random",
+          note: "creates web-0, web-1, web-2: the ordinals are stable, not random",
         },
         {
           code: "  selector:",
@@ -1107,14 +1107,14 @@ const statefulSets: DocsLesson = {
         },
         {
           code: "  volumeClaimTemplates:",
-          note: "a TEMPLATE, not a volume — Kubernetes stamps one PVC per Pod from it",
+          note: "a TEMPLATE, not a volume: Kubernetes stamps one PVC per Pod from it",
         },
         {
           code: "    - metadata:",
         },
         {
           code: "        name: data",
-          note: "yields PVCs named data-web-0, data-web-1, data-web-2 — each bound to one Pod for life",
+          note: "yields PVCs named data-web-0, data-web-1, data-web-2: each bound to one Pod for life",
         },
         {
           code: "      spec:",
@@ -1145,7 +1145,7 @@ const statefulSets: DocsLesson = {
       stages: [
         {
           label: "Deployment-shaped skeleton",
-          note: "Kind and template look just like a Deployment. This alone gives you nothing stateful yet — Pods would still be anonymous with no persistent disk.",
+          note: "Kind and template look just like a Deployment. This alone gives you nothing stateful yet: Pods would still be anonymous with no persistent disk.",
           code: "apiVersion: apps/v1\nkind: StatefulSet\nmetadata:\n  name: web\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: web\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: nginx\n          image: nginx:1.25",
         },
         {
@@ -1169,13 +1169,13 @@ const statefulSets: DocsLesson = {
       type: "concept",
       term: "Ordinal index",
       definition:
-        "Each StatefulSet Pod gets a stable name of the form <statefulset-name>-<ordinal>, starting at 0: web-0, web-1, web-2. The name is not reused for a different Pod and survives rescheduling — if web-1 dies, its replacement is still named web-1 and reattaches the same storage.",
+        "Each StatefulSet Pod gets a stable name of the form <statefulset-name>-<ordinal>, starting at 0: web-0, web-1, web-2. The name is not reused for a different Pod and survives rescheduling: if web-1 dies, its replacement is still named web-1 and reattaches the same storage.",
     },
     {
       type: "concept",
       term: "Headless Service DNS",
       definition:
-        "A headless Service (clusterIP: None) named by serviceName gives each Pod its own DNS A record: web-0.web.default.svc.cluster.local. Clients can address a specific member directly instead of load-balancing across all of them — essential for quorum systems where you must reach the primary or a named peer.",
+        "A headless Service (clusterIP: None) named by serviceName gives each Pod its own DNS A record: web-0.web.default.svc.cluster.local. Clients can address a specific member directly instead of load-balancing across all of them: essential for quorum systems where you must reach the primary or a named peer.",
     },
     {
       type: "callout",
@@ -1187,7 +1187,7 @@ const statefulSets: DocsLesson = {
       type: "callout",
       tone: "info",
       title: "Ordered vs parallel start-up",
-      text: "By default (podManagementPolicy: OrderedReady) Kubernetes brings Pods up one at a time in ascending ordinal order, waiting for each to be Running and Ready before starting the next, and tears them down in descending order. Set podManagementPolicy: Parallel when members are independent and start-up order does not matter — it launches and deletes all Pods at once for faster scaling.",
+      text: "By default (podManagementPolicy: OrderedReady) Kubernetes brings Pods up one at a time in ascending ordinal order, waiting for each to be Running and Ready before starting the next, and tears them down in descending order. Set podManagementPolicy: Parallel when members are independent and start-up order does not matter: it launches and deletes all Pods at once for faster scaling.",
     },
     {
       type: "heading",
@@ -1252,7 +1252,7 @@ const statefulSets: DocsLesson = {
       type: "takeaways",
       items: [
         "StatefulSets add three guarantees over Deployments: stable network identity, stable per-replica storage, and ordered rollout.",
-        "serviceName must reference a headless Service (clusterIP: None) — without it Pods are never created.",
+        "serviceName must reference a headless Service (clusterIP: None): without it Pods are never created.",
         "volumeClaimTemplates stamp one PVC per Pod (data-web-0, data-web-1, ...) that survives rescheduling.",
         "PVCs are retained on scale-down and delete by default, so cleanup and stale-data reuse need conscious handling.",
         "Reach a specific member via per-Pod DNS like web-0.web.default.svc.cluster.local instead of one virtual IP.",
@@ -1313,7 +1313,7 @@ const daemonSets: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A DaemonSet guarantees that a copy of a Pod runs on every node that matches its scheduling rules. As nodes join the cluster the DaemonSet controller places a Pod on them, and as nodes leave those Pods are garbage collected. You never set a replica count — the fleet size is the number of matching nodes.",
+      text: "A DaemonSet guarantees that a copy of a Pod runs on every node that matches its scheduling rules. As nodes join the cluster the DaemonSet controller places a Pod on them, and as nodes leave those Pods are garbage collected. You never set a replica count: the fleet size is the number of matching nodes.",
     },
     {
       type: "paragraph",
@@ -1337,14 +1337,14 @@ const daemonSets: DocsLesson = {
       type: "annotatedCode",
       language: "yaml",
       title: "A log-collector DaemonSet",
-      caption: "No replicas field — the controller fans out one Pod per matching node.",
+      caption: "No replicas field: the controller fans out one Pod per matching node.",
       lines: [
         {
           code: "apiVersion: apps/v1",
         },
         {
           code: "kind: DaemonSet",
-          note: "not Deployment — there is no replica count to set",
+          note: "not Deployment: there is no replica count to set",
         },
         {
           code: "metadata:",
@@ -1449,12 +1449,12 @@ const daemonSets: DocsLesson = {
       stages: [
         {
           label: "Skeleton",
-          note: "Start with the object identity. apps/v1 DaemonSet with a name — no spec content yet, so it schedules nothing.",
+          note: "Start with the object identity. apps/v1 DaemonSet with a name: no spec content yet, so it schedules nothing.",
           code: "apiVersion: apps/v1\nkind: DaemonSet\nmetadata:\n  name: log-agent\nspec: {}",
         },
         {
           label: "Add selector and template",
-          note: "The selector must match the template's Pod labels. Now the controller will place one Pod per node — but only on nodes with no blocking taints.",
+          note: "The selector must match the template's Pod labels. Now the controller will place one Pod per node, but only on nodes with no blocking taints.",
           code: "apiVersion: apps/v1\nkind: DaemonSet\nmetadata:\n  name: log-agent\nspec:\n  selector:\n    matchLabels:\n      app: log-agent\n  template:\n    metadata:\n      labels:\n        app: log-agent\n    spec:\n      containers:\n        - name: agent\n          image: log-agent:v1",
         },
         {
@@ -1479,13 +1479,13 @@ const daemonSets: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "Three knobs decide which nodes get a Pod",
-      text: "nodeSelector and node affinity narrow the DaemonSet to a subset of nodes (for example only GPU nodes). Tolerations let its Pods land on tainted nodes such as the control plane. Node resources still apply — a node with no room will show the Pod Pending. Get all three right and coverage matches your intent exactly.",
+      text: "nodeSelector and node affinity narrow the DaemonSet to a subset of nodes (for example only GPU nodes). Tolerations let its Pods land on tainted nodes such as the control plane. Node resources still apply: a node with no room will show the Pod Pending. Get all three right and coverage matches your intent exactly.",
     },
     {
       type: "callout",
       tone: "info",
       title: "updateStrategy: RollingUpdate vs OnDelete",
-      text: "RollingUpdate (the default) replaces Pods node by node when the template changes, bounded by maxUnavailable so the fleet is never fully down. OnDelete makes the controller wait: a node's Pod is only recreated with the new template after you manually delete the old one — useful when node-agent restarts are disruptive and you want to control timing.",
+      text: "RollingUpdate (the default) replaces Pods node by node when the template changes, bounded by maxUnavailable so the fleet is never fully down. OnDelete makes the controller wait: a node's Pod is only recreated with the new template after you manually delete the old one: useful when node-agent restarts are disruptive and you want to control timing.",
     },
     {
       type: "heading",
@@ -1546,7 +1546,7 @@ const daemonSets: DocsLesson = {
     {
       type: "takeaways",
       items: [
-        "A DaemonSet has no replica count — its size is the number of nodes that match its scheduling rules.",
+        "A DaemonSet has no replica count: its size is the number of nodes that match its scheduling rules.",
         "nodeSelector and affinity narrow the node set; tolerations widen it onto tainted nodes like the control plane.",
         "A missing toleration is the classic reason an agent skips certain nodes, so DESIRED comes up short.",
         "updateStrategy RollingUpdate rolls Pods node by node; OnDelete waits for you to delete each old Pod first.",
@@ -1608,7 +1608,7 @@ const jobs: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A Deployment assumes its Pods should run forever: if one exits, even with exit code 0, the controller restarts it to hold the desired replica count. A Job assumes the opposite. It runs Pods until a fixed number of them exit successfully, then stops and stays finished. This single difference in expectation is why you cannot model a database migration or a nightly report as a Deployment — a Deployment would treat a successful exit as a crash and loop forever.",
+      text: "A Deployment assumes its Pods should run forever: if one exits, even with exit code 0, the controller restarts it to hold the desired replica count. A Job assumes the opposite. It runs Pods until a fixed number of them exit successfully, then stops and stays finished. This single difference in expectation is why you cannot model a database migration or a nightly report as a Deployment: a Deployment would treat a successful exit as a crash and loop forever.",
     },
     {
       type: "heading",
@@ -1677,7 +1677,7 @@ const jobs: DocsLesson = {
         },
         {
           code: "      restartPolicy: OnFailure",
-          note: "MUST be Never or OnFailure on a Job — Always is rejected",
+          note: "MUST be Never or OnFailure on a Job: Always is rejected",
         },
         {
           code: "      containers:",
@@ -1697,7 +1697,7 @@ const jobs: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A CronJob does not run Pods itself. On each scheduled tick it stamps out a new Job from its jobTemplate, and that Job runs Pods to completion the same way a hand-written Job would. The schedule uses standard Unix cron syntax with five fields — minute, hour, day-of-month, month, day-of-week — evaluated in the controller's timezone unless you set spec.timeZone.",
+      text: "A CronJob does not run Pods itself. On each scheduled tick it stamps out a new Job from its jobTemplate, and that Job runs Pods to completion the same way a hand-written Job would. The schedule uses standard Unix cron syntax with five fields: minute, hour, day-of-month, month, day-of-week: evaluated in the controller's timezone unless you set spec.timeZone.",
     },
     {
       type: "annotatedCode",
@@ -1812,13 +1812,13 @@ const jobs: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "concurrencyPolicy controls overlap",
-      text: "When a CronJob's next tick arrives and the previous run has not finished, concurrencyPolicy decides what happens. Allow (the default) lets runs overlap. Forbid skips the new run and waits for the next tick. Replace cancels the still-running Job and starts a fresh one. Reach for Forbid or Replace whenever two copies of the work must never run at once — for example a job that writes to the same file or table.",
+      text: "When a CronJob's next tick arrives and the previous run has not finished, concurrencyPolicy decides what happens. Allow (the default) lets runs overlap. Forbid skips the new run and waits for the next tick. Replace cancels the still-running Job and starts a fresh one. Reach for Forbid or Replace whenever two copies of the work must never run at once: for example a job that writes to the same file or table.",
     },
     {
       type: "callout",
       tone: "warning",
       title: "Missed schedules and the starting deadline",
-      text: "If the CronJob controller is down or the cluster is busy, a scheduled tick can be missed. startingDeadlineSeconds is how late a missed run may still be started; past that window the run is skipped and counted as missed. If more than 100 schedules are missed with no deadline set, the controller stops scheduling entirely and logs an error — so set a sane startingDeadlineSeconds on any frequent CronJob.",
+      text: "If the CronJob controller is down or the cluster is busy, a scheduled tick can be missed. startingDeadlineSeconds is how late a missed run may still be started; past that window the run is skipped and counted as missed. If more than 100 schedules are missed with no deadline set, the controller stops scheduling entirely and logs an error, so set a sane startingDeadlineSeconds on any frequent CronJob.",
     },
     {
       type: "heading",
@@ -1831,7 +1831,7 @@ const jobs: DocsLesson = {
       prompt: "This Job is rejected by the API server the moment you apply it. Why?",
       code: "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: import-users\nspec:\n  backoffLimit: 3\n  template:\n    spec:\n      restartPolicy: Always\n      containers:\n        - name: import\n          image: importer:v1",
       answer:
-        "restartPolicy: Always is invalid on a Job. A Job Pod may only use Never or OnFailure. Always would restart the container after every exit — including a successful exit — so the Pod could never reach a terminal Succeeded state and the Job could never be marked Complete. The API server rejects it with a validation error. Fix: use restartPolicy: OnFailure (or Never).",
+        "restartPolicy: Always is invalid on a Job. A Job Pod may only use Never or OnFailure. Always would restart the container after every exit, including a successful exit, so the Pod could never reach a terminal Succeeded state and the Job could never be marked Complete. The API server rejects it with a validation error. Fix: use restartPolicy: OnFailure (or Never).",
     },
     {
       type: "heading",
@@ -1888,7 +1888,7 @@ const jobs: DocsLesson = {
       items: [
         "A Job runs Pods until completions succeed, then stops; a Deployment would restart a successful Pod forever.",
         "completions is how many successes are needed; parallelism is how many Pods run at once.",
-        "A Job Pod's restartPolicy must be Never or OnFailure — Always is rejected by the API server.",
+        "A Job Pod's restartPolicy must be Never or OnFailure: Always is rejected by the API server.",
         "backoffLimit caps total Pod failures before the Job is marked Failed, with exponential back-off between attempts.",
         "A CronJob stamps out a Job per cron tick; concurrencyPolicy (Allow, Forbid, Replace) decides what happens when runs would overlap.",
         "Use ttlSecondsAfterFinished and history limits so finished Jobs are garbage-collected instead of piling up.",
@@ -1966,7 +1966,7 @@ const podComposition: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "Init containers are the setup crew. Kubernetes starts them one after another in the order they appear under initContainers. Each one must exit 0 before the next begins, and all of them must succeed before the first app container starts. If an init container exits non-zero, the kubelet restarts it according to the Pod's restartPolicy and the Pod stays in Init:Error or Init:CrashLoopBackOff — the app never runs. Use them for work that must be done and finished first: schema migrations, waiting for a dependency to be reachable, or fetching a config bundle into a shared volume.",
+      text: "Init containers are the setup crew. Kubernetes starts them one after another in the order they appear under initContainers. Each one must exit 0 before the next begins, and all of them must succeed before the first app container starts. If an init container exits non-zero, the kubelet restarts it according to the Pod's restartPolicy and the Pod stays in Init:Error or Init:CrashLoopBackOff: the app never runs. Use them for work that must be done and finished first: schema migrations, waiting for a dependency to be reachable, or fetching a config bundle into a shared volume.",
     },
     {
       type: "concept",
@@ -1981,7 +1981,7 @@ const podComposition: DocsLesson = {
     },
     {
       type: "paragraph",
-      text: "A native sidecar is an init container with restartPolicy: Always. That one field changes the rules. Kubernetes still starts it in init order — before the app containers — but instead of waiting for it to exit, it waits for it to start (and pass its startup probe, if defined) and then moves on. The sidecar keeps running for the whole life of the Pod. On shutdown the order reverses: app containers are terminated first, then the sidecars, so a logging or proxy sidecar is still alive to flush the last of the app's traffic. Native sidecars are stable as of Kubernetes 1.29, and they replace the old pattern of adding a helper to the containers list and hoping ordering worked out.",
+      text: "A native sidecar is an init container with restartPolicy: Always. That one field changes the rules. Kubernetes still starts it in init order: before the app containers, but instead of waiting for it to exit, it waits for it to start (and pass its startup probe, if defined) and then moves on. The sidecar keeps running for the whole life of the Pod. On shutdown the order reverses: app containers are terminated first, then the sidecars, so a logging or proxy sidecar is still alive to flush the last of the app's traffic. Native sidecars are stable as of Kubernetes 1.29, and they replace the old pattern of adding a helper to the containers list and hoping ordering worked out.",
     },
     {
       type: "annotatedCode",
@@ -2097,7 +2097,7 @@ const podComposition: DocsLesson = {
       type: "callout",
       tone: "key",
       title: "preStop and terminationGracePeriodSeconds share one clock",
-      text: "When a Pod is deleted, the kubelet runs the container's preStop hook first, then sends SIGTERM to the main process. terminationGracePeriodSeconds (default 30) is the total budget from the start of termination. If preStop plus the process's own graceful exit run past that budget, the container is SIGKILLed and in-flight work is dropped. A common pattern is a short preStop sleep so the endpoint is pulled from Service EndpointSlices before the app stops accepting connections — then set the grace period comfortably longer than sleep + real drain time.",
+      text: "When a Pod is deleted, the kubelet runs the container's preStop hook first, then sends SIGTERM to the main process. terminationGracePeriodSeconds (default 30) is the total budget from the start of termination. If preStop plus the process's own graceful exit run past that budget, the container is SIGKILLed and in-flight work is dropped. A common pattern is a short preStop sleep so the endpoint is pulled from Service EndpointSlices before the app stops accepting connections, then set the grace period comfortably longer than sleep + real drain time.",
     },
     {
       type: "concept",
@@ -2173,9 +2173,9 @@ const podComposition: DocsLesson = {
       type: "takeaways",
       items: [
         "Init containers run sequentially and must each exit 0 before the app starts; a hung init container blocks the entire Pod.",
-        "A native sidecar is just an init container with restartPolicy: Always — it starts before the app and runs alongside it.",
+        "A native sidecar is just an init container with restartPolicy: Always: it starts before the app and runs alongside it.",
         "On shutdown, app containers stop before native sidecars, so a logging or proxy sidecar can flush or drain last.",
-        "preStop runs before SIGTERM, and it shares the terminationGracePeriodSeconds budget — overrun it and the container is SIGKILLed.",
+        "preStop runs before SIGTERM, and it shares the terminationGracePeriodSeconds budget: overrun it and the container is SIGKILLed.",
         "Putting a long-running helper in initContainers without restartPolicy: Always is a classic mistake that freezes the Pod in Init.",
       ],
     },
@@ -2190,7 +2190,7 @@ const podComposition: DocsLesson = {
           text: "restartPolicy: Always on the init container",
           correct: true,
           explanation:
-            "That field tells Kubernetes to start the container in init order but not wait for it to exit, and to keep it running for the life of the Pod — the definition of a native sidecar (stable since 1.29).",
+            "That field tells Kubernetes to start the container in init order but not wait for it to exit, and to keep it running for the life of the Pod: the definition of a native sidecar (stable since 1.29).",
         },
         {
           id: "b",

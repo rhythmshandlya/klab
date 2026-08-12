@@ -43,6 +43,13 @@
       "when": 1786379524764,
       "tag": "0005_groovy_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786425458626,
+      "tag": "0006_slow_baron_zemo",
+      "breakpoints": true
     }
   ]
 }

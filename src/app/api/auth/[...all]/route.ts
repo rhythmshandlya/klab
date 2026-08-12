@@ -4,7 +4,7 @@ import { getAuth } from "@/lib/auth/server";
 import { isAuthConfigured } from "@/lib/env";
 
 /**
- * Better Auth catch-all handler. When auth isn't configured (no DB/secret/provider —
+ * Better Auth catch-all handler. When auth isn't configured (no DB/secret/provider:
  * e.g. the guest static build or CI), respond 501 instead of constructing the auth
  * instance, so the build never requires a database and guests are unaffected.
  */

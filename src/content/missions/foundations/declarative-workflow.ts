@@ -23,7 +23,7 @@ export const declarativeWorkflow: Mission = {
     {
       kind: "teach",
       id: "apply-loop",
-      idea: "apply is not fire-and-forget: it writes desired state into the same reconciliation loop that drives everything. Make the change deliberate — render, diff, apply, then verify. The diff step turns apply from a leap of faith into a reviewed change.",
+      idea: "apply is not fire-and-forget: it writes desired state into the same reconciliation loop that drives everything. Make the change deliberate: render, diff, apply, then verify. The diff step turns apply from a leap of faith into a reviewed change.",
       visual: { mode: "concept", variant: "control-loop", buildToStep: 1 },
     },
     {
@@ -35,7 +35,7 @@ export const declarativeWorkflow: Mission = {
         options: [
           {
             id: "a",
-            text: "unchanged — apply is idempotent",
+            text: "unchanged: apply is idempotent",
             correct: true,
             explain:
               "apply is create-or-update: with nothing to change, it reports 'unchanged' rather than erroring.",
@@ -49,13 +49,13 @@ export const declarativeWorkflow: Mission = {
           },
         ],
         reveal:
-          "apply creates the object if absent and updates it if present. Re-running is safe — the backbone of CI and GitOps.",
+          "apply creates the object if absent and updates it if present. Re-running is safe: the backbone of CI and GitOps.",
       },
     },
     {
       kind: "teach",
       id: "prune-and-kustomize",
-      idea: "apply never deletes by default — removing a manifest orphans its object, so use --prune with a narrow, dedicated label. And keep one base with small per-environment overlays (Kustomize) so environments never drift apart.",
+      idea: "apply never deletes by default: removing a manifest orphans its object, so use --prune with a narrow, dedicated label. And keep one base with small per-environment overlays (Kustomize) so environments never drift apart.",
       visual: { mode: "concept", variant: "control-loop", buildToStep: 2 },
     },
     {
@@ -89,7 +89,7 @@ export const declarativeWorkflow: Mission = {
     {
       kind: "do",
       id: "do-baseline",
-      goal: "Three replicas was a temporary bump. Edit spec.replicas from 3 down to the reviewed baseline of 2 and apply — the diff should read a clean -3 +2 before you commit to it.",
+      goal: "Three replicas was a temporary bump. Edit spec.replicas from 3 down to the reviewed baseline of 2 and apply: the diff should read a clean -3 +2 before you commit to it.",
       files: [
         {
           path: "web-deployment.yaml",
@@ -99,7 +99,7 @@ export const declarativeWorkflow: Mission = {
         },
       ],
       check: { kind: "deployment-replicas", name: "web", replicas: 2 },
-      hint: "Change spec.replicas from 3 to 2 and apply. The image tag stays pinned to 1.0.0 so the diff is deterministic — only the replica count should change. Applying without the edit keeps desired at 3, so the check will hold until you actually right-size it.",
+      hint: "Change spec.replicas from 3 to 2 and apply. The image tag stays pinned to 1.0.0 so the diff is deterministic: only the replica count should change. Applying without the edit keeps desired at 3, so the check will hold until you actually right-size it.",
       debrief:
         "You fed a deliberate, diffable change into the reconciliation loop, and it converged to a healthy two-replica Deployment. This same render-diff-apply-verify loop is how every durable change to a cluster should be made.",
     },
@@ -107,7 +107,7 @@ export const declarativeWorkflow: Mission = {
       kind: "debrief",
       id: "wrap",
       summary:
-        "Foundations complete: your cluster runs a healthy, self-healing two-replica Deployment managed entirely from a version-controlled manifest — the baseline the Workloads section builds on.",
+        "Foundations complete: your cluster runs a healthy, self-healing two-replica Deployment managed entirely from a version-controlled manifest: the baseline the Workloads section builds on.",
       commands: [
         "kubectl diff -f web-deployment.yaml",
         "kubectl apply -f web-deployment.yaml",
@@ -115,7 +115,7 @@ export const declarativeWorkflow: Mission = {
       ],
       takeaways: [
         "Imperative commands mutate the cluster now and leave no artifact; declarative apply enforces files that are your source of truth.",
-        "Always render, diff, apply, then verify — a clean diff proves intent, not that traffic actually works.",
+        "Always render, diff, apply, then verify: a clean diff proves intent, not that traffic actually works.",
         "apply is create-or-update and idempotent; it never deletes by default (use --prune with a narrow label).",
         "Kustomize keeps one base and small per-environment overlays so environments never drift apart.",
       ],

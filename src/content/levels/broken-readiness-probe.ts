@@ -185,7 +185,7 @@ export const brokenReadinessProbe = {
     {
       id: "hint-1",
       title: "Start with the pods",
-      body: "Are the pods Running? Are they Ready? Those are different things. `kubectl get pods` shows the READY column — check what it says.",
+      body: "Are the pods Running? Are they Ready? Those are different things. `kubectl get pods` shows the READY column: check what it says.",
       xpPenalty: 15,
     },
     {

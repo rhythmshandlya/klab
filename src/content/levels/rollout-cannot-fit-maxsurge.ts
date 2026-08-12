@@ -9,7 +9,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * is rolling the broken v1 release forward to v2, but the Deployment asks for
  * maxSurge: 2 / maxUnavailable: 0. The controller tries to create two extra surge pods
  * that the scheduler cannot fit (Pending, Insufficient cpu), and because maxUnavailable
- * is 0 it refuses to terminate an old pod to make room — so the rollout is frozen and
+ * is 0 it refuses to terminate an old pod to make room, so the rollout is frozen and
  * the buggy v1 keeps serving 500s. Set maxSurge: 0 with maxUnavailable: 1 so the
  * controller rolls within existing capacity.
  */
@@ -86,9 +86,9 @@ export const rolloutCannotFitMaxsurge = {
   successRate: 38,
   concepts: ["deployments", "rollouts", "scheduling", "resources", "debugging"],
   blurb:
-    "The new release is ready, but the rollout is frozen solid — the cluster cannot spare a single surge pod.",
+    "The new release is ready, but the rollout is frozen solid: the cluster cannot spare a single surge pod.",
   story:
-    "Analytics v1 has a dependency-schema bug and is serving HTTP 500. The fix is in v2.0.0, which you kicked off ten minutes ago — but the rollout is still at 0% updated. The new ReplicaSet's pods are stuck Pending with Insufficient cpu, and the old ReplicaSet refuses to give up a slot. The cluster is full, and the rollout strategy will not let anything move.",
+    "Analytics v1 has a dependency-schema bug and is serving HTTP 500. The fix is in v2.0.0, which you kicked off ten minutes ago, but the rollout is still at 0% updated. The new ReplicaSet's pods are stuck Pending with Insufficient cpu, and the old ReplicaSet refuses to give up a slot. The cluster is full, and the rollout strategy will not let anything move.",
   objective: "Land the v2.0.0 release by making the rollout fit the cluster's capacity.",
   learningObjectives: [
     "Diagnose a rollout frozen by scheduling pressure (Pending surge pods, maxUnavailable: 0).",
@@ -294,6 +294,6 @@ export const rolloutCannotFitMaxsurge = {
     prevention:
       "Match rollout parameters to real capacity. On full or near-full clusters prefer maxSurge: 0 with a small maxUnavailable, size clusters for surge, or add nodes before rolling large or resource-heavy workloads.",
     relatedConcepts: ["deployments", "rollouts", "scheduling", "resources"],
-    recommendedNextSlugs: ["recreate-strategy-outage"],
+    recommendedNextSlugs: ["graceful-shutdown-502s"],
   },
 } satisfies ProblemLevel;

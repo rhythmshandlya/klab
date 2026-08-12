@@ -6,7 +6,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * Level: Service Selector Mismatch.
  *
  * The Service selects `app: web`, but every pod the Deployment creates is labeled
- * `app: web-app`. The pods are Running and Ready the whole time — the outage lives
+ * `app: web-app`. The pods are Running and Ready the whole time: the outage lives
  * entirely in the wiring between Service and pods. Fix: make the selector match the
  * real pod labels (service.yaml is the editable file).
  */
@@ -68,7 +68,7 @@ export const serviceSelectorMismatch = {
   concepts: ["services", "labels-selectors", "endpoints", "debugging"],
   blurb: "Traffic isn't reaching your pods, even though every pod is healthy.",
   story:
-    "The 09:12 deploy went green, the pods came up healthy — and then every request to web-svc started timing out. Monitoring shows the pods serving nothing at all. Something between the Service and the pods is broken.",
+    "The 09:12 deploy went green, the pods came up healthy, and then every request to web-svc started timing out. Monitoring shows the pods serving nothing at all. Something between the Service and the pods is broken.",
   objective: "Make web-svc route traffic to the running web-app pods (HTTP 200).",
   learningObjectives: [
     "Compare a Service selector with live Pod labels.",
@@ -81,7 +81,7 @@ export const serviceSelectorMismatch = {
   constraints: [
     {
       id: "edit-svc-only",
-      label: "Only edit service.yaml — the Deployment is correct",
+      label: "Only edit service.yaml: the Deployment is correct",
       kind: "editable-files",
       paths: ["service.yaml"],
     },
@@ -163,7 +163,7 @@ export const serviceSelectorMismatch = {
     {
       id: "hint-1",
       title: "Trust the pods, check the wiring",
-      body: "The pods are Running AND Ready — so the app isn't the problem. When healthy pods get no traffic, look at how the Service decides which pods to send traffic to: `kubectl describe svc web-svc`.",
+      body: "The pods are Running AND Ready, so the app isn't the problem. When healthy pods get no traffic, look at how the Service decides which pods to send traffic to: `kubectl describe svc web-svc`.",
       xpPenalty: 15,
     },
     {
@@ -176,7 +176,7 @@ export const serviceSelectorMismatch = {
     {
       id: "hint-3",
       title: "One of them is lying",
-      body: "The Service wants app=web, but the pods carry app=web-app. The constraint says the Deployment is correct — so fix the selector in service.yaml to match the real pod labels, then Apply.",
+      body: "The Service wants app=web, but the pods carry app=web-app. The constraint says the Deployment is correct, so fix the selector in service.yaml to match the real pod labels, then Apply.",
       xpPenalty: 35,
       unlockAfter: ["r-pod-labels"],
     },
@@ -270,7 +270,7 @@ export const serviceSelectorMismatch = {
     },
   ],
   postSolveExplanation: {
-    rootCause: "The Service's selector (app=web) matched no pods — they're labeled app=web-app.",
+    rootCause: "The Service's selector (app=web) matched no pods: they're labeled app=web-app.",
     whyItFailed:
       "Label selection is exact. The EndpointSlice controller continuously looks for Ready pods whose labels match the Service selector; with app=web it found none, so web-svc had zero endpoints and every request died at the Service.",
     whatFixedIt:

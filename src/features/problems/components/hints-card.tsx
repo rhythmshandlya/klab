@@ -23,7 +23,7 @@ function isUnlocked(
 /**
  * Collapsed by default ("Need help?") so hints never crowd out investigation
  * surfaces. Hints beyond the first stay locked until the learner has collected the
- * gating evidence — investigate first, then get help.
+ * gating evidence: investigate first, then get help.
  */
 export function HintsCard({ onReveal }: { onReveal: (hint: Hint) => void }) {
   const level = useLevelStore((s) => s.level);
@@ -79,7 +79,7 @@ export function HintsCard({ onReveal }: { onReveal: (hint: Hint) => void }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-foreground text-sm font-medium">
-                    Hint {index + 1} — {hint.title}
+                    Hint {index + 1}: {hint.title}
                   </span>
                   <span className="text-amber flex items-center gap-1 text-xs">
                     <Xp className="size-3.5" aria-hidden />
