@@ -1,10 +1,10 @@
 name: Bug report
-description: Something in klab doesn't work as expected
+description: Something in k8lab doesn't work as expected
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Thanks for the report! klab runs entirely in the browser — please include your browser.
+      value: Thanks for the report! k8lab runs entirely in the browser. Please include your browser.
   - type: textarea
     id: what-happened
     attributes:

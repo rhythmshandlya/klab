@@ -12,7 +12,6 @@ import {
   unpublishPlaygroundSnapshot,
   updatePlayground,
 } from "@/lib/db/labs-repo";
-import { readPublicPlaygrounds } from "@/lib/db/community-repo";
 import { user } from "@/lib/db/schema";
 import type { SavedPlayground } from "@/lib/labs/contracts";
 import { eq } from "drizzle-orm";
@@ -199,15 +198,6 @@ describe("playgrounds repository over pglite", () => {
       });
       expect(result.playground.publishedCopyId).not.toBeNull();
       expect(await readPlaygrounds(db, author)).toHaveLength(1);
-      expect(await readPublicPlaygrounds(db, 10)).toEqual([
-        expect.objectContaining({
-          id: result.playground.publishedCopyId,
-          name: "service selector repro",
-          fileCount: 1,
-          forkCount: 0,
-        }),
-      ]);
-
       const publicationId = result.playground.publishedCopyId!;
       const firstFork = await forkPublicPlayground(db, reader, publicationId, "fork-request-0001");
       const retriedFork = await forkPublicPlayground(
@@ -218,11 +208,8 @@ describe("playgrounds repository over pglite", () => {
       );
       expect(firstFork?.id).toBe(retriedFork?.id);
       expect(firstFork).toMatchObject({ visibility: "private", forkedFromId: publicationId });
-      expect((await readPublicPlaygrounds(db, 10))[0]?.forkCount).toBe(1);
-
       const unpublished = await unpublishPlaygroundSnapshot(db, author, source.id);
       expect(unpublished?.publishedCopyId).toBeNull();
-      expect(await readPublicPlaygrounds(db, 10)).toEqual([]);
       expect(await forkPublicPlayground(db, reader, publicationId, "fork-request-0002")).toBeNull();
     } finally {
       await client.close();
@@ -260,7 +247,6 @@ describe("playgrounds repository over pglite", () => {
       if (unsafe.status === "unsafe") {
         expect(unsafe.issues[0]?.message).toContain("Secret");
       }
-      expect(await readPublicPlaygrounds(db, 10)).toEqual([]);
     } finally {
       await client.close();
     }

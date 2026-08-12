@@ -13,6 +13,7 @@ import { ClusterExplorer } from "@/components/object-explorer/cluster-explorer";
 import { ObjectDetails } from "@/components/object-explorer/object-details";
 import { XtermTerminal, type TerminalRunResult } from "@/components/terminal/xterm-terminal";
 import { Badge } from "@/components/ui/badge";
+import { BRAND } from "@/config/brand";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import {
   ResizableGroup,
@@ -693,7 +694,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                           terminalRunnerRef.current = run;
                         }}
                         welcome={[
-                          "klab simulated shell, type 'help' for commands.",
+                          `${BRAND.name} simulated shell, type 'help' for commands.`,
                           `Engine: ${
                             level.engine.kind === "webernetes"
                               ? "Webernetes"

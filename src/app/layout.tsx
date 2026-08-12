@@ -3,6 +3,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 
 import { AppShell } from "@/components/app-shell/app-shell";
+import { BRAND } from "@/config/brand";
 import { getAuthCapabilities, isAuthConfigured } from "@/lib/env";
 import { SITE_ORIGIN } from "@/lib/seo";
 
@@ -11,17 +12,20 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
   title: {
-    default: "klab: learn Kubernetes by doing",
-    template: "%s · klab",
+    default: `${BRAND.name}: ${BRAND.tagline}`,
+    template: `%s · ${BRAND.name}`,
   },
-  description:
-    "A gamified, hands-on Kubernetes learning platform. Debug broken clusters, experiment in a sandbox, and study interactive lessons: all simulated in your browser.",
-  applicationName: "klab",
+  description: BRAND.description,
+  applicationName: BRAND.name,
+  icons: {
+    icon: BRAND.logo.assets.favicon,
+    apple: BRAND.logo.assets.appIcon,
+  },
   keywords: ["kubernetes", "k8s", "learning", "debugging", "sandbox", "devtools"],
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: BRAND.logo.backgroundColor,
   colorScheme: "dark",
 };
 

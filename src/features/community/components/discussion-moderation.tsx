@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { icons } from "@/components/icons";
+import { BRAND } from "@/config/brand";
 import {
   discussionStatusLabel,
   discussionStatusSchema,
@@ -65,7 +66,7 @@ function SessionModeration({
     <div className="border-blue/25 bg-blue/[0.05] mt-4 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-blue text-[10px] font-semibold tracking-[0.08em] uppercase">
-          KLab Team controls
+          {BRAND.teamName} controls
         </span>
         <select
           value={status}

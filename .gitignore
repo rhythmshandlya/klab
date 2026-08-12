@@ -48,6 +48,10 @@ Thumbs.db
 # local service and agent state
 .vercel
 .env*
+.claude/
 .agents/
 skills-lock.json
 .codex-server*.log
+
+# Intermediate crops used to isolate approved generated brand artwork
+/public/brand/*-approved-source.png

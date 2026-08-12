@@ -12,7 +12,7 @@ const email = emailIndex >= 0 ? args[emailIndex + 1]?.trim().toLowerCase() : und
 if (!email) {
   console.error(
     "Usage: pnpm community:seed -- --email owner@example.com\n" +
-      "The target must already be an official KLab Team account.",
+      "The target must already be an official team account.",
   );
   process.exit(1);
 }
@@ -26,28 +26,28 @@ const users = await sql`
   where lower("email") = ${email} and "is_official" = true
 `;
 const official = users[0];
-if (!official) throw new Error("No official KLab Team account matches that email.");
+if (!official) throw new Error("No official team account matches that email.");
 
 const notes = [
   {
     clientId: "official-note-welcome-v1",
     category: "general",
-    title: "Welcome to the KLab Kubernetes community",
+    title: "Welcome to the Kubernetes community",
     body: `This is a practical space for Kubernetes questions and real debugging conversations.
 
-Share a workload that is behaving strangely, explain the signals you have already checked, or compare approaches with another learner. You can also report KLab bugs, request product improvements, and suggest cluster failures that should become hands-on Problems.
+Share a workload that is behaving strangely, explain the signals you have already checked, or compare approaches with another learner. You can also report product bugs, request improvements, and suggest cluster failures that should become hands-on Problems.
 
-Please remove credentials, access tokens, private hostnames, and company data before posting. The KLab Team will use this channel for product notes and direct replies.`,
+Please remove credentials, access tokens, private hostnames, and company data before posting. The official team will use this channel for product notes and direct replies.`,
     status: "open",
     pinned: true,
   },
   {
     clientId: "official-note-product-direction-v1",
     category: "feature",
-    title: "What should KLab build next?",
+    title: "What should we build next?",
     body: `We are deciding which parts of the Kubernetes learning workflow deserve the next round of attention.
 
-What would make KLab more useful in your day-to-day learning or work: deeper Playground tools, more realistic cluster failures, collaborative sharing, guided explanations, or something else?
+What would make the platform more useful in your day-to-day learning or work: deeper Playground tools, more realistic cluster failures, collaborative sharing, guided explanations, or something else?
 
 Reply with the job you are trying to complete and where the current experience slows you down. Concrete examples help us turn a request into a useful product change.`,
     status: "under-review",
@@ -57,7 +57,7 @@ Reply with the job you are trying to complete and where the current experience s
     clientId: "official-note-problem-ideas-v1",
     category: "problem",
     title: "Which Kubernetes incident should become our next problem?",
-    body: `The best KLab Problems should resemble failures engineers actually investigate: enough evidence to form a theory, several plausible causes, and a fix that can be verified from cluster state.
+    body: `The best Problems should resemble failures engineers actually investigate: enough evidence to form a theory, several plausible causes, and a fix that can be verified from cluster state.
 
 Tell us about a Kubernetes issue that taught you something. Readiness probes, Service selectors, DNS, scheduling, resource pressure, NetworkPolicy, storage, and rollout failures are all welcome.
 
@@ -76,7 +76,11 @@ for (const note of notes) {
       ${official.id}, ${note.clientId}, ${note.category}, ${note.title}, ${note.body},
       ${note.status}, ${note.pinned}
     )
-    on conflict ("author_id", "client_id") do nothing
+    on conflict ("author_id", "client_id") do update set
+      "category" = excluded."category",
+      "title" = excluded."title",
+      "body" = excluded."body",
+      "updated_at" = now()
     returning "id", "title"
   `;
   if (rows[0]) created.push(rows[0]);

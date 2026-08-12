@@ -3,14 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   readCommunityPulse,
   readLeaderboard,
-  readLevelRecords,
   readRecentSolves,
   readUserCommunityStatus,
   readUserRank,
   readWeeklyChallengeCompletions,
   readWeeklyLeaderboard,
 } from "@/lib/db/community-repo";
-import { progressSolved, submissions, user } from "@/lib/db/schema";
+import { progressSolved, user } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 import { createTestDb, seedUser, type TestDb } from "./pglite";
@@ -108,71 +107,6 @@ describe("community-repo over pglite", () => {
 
       expect(feed.map((s) => s.levelSlug)).toEqual(["level-new", "level-mid"]);
       expect(feed[0]!.solvedAt).toBe("2026-07-03T10:00:00.000Z");
-    } finally {
-      await client.close();
-    }
-  });
-
-  it("keeps only the fastest passing timed solve per level", async () => {
-    const { db, client } = await createTestDb();
-    try {
-      const a = await seedUser(db, "userA");
-      const b = await seedUser(db, "userB");
-
-      await db.insert(submissions).values([
-        // level-1: B (30s) beats A (60s); a faster FAILED run and an untimed pass are ignored.
-        {
-          userId: a,
-          levelSlug: "level-1",
-          passed: true,
-          checksTotal: 3,
-          checksPassed: 3,
-          durationMs: 60_000,
-          clientMutationId: "community-submission-0001",
-        },
-        {
-          userId: b,
-          levelSlug: "level-1",
-          passed: true,
-          checksTotal: 3,
-          checksPassed: 3,
-          durationMs: 30_000,
-          clientMutationId: "community-submission-0002",
-        },
-        {
-          userId: a,
-          levelSlug: "level-1",
-          passed: false,
-          checksTotal: 3,
-          checksPassed: 1,
-          durationMs: 5_000,
-          clientMutationId: "community-submission-0003",
-        },
-        {
-          userId: a,
-          levelSlug: "level-1",
-          passed: true,
-          checksTotal: 3,
-          checksPassed: 3,
-          durationMs: null,
-          clientMutationId: "community-submission-0004",
-        },
-        // level-2: only an untimed pass → no record.
-        {
-          userId: a,
-          levelSlug: "level-2",
-          passed: true,
-          checksTotal: 3,
-          checksPassed: 3,
-          durationMs: null,
-          clientMutationId: "community-submission-0005",
-        },
-      ]);
-
-      const records = await readLevelRecords(db);
-
-      expect(records).toHaveLength(1);
-      expect(records[0]).toMatchObject({ levelSlug: "level-1", durationMs: 30_000 });
     } finally {
       await client.close();
     }

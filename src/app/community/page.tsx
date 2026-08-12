@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { BRAND } from "@/config/brand";
 import { ActivityFeed } from "@/features/community/components/activity-feed";
 import { DiscussionCard } from "@/features/community/components/discussion-card";
 import { DiscussionCategoryNav } from "@/features/community/components/discussion-category-nav";
@@ -31,8 +32,7 @@ import { cn } from "@/lib/utils/cn";
 
 export const metadata: Metadata = {
   title: "Kubernetes Community Discussions",
-  description:
-    "Ask Kubernetes questions, compare debugging approaches, report KLab bugs, request features, and propose hands-on Kubernetes troubleshooting problems.",
+  description: `Ask Kubernetes questions, compare debugging approaches, report ${BRAND.name} bugs, request features, and propose hands-on Kubernetes troubleshooting problems.`,
   keywords: [
     "Kubernetes community",
     "Kubernetes discussions",
@@ -46,8 +46,7 @@ export const metadata: Metadata = {
     type: "website",
     url: "/community",
     title: "Kubernetes Community Discussions",
-    description:
-      "Ask Kubernetes questions, share debugging approaches, and help shape KLab features and hands-on problems.",
+    description: `Ask Kubernetes questions, share debugging approaches, and help shape ${BRAND.name} features and hands-on problems.`,
   },
   twitter: {
     card: "summary",
@@ -88,8 +87,7 @@ export default async function CommunityPage({
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: "Kubernetes Community Discussions",
-    description:
-      "Kubernetes questions, debugging discussions, product feedback, and hands-on problem ideas from the KLab community.",
+    description: `Kubernetes questions, debugging discussions, product feedback, and hands-on problem ideas from the ${BRAND.name} community.`,
     url: absoluteUrl("/community"),
     mainEntity: {
       "@type": "ItemList",

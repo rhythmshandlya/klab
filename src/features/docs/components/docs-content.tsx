@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 
-import { ClusterMark, icons } from "@/components/icons";
+import { icons } from "@/components/icons";
+import { BrandMark } from "@/config/brand";
 import type { DocsBlock, DocsLesson } from "@/lib/domain/types";
 import { assertNever } from "@/lib/utils/exhaustive";
 import { cn } from "@/lib/utils/cn";
@@ -128,7 +129,7 @@ function NativeDiagram({ block }: { block: DiagramBlock }) {
             </div>
             <div className="flex flex-col items-center justify-center py-5 text-center">
               <div className="bg-blue/15 text-blue border-blue/40 flex size-20 items-center justify-center rounded-md border shadow-[0_0_40px_rgb(0_112_243/0.25)]">
-                <ClusterMark className="size-10" aria-hidden />
+                <BrandMark className="size-10" aria-hidden />
               </div>
               <p className="text-foreground mt-3 text-sm font-semibold">Control plane</p>
               <p className="text-muted mt-1 max-w-40 text-xs leading-relaxed">

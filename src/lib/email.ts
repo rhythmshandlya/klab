@@ -1,3 +1,4 @@
+import { BRAND } from "@/config/brand";
 import { env, isEmailConfigured } from "@/lib/env";
 
 /**
@@ -27,23 +28,23 @@ async function sendAuthEmail({
 export async function sendMagicLinkEmail(to: string, url: string): Promise<void> {
   await sendAuthEmail({
     to,
-    subject: "Your klab sign-in link",
-    text: `Sign in to klab:\n\n${url}\n\nThis link expires shortly. If you didn't request it, ignore this email.`,
+    subject: `Your ${BRAND.name} sign-in link`,
+    text: `Sign in to ${BRAND.name}:\n\n${url}\n\nThis link expires shortly. If you didn't request it, ignore this email.`,
   });
 }
 
 export async function sendVerificationEmail(to: string, url: string): Promise<void> {
   await sendAuthEmail({
     to,
-    subject: "Verify your klab email",
-    text: `Confirm your email for klab:\n\n${url}\n\nIf you didn't create this account, ignore this email.`,
+    subject: `Verify your ${BRAND.name} email`,
+    text: `Confirm your email for ${BRAND.name}:\n\n${url}\n\nIf you didn't create this account, ignore this email.`,
   });
 }
 
 export async function sendAccountDeletionEmail(to: string, url: string): Promise<void> {
   await sendAuthEmail({
     to,
-    subject: "Confirm your klab account deletion",
-    text: `Permanently delete your klab account and synced progress:\n\n${url}\n\nIf you didn't request this, keep your account by ignoring this email.`,
+    subject: `Confirm your ${BRAND.name} account deletion`,
+    text: `Permanently delete your ${BRAND.name} account and synced progress:\n\n${url}\n\nIf you didn't request this, keep your account by ignoring this email.`,
   });
 }

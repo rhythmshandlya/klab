@@ -120,4 +120,4 @@ export const icons = {
 
 export type IconName = keyof typeof icons;
 
-export { ClusterMark } from "./cluster-mark";
+export { BrandMark, BrandMark as ClusterMark } from "@/config/brand";

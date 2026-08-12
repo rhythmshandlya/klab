@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { BRAND } from "@/config/brand";
+
 export const discussionCategorySchema = z.enum(["general", "feature", "bug", "problem"]);
 export type DiscussionCategory = z.infer<typeof discussionCategorySchema>;
 
@@ -43,8 +45,16 @@ export const DISCUSSION_CATEGORIES: ReadonlyArray<{
   description: string;
 }> = [
   { value: "general", label: "General", description: "Questions and Kubernetes conversation" },
-  { value: "feature", label: "Feature request", description: "Ideas for improving KLab" },
-  { value: "bug", label: "Bug report", description: "Something in KLab is not working" },
+  {
+    value: "feature",
+    label: "Feature request",
+    description: `Ideas for improving ${BRAND.name}`,
+  },
+  {
+    value: "bug",
+    label: "Bug report",
+    description: `Something in ${BRAND.name} is not working`,
+  },
   { value: "problem", label: "Problem idea", description: "Suggest a future debugging problem" },
 ];
 

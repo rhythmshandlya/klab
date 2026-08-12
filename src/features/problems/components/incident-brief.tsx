@@ -3,6 +3,7 @@
 import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { BRAND } from "@/config/brand";
 import type { ProblemLearningPath, Severity } from "@/lib/domain/types";
 
 import { useLevelStore } from "../level-store";
@@ -66,8 +67,8 @@ export function IncidentBrief() {
           </p>
           <p className="text-muted mt-1 text-xs leading-relaxed">
             {level.challengeMode === "build"
-              ? "KLab checks submitted manifests, required fields, and resource relationships. It does not provision a real cluster or prove the stated SLO and failure scenarios."
-              : "KLab checks the submitted repair and key Kubernetes relationships. Use the production runbook below to investigate the equivalent incident on a real cluster."}
+              ? `${BRAND.name} checks submitted manifests, required fields, and resource relationships. It does not provision a real cluster or prove the stated SLO and failure scenarios.`
+              : `${BRAND.name} checks the submitted repair and key Kubernetes relationships. Use the production runbook below to investigate the equivalent incident on a real cluster.`}
           </p>
         </div>
 
@@ -106,7 +107,7 @@ export function IncidentBrief() {
           <Section label="Production runbook">
             <p className="text-subtle mb-2 text-xs leading-relaxed">
               Reference commands for a real cluster. The simulated terminal only inspects
-              KLab&apos;s static review runtime.
+              {BRAND.name}&apos;s static review runtime.
             </p>
             <ul className="space-y-1.5">
               {level.referenceCommands.map((command) => (

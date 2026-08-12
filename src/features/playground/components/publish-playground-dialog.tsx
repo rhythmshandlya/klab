@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useState } from "react";
 
 import { icons } from "@/components/icons";
+import { BRAND } from "@/config/brand";
 import type { SavedPlayground } from "@/lib/labs/contracts";
 
 export function PublishPlaygroundDialog({
@@ -98,8 +99,8 @@ export function PublishPlaygroundDialog({
                 {published ? "Update public Playground" : "Publish to Community"}
               </Dialog.Title>
               <Dialog.Description className="text-muted mt-1 text-sm leading-relaxed">
-                KLab publishes a separate snapshot. Your working Playground stays private and later
-                edits are not exposed until you publish again.
+                {BRAND.name} publishes a separate snapshot. Your working Playground stays private
+                and later edits are not exposed until you publish again.
               </Dialog.Description>
             </div>
           </div>

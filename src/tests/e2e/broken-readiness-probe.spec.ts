@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Full happy-path E2E for the reference level, per PROMPT.md: boot a real in-browser
+ * Full happy-path E2E for the reference level: boot a real in-browser
  * Kubernetes cluster, investigate via the terminal, read the evidence, edit the
  * manifest to fix the readiness probe, apply, run validation, and see success.
  */

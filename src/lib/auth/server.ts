@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins";
 
+import { BRAND } from "@/config/brand";
 import { createAuthRateLimitStorage } from "@/lib/auth/rate-limit-storage";
 import { getDb } from "@/lib/db";
 import { account, session, user, verification } from "@/lib/db/schema";
@@ -22,7 +23,7 @@ function createAuth() {
   if (!baseURL) throw new Error("getAuth() called without a canonical BETTER_AUTH_URL.");
 
   return betterAuth({
-    appName: "klab",
+    appName: BRAND.name,
     secret: env.BETTER_AUTH_SECRET,
     baseURL,
     trustedOrigins: [baseURL],

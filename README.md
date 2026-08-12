@@ -1,8 +1,10 @@
-# klab
+# k8lab
+
+![k8lab: learn Kubernetes by fixing what breaks](./public/brand/readme/k8lab-readme-poster.webp)
 
 > Learn Kubernetes by debugging real (simulated) clusters — not slides.
 
-**klab** is a gamified, hands-on Kubernetes learning platform that runs entirely in your
+**k8lab** is a gamified, hands-on Kubernetes learning platform that runs entirely in your
 browser. Debug broken clusters in incident labs, experiment freely in a sandbox, and study
 interactive docs where concepts reconcile live. No install, no cloud bill, no risk.
 
@@ -18,8 +20,7 @@ Three areas, all backed by the same in-browser Kubernetes simulation:
 - **/docs** — interactive lessons whose inline labs boot a cluster you can poke.
 
 > **Status:** feature-complete MVP. All three areas work end-to-end in a real browser,
-> covered by unit/integration tests and Playwright E2E. See [`PROGRESS.md`](./PROGRESS.md)
-> for the phase-by-phase build log.
+> covered by unit/integration tests and Playwright E2E.
 
 ---
 
@@ -64,12 +65,17 @@ Zustand · Vitest + Testing Library + Playwright.
 Route files stay thin — they compose components and pass params. Product logic lives in
 `features/` and `lib/`.
 
+Public product identity is configured in one place: `src/config/brand.tsx`. It owns the
+display name, team/account labels, metadata copy, public URLs, logo colors, and the shared SVG
+mark used to generate the browser favicon. Stable cookies, storage keys, and simulated image
+names are deliberately outside the Brand so a visual rename cannot invalidate user data.
+
 ```
 src/
   app/                 # App Router routes: /, problems, playground, docs, progress
   components/
     app-shell/         # AppShell, TopNav, ⌘K action wiring, ErrorBoundary
-    command-palette/   # ⌘K palette (Radix Dialog + cmdk)
+    command-palette/   # ⌘K palette (Radix Dialog)
     editor/            # Monaco YAML editor + diff (dynamic, ssr:false)
     terminal/          # xterm.js terminal (dynamic)
     topology/          # React Flow service topology (dynamic)
@@ -86,6 +92,7 @@ src/
     kube/              # KubeSimulator, command-runner, validators, evidence, images/
     storage/           # guest progress, account sync, and docs→playground handoff
   content/             # levels/, docs/, playground-templates/ (Zod-validated at load)
+  config/brand.tsx     # public name, copy, URLs, logo, and favicon source
   tests/               # unit, component, integration (Vitest); e2e (Playwright)
 ```
 
@@ -98,7 +105,7 @@ token files. Status is never conveyed by color alone; it always pairs with an ic
 
 ### Simulation is not real Kubernetes
 
-klab simulates a Kubernetes control plane in the browser via Webernetes (real scheduler,
+k8lab simulates a Kubernetes control plane in the browser via Webernetes (real scheduler,
 controllers, and a kubelet with HTTP readiness/liveness probers). Container "images" are
 lightweight **TypeScript fakes** that emulate app behavior (health endpoints, DNS calls) —
 they are **not** OCI images and nothing is pulled or executed. Where the simulation
@@ -108,7 +115,7 @@ intentionally diverges from real Kubernetes, the code says so in a comment.
 Deployment whose pods never become Ready keeps creating pods. For any *broken / not-Ready*
 scenario, model the workload as a **bare Pod** (the reference level and all docs labs do).
 
-## Extending klab
+## Extending k8lab
 
 All static content is validated by Zod at load time, so an invalid entry fails the build.
 
@@ -174,11 +181,11 @@ complete account backend. This gives users synced progress, password recovery, p
 management, and permanent account/data deletion. `GET /api/health` reports degraded until the
 database and at least one complete auth provider are available.
 
-klab is **guest-first**: with no environment variables set it runs as a zero-config static
+k8lab is **guest-first**: with no environment variables set it runs as a zero-config static
 app — progress lives in `localStorage`, there are no accounts, and the production build is
 byte-identical to a fully-configured one. Accounts and cloud-synced progress light up
 progressively as you provide the matching secrets; nothing here is required to run or
-contribute to klab.
+contribute to k8lab.
 
 The design is **guest-local, account-server-authoritative**. Guest progress and saved labs stay
 in `localStorage` until sign-in. A signed-in session claims that guest data once, removes the
@@ -229,7 +236,7 @@ See [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) for the production runbook.
 - Achievement badges and per-concept mastery on `/progress`.
 - Community problem levels via reviewed PRs (`pnpm new:problem`) and an AI-assisted
   candidate generator (`pnpm gen:problem`, human-reviewed before merge).
-- Brand name (`klab`) and logo (`ClusterMark`) are placeholders you can replace.
+- The logo is implemented by `ClusterMark` and shared across the application shell and favicon.
 
 ## License
 

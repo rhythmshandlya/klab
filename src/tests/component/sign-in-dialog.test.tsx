@@ -20,6 +20,7 @@ vi.mock("@/lib/auth/client", () => ({
 }));
 
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
+import { BRAND } from "@/config/brand";
 
 describe("SignInDialog", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -37,7 +38,9 @@ describe("SignInDialog", () => {
     expect(screen.getByLabelText("Password")).toHaveAttribute("type", "text");
 
     fireEvent.click(screen.getByRole("button", { name: "Create an account" }));
-    expect(screen.getByRole("heading", { name: "Create your KLab account" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: `Create your ${BRAND.accountName}` }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Use at least 10 characters.")).toBeInTheDocument();
   });
 

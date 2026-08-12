@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useState } from "react";
 
 import { icons } from "@/components/icons";
+import { BRAND } from "@/config/brand";
 import { requestPasswordReset, signIn, signUp } from "@/lib/auth/client";
 import type { AuthCapabilities } from "@/lib/env";
 import { cn } from "@/lib/utils/cn";
@@ -133,7 +134,7 @@ export function SignInDialog({
       description: "Sign in to sync your progress and Playgrounds across devices.",
     },
     signup: {
-      title: "Create your KLab account",
+      title: `Create your ${BRAND.accountName}`,
       description: "Keep your progress, Playgrounds, and community activity in one place.",
     },
     magic: {
@@ -157,7 +158,7 @@ export function SignInDialog({
             </span>
             <div>
               <p className="text-blue text-[11px] font-semibold tracking-[0.12em] uppercase">
-                KLab account
+                {BRAND.accountName}
               </p>
               <Dialog.Title className="text-foreground mt-0.5 text-xl font-semibold tracking-tight">
                 {copy[mode].title}
@@ -279,7 +280,7 @@ export function SignInDialog({
               {mode === "signin" ? (
                 <div className="space-y-3 text-center">
                   <p>
-                    New to KLab?{" "}
+                    New to {BRAND.name}?{" "}
                     <button
                       type="button"
                       onClick={() => switchMode("signup")}

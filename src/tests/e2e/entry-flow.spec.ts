@@ -7,15 +7,34 @@ test("visitors explicitly enter as a guest before opening the product", async ({
 
   await expect(page).toHaveURL(/\/?next=%2Fplayground$/);
   await expect(
-    page.getByRole("heading", { name: "Learn Kubernetes by debugging real clusters, not slides." }),
+    page.getByRole("heading", { name: "Learn production Kubernetes by fixing what breaks." }),
   ).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Try as guest" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Product" })).toHaveAttribute("href", "#product");
+  await expect(page.getByRole("link", { name: "Simulator" })).toHaveAttribute("href", "#simulator");
+  await expect(page.getByRole("heading", { name: "Everything connects." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Kubernetes behavior, simulated in your browser." }),
+  ).toBeVisible();
+  await expect(page.getByText(/not a hidden remote cluster/i)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Break a cluster. Fix it. Remember why." }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue as guest" })).toBeVisible();
+  await expect(page.getByText("Pick your path")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Continue as guest" }).click();
+  await page.getByRole("button", { name: "Try as guest" }).click();
   await expect(page).toHaveURL(/\/playground$/);
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/problems$/);
+
+  await page.getByRole("button", { name: "Guest menu" }).click();
+  await page.getByRole("menuitem", { name: "Exit guest mode" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(
+    page.getByRole("heading", { name: "Learn production Kubernetes by fixing what breaks." }),
+  ).toBeVisible();
 });

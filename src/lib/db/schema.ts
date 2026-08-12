@@ -39,7 +39,7 @@ export const user = pgTable("user", {
   isAnonymous: boolean("is_anonymous").default(false),
   /** Explicit opt-in for leaderboard, recent activity, and speed records. */
   publicProfile: boolean("public_profile").notNull().default(false),
-  /** Operator-managed identity used for trusted KLab Team communication. */
+  /** Operator-managed identity used for trusted official team communication. */
   isOfficial: boolean("is_official").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

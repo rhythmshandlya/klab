@@ -1,4 +1,6 @@
 import { revalidatePath } from "next/cache";
+
+import { BRAND } from "@/config/brand";
 import { z } from "zod";
 
 import { getAuth } from "@/lib/auth/server";
@@ -35,7 +37,7 @@ export async function PATCH(
 
   const discussion = await moderateDiscussion(getDb(), userId, discussionId.data, parsed.data);
   if (discussion === "forbidden") {
-    return Response.json({ error: "Official KLab access required." }, { status: 403 });
+    return Response.json({ error: `Official ${BRAND.name} access required.` }, { status: 403 });
   }
   if (!discussion) return Response.json({ error: "Discussion not found." }, { status: 404 });
   revalidatePath("/community");

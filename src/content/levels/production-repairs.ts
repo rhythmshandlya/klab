@@ -1,4 +1,5 @@
 import type { ProblemLevel } from "@/lib/domain/types";
+import { BRAND } from "@/config/brand";
 
 import { PUBLISHED_PROBLEM_V1 } from "./metadata";
 
@@ -39,7 +40,7 @@ interface ProductionRepairSpec {
 }
 
 const fictionalAdaptation = (detail: string): string =>
-  `This is a fictional KLab adaptation inspired by the source. It is not an exact reproduction. ${detail}`;
+  `This is a fictional ${BRAND.name} adaptation inspired by the source. It is not an exact reproduction. ${detail}`;
 
 const incident = (
   title: string,
@@ -418,7 +419,7 @@ spec:
     incidentSource: incident(
       "When GKE ran out of IP addresses",
       "https://deploy.live/blog/when-gke-ran-out-of-ip-addresses/",
-      "The range names, Config Connector workflow, application launch, and required correction were created specifically for KLab.",
+      `The range names, Config Connector workflow, application launch, and required correction were created specifically for ${BRAND.name}.`,
     ),
   },
   {
@@ -1281,7 +1282,7 @@ spec:
     incidentSource: incident(
       "Buffer faster services without CPU limits",
       "https://erickhun.com/posts/kubernetes-faster-services-no-cpu-limits/",
-      "The service, resource values, traffic pattern, and acceptance rule are fictional KLab material.",
+      `The service, resource values, traffic pattern, and acceptance rule are fictional ${BRAND.name} material.`,
     ),
   },
   {
@@ -1380,7 +1381,7 @@ spec:
     incidentSource: incident(
       "Blue Matador Kubernetes node OOM postmortem",
       "https://www.bluematador.com/blog/post-mortem-kubernetes-node-oom",
-      "The collector, memory quantities, node identity, and repair workflow are fictionalized for KLab.",
+      `The collector, memory quantities, node identity, and repair workflow are fictionalized for ${BRAND.name}.`,
     ),
   },
   {
@@ -1761,7 +1762,7 @@ spec:
     incidentSource: incident(
       "Grafana Cloud label selector outage",
       "https://grafana.com/blog/how-adding-kubernetes-label-selectors-caused-an-outage-in-grafana-cloud-logs-and-how-we-resolved-it/",
-      "The checkout service, ten-percent distribution, labels, and exact repair are fictionalized for KLab.",
+      `The checkout service, ten-percent distribution, labels, and exact repair are fictionalized for ${BRAND.name}.`,
     ),
   },
   {

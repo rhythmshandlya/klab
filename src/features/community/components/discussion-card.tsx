@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { icons } from "@/components/icons";
+import { BRAND } from "@/config/brand";
 import {
   discussionCategoryLabel,
   discussionStatusLabel,
@@ -95,7 +96,11 @@ export function DiscussionCard({
 }
 
 export function DiscussionAuthorLine({ author }: { author: DiscussionAuthor }) {
-  const displayName = author.isOfficial ? "KLab Team" : author.isAnonymous ? "Guest" : author.name;
+  const displayName = author.isOfficial
+    ? BRAND.teamName
+    : author.isAnonymous
+      ? "Guest"
+      : author.name;
   return (
     <div className="flex min-w-0 items-center gap-2">
       <PersonAvatar

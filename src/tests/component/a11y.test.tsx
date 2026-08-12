@@ -6,7 +6,6 @@ import { ClusterMark } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelHeader } from "@/components/ui/panel";
-import { SectionPlaceholder } from "@/components/ui/section-placeholder";
 
 /**
  * Structural accessibility checks (jsdom can't compute color contrast, so those rules
@@ -45,19 +44,5 @@ describe("accessibility", () => {
 
   it("decorative ClusterMark is hidden from the a11y tree", async () => {
     await expectNoViolations(<ClusterMark className="size-6" />);
-  });
-
-  it("SectionPlaceholder has no violations", async () => {
-    await expectNoViolations(
-      <SectionPlaceholder
-        icon="docs"
-        eyebrow="Docs"
-        title="Docs"
-        description="Interactive Kubernetes docs."
-        phase="Phase 5"
-        planned={["Lessons", "Labs"]}
-        cta={{ href: "/docs", label: "Open docs" }}
-      />,
-    );
   });
 });

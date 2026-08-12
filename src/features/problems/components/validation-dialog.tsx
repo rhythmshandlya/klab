@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import { icons } from "@/components/icons";
+import { BRAND } from "@/config/brand";
 import { getLevelBySlug } from "@/content/levels";
 import { useProgress } from "@/features/progress/use-progress";
 import type { ProblemLevel } from "@/lib/domain/types";
@@ -72,7 +73,7 @@ export function ValidationDialog({
               <Dialog.Description className="text-muted text-sm">
                 {passed
                   ? isBuild
-                    ? `Your submitted manifests satisfy KLab's static checks for ${level.title.toLowerCase()}. This does not prove the design in a live cluster.`
+                    ? `Your submitted manifests satisfy ${BRAND.name}'s static checks for ${level.title.toLowerCase()}. This does not prove the design in a live cluster.`
                     : `You restored ${level.title.toLowerCase()}.`
                   : isBuild
                     ? "Some static architecture checks are not satisfied yet. Review the feedback and revise the design."

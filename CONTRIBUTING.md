@@ -1,7 +1,11 @@
-# Contributing to klab
+# Contributing to k8lab
 
-Thanks for your interest in improving klab! This guide covers the workflow and the
+Thanks for your interest in improving k8lab! This guide covers the workflow and the
 common "how do I add …" tasks. The [README](./README.md) has the architecture overview.
+
+Brand changes belong in `src/config/brand.tsx`. Do not scatter product-name or logo literals
+through feature modules. Runtime storage keys and simulated image names are compatibility
+identifiers, not visible branding, and should not be renamed during a brand refresh.
 
 ## Development setup
 
@@ -35,12 +39,11 @@ Please also:
 
 ## Simulator gotcha (please read before adding cluster content)
 
-klab simulates Kubernetes in the browser via `@ngrok/webernetes`. Its ReplicaSet
+k8lab simulates Kubernetes in the browser via `@ngrok/webernetes`. Its ReplicaSet
 controller drives toward `readyReplicas`, so a **Deployment whose pods never become
 Ready keeps creating pods** (churn) and can overload the browser. When you author a
 level, template, or lab that should sit in a *broken / not-Ready* state, use a **bare
-Pod**, not a Deployment. Healthy Deployments (pods reach Ready) are fine. See the note
-in `PROGRESS.md`.
+Pod**, not a Deployment. Healthy Deployments (pods reach Ready) are fine.
 
 ## Adding a problem (the most common contribution)
 
@@ -65,7 +68,7 @@ the same gate (needs `ANTHROPIC_API_KEY`).
 
 ## Other how-to guides
 
-See the README's [Extending klab](./README.md#extending-klab) section for step-by-step
+See the README's [Extending k8lab](./README.md#extending-k8lab) section for step-by-step
 recipes: add a simulated image, write a validator, add a docs lesson, and add a playground
 template. All static content is validated by Zod schemas at load time, so an invalid entry
 fails the build.

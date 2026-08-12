@@ -1,12 +1,12 @@
-import { and, count, desc, eq, gte, isNotNull, lt, max, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, max, sql, sum } from "drizzle-orm";
 
 import type { ProgressDb } from "./progress-repo";
-import { progressSolved, sandboxes, submissions, user } from "./schema";
+import { progressSolved, user } from "./schema";
 
 /**
  * Read-only community aggregates over existing tables (no schema changes):
- * leaderboard + activity feed from `progress_solved`, per-level speed records from
- * `submissions`, and the session user's rank. All queries are public-aggregate shaped;
+ * leaderboard + activity feed from `progress_solved`, plus the session user's rank.
+ * All queries are public-aggregate shaped;
  * the /community page caches them with ISR, and only the rank endpoint is per-user.
  *
  * Solve durations are browser-measured telemetry, not server-verified truth: the UI
@@ -31,15 +31,6 @@ export interface RecentSolve {
   solvedAt: string;
 }
 
-export interface LevelRecord {
-  levelSlug: string;
-  durationMs: number;
-  name: string;
-  image: string | null;
-  isAnonymous: boolean;
-  achievedAt: string;
-}
-
 export interface UserRank {
   rank: number;
   totalRanked: number;
@@ -49,18 +40,6 @@ export interface UserRank {
 export interface CommunityPulse {
   players: number;
   solvesThisWeek: number;
-}
-
-export interface PublicPlaygroundEntry {
-  id: string;
-  name: string;
-  description: string;
-  templateId: string;
-  fileCount: number;
-  forkCount: number;
-  publishedAt: string;
-  authorName: string;
-  authorImage: string | null;
 }
 
 export interface UserCommunityStatus {
@@ -186,49 +165,6 @@ export async function readWeeklyChallengeCompletions(
   return rows[0]?.completions ?? 0;
 }
 
-/** Explicit public snapshots, ranked by forks and then freshness. */
-export async function readPublicPlaygrounds(
-  db: ProgressDb,
-  limit: number,
-): Promise<PublicPlaygroundEntry[]> {
-  const rows = await db
-    .select({
-      id: sandboxes.id,
-      name: sandboxes.name,
-      description: sandboxes.description,
-      templateId: sandboxes.templateId,
-      files: sandboxes.files,
-      forkCount: sandboxes.forkCount,
-      publishedAt: sandboxes.publishedAt,
-      authorName: user.name,
-      authorImage: user.image,
-    })
-    .from(sandboxes)
-    .innerJoin(user, eq(user.id, sandboxes.userId))
-    .where(
-      and(
-        eq(sandboxes.visibility, "public"),
-        isNotNull(sandboxes.publishedFromId),
-        isNotNull(sandboxes.publishedAt),
-        eq(user.publicProfile, true),
-      ),
-    )
-    .orderBy(desc(sandboxes.forkCount), desc(sandboxes.publishedAt))
-    .limit(limit);
-
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    templateId: row.templateId,
-    fileCount: Object.keys(row.files as Record<string, string>).length,
-    forkCount: row.forkCount,
-    publishedAt: (row.publishedAt ?? new Date(0)).toISOString(),
-    authorName: row.authorName,
-    authorImage: row.authorImage,
-  }));
-}
-
 /** Latest solves across the community, newest first. */
 export async function readRecentSolves(db: ProgressDb, limit: number): Promise<RecentSolve[]> {
   const rows = await db
@@ -251,41 +187,6 @@ export async function readRecentSolves(db: ProgressDb, limit: number): Promise<R
     isAnonymous: row.isAnonymous ?? false,
     levelSlug: row.levelSlug,
     solvedAt: row.solvedAt.toISOString(),
-  }));
-}
-
-/**
- * Fastest passing solve per level (browser-measured). DISTINCT ON picks exactly one
- * row per slug ordered by duration; earlier submission wins duration ties.
- */
-export async function readLevelRecords(db: ProgressDb): Promise<LevelRecord[]> {
-  const rows = await db
-    .selectDistinctOn([submissions.levelSlug], {
-      levelSlug: submissions.levelSlug,
-      durationMs: submissions.durationMs,
-      name: user.name,
-      image: user.image,
-      isAnonymous: user.isAnonymous,
-      achievedAt: submissions.createdAt,
-    })
-    .from(submissions)
-    .innerJoin(user, eq(user.id, submissions.userId))
-    .where(
-      and(
-        eq(user.publicProfile, true),
-        eq(submissions.passed, true),
-        isNotNull(submissions.durationMs),
-      ),
-    )
-    .orderBy(submissions.levelSlug, submissions.durationMs, submissions.createdAt);
-
-  return rows.map((row) => ({
-    levelSlug: row.levelSlug,
-    durationMs: row.durationMs!,
-    name: row.name,
-    image: row.image,
-    isAnonymous: row.isAnonymous ?? false,
-    achievedAt: row.achievedAt.toISOString(),
   }));
 }
 

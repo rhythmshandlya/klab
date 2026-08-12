@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cache } from "react";
 
 import { icons } from "@/components/icons";
+import { BRAND } from "@/config/brand";
 import {
   DiscussionAuthorLine,
   DiscussionCategoryBadge,
@@ -47,7 +48,7 @@ export function communityDiscussionMetadata(thread: DiscussionThread | null): Me
       description,
       publishedTime: discussion.createdAt,
       modifiedTime: discussion.updatedAt,
-      authors: [discussion.author.isOfficial ? "KLab Team" : discussion.author.name],
+      authors: [discussion.author.isOfficial ? BRAND.teamName : discussion.author.name],
     },
     twitter: { card: "summary", title: discussion.title, description },
   };
@@ -67,7 +68,7 @@ export function CommunityDiscussionDetail({ thread }: { thread: DiscussionThread
     datePublished: discussion.createdAt,
     dateModified: discussion.updatedAt,
     author: schemaAuthor(discussion.author),
-    publisher: { "@type": "Organization", name: "KLab", url: absoluteUrl("/") },
+    publisher: { "@type": "Organization", name: BRAND.name, url: absoluteUrl("/") },
     commentCount: replies.length,
     interactionStatistic: {
       "@type": "InteractionCounter",
@@ -138,10 +139,10 @@ export function CommunityDiscussionDetail({ thread }: { thread: DiscussionThread
 
 function schemaAuthor(author: DiscussionThread["discussion"]["author"]) {
   if (author.isOfficial) {
-    return { "@type": "Organization", name: "KLab Team", url: absoluteUrl("/community") };
+    return { "@type": "Organization", name: BRAND.teamName, url: absoluteUrl("/community") };
   }
   return {
     "@type": "Person",
-    name: author.isAnonymous ? "KLab community member" : author.name,
+    name: author.isAnonymous ? BRAND.communityMemberName : author.name,
   };
 }

@@ -17,10 +17,9 @@ import { cn } from "@/lib/utils/cn";
 import { SignInDialog } from "./sign-in-dialog";
 
 /**
- * Session-aware nav chip (rendered only when auth is enabled). Guest → a "Sign in"
- * button that opens the dialog. Signed in → an avatar + name with a small menu to sign
- * out. Mirrors the read-then-hydrate pattern of the rest of the app: on first paint the
- * session is pending, so we render a neutral placeholder to avoid a flash.
+ * Session-aware nav chip. Guests get an identity menu with sign-in and exit actions.
+ * Signed-in users get an avatar menu with account settings and sign out. On first paint
+ * the session is pending, so we render a neutral placeholder to avoid a flash.
  */
 export function AuthMenu({
   capabilities = { github: true, email: true },
@@ -29,7 +28,6 @@ export function AuthMenu({
 }) {
   const { data: session, isPending } = useSession();
   const router = useRouter();
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -39,18 +37,7 @@ export function AuthMenu({
   }
 
   if (!session?.user) {
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setDialogOpen(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex h-8 items-center rounded-md px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
-        >
-          Sign in
-        </button>
-        <SignInDialog open={dialogOpen} onOpenChange={setDialogOpen} capabilities={capabilities} />
-      </>
-    );
+    return <GuestMenu capabilities={capabilities} />;
   }
 
   const user = session.user;
@@ -87,6 +74,7 @@ export function AuthMenu({
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
+        aria-label={`${label} account menu`}
         className="border-border bg-panel hover:bg-panel-hover flex h-8 items-center gap-2 rounded-md border pr-2.5 pl-1 transition-colors"
       >
         <Avatar image={user.image ?? null} initials={initials} />
@@ -132,6 +120,103 @@ export function AuthMenu({
             {signOutError ? <p className="text-red px-3 py-2 text-xs">{signOutError}</p> : null}
           </div>
         </>
+      ) : null}
+    </div>
+  );
+}
+
+export function GuestMenu({
+  capabilities = { github: true, email: true },
+  canSignIn = true,
+}: {
+  capabilities?: AuthCapabilities;
+  canSignIn?: boolean;
+}) {
+  const router = useRouter();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [exitPending, setExitPending] = useState(false);
+  const [exitError, setExitError] = useState<string | null>(null);
+
+  const handleExit = async () => {
+    setExitPending(true);
+    setExitError(null);
+    try {
+      const response = await fetch("/api/entry/guest", { method: "DELETE" });
+      if (!response.ok) throw new Error("Guest mode could not be closed.");
+      setMenuOpen(false);
+      router.replace("/");
+      router.refresh();
+    } catch (cause) {
+      setExitPending(false);
+      setExitError(cause instanceof Error ? cause.message : "Guest mode could not be closed.");
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setMenuOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label="Guest menu"
+        className="border-border bg-panel hover:bg-panel-hover flex h-8 items-center gap-2 rounded-md border pr-2.5 pl-1 transition-colors"
+      >
+        <Avatar image={null} initials="G" />
+        <span className="text-foreground hidden text-sm font-medium lg:inline">Guest</span>
+      </button>
+
+      {menuOpen ? (
+        <>
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div
+            role="menu"
+            className="border-border bg-panel-elevated absolute right-0 z-50 mt-1.5 w-56 overflow-hidden rounded-md border py-1 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.7)]"
+          >
+            <div className="border-border border-b px-3 py-2">
+              <p className="text-foreground text-sm font-medium">Guest mode</p>
+              <p className="text-subtle mt-0.5 text-xs">Work is stored in this browser.</p>
+            </div>
+            {canSignIn ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setDialogOpen(true);
+                }}
+                className="text-muted hover:bg-panel-hover hover:text-foreground w-full px-3 py-2 text-left text-sm transition-colors"
+              >
+                Sign in to sync
+              </button>
+            ) : null}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void handleExit()}
+              disabled={exitPending}
+              className="text-muted hover:bg-panel-hover hover:text-foreground w-full px-3 py-2 text-left text-sm transition-colors disabled:opacity-50"
+            >
+              {exitPending ? "Exiting guest mode..." : "Exit guest mode"}
+            </button>
+            {exitError ? (
+              <p role="alert" className="text-red px-3 py-2 text-xs">
+                {exitError}
+              </p>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
+      {canSignIn ? (
+        <SignInDialog open={dialogOpen} onOpenChange={setDialogOpen} capabilities={capabilities} />
       ) : null}
     </div>
   );

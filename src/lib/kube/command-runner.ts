@@ -8,6 +8,8 @@ import type {
   V1Service,
 } from "@ngrok/webernetes";
 
+import { BRAND } from "@/config/brand";
+
 import { stringifyManifest } from "./manifest-parser";
 import { createProbeSignal, type InvestigationSignal } from "./evidence";
 import {
@@ -548,7 +550,7 @@ function runDig(name: string, ctx: TerminalContext): CommandResult {
   }
   const fqdn = `${service.metadata?.name}.${service.metadata?.namespace}.svc.cluster.local`;
   const output = [
-    `; <<>> klab dig <<>> ${name}`,
+    `; <<>> ${BRAND.name} dig <<>> ${name}`,
     ";; ANSWER SECTION:",
     `${fqdn}\t30\tIN\tA\t${service.spec.clusterIP}`,
   ].join("\n");
@@ -1506,7 +1508,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
 ];
 
 const HELP_TEXT = [
-  "klab simulated shell: supported commands:",
+  `${BRAND.name} simulated shell: supported commands:`,
   "",
   ...COMMAND_REFERENCE.map((entry) => `  ${entry.command.padEnd(56)} ${entry.description}`),
   "",

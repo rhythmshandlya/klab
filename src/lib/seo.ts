@@ -1,4 +1,6 @@
-export const SITE_ORIGIN = "https://klab-five.vercel.app";
+import { BRAND } from "@/config/brand";
+
+export const SITE_ORIGIN = BRAND.siteOrigin;
 
 export function absoluteUrl(pathname: string): string {
   return new URL(pathname, SITE_ORIGIN).toString();

@@ -4,8 +4,8 @@ import type { PlaygroundTemplate } from "@/lib/domain/types";
 /**
  * Playground starter templates. Each is validated against the Zod schema at module
  * load (build-time validation). Templates ship HEALTHY manifests so the cluster
- * reconciles cleanly: a never-Ready Deployment would make the simulator churn pods
- * (see PROGRESS.md), so probe paths point at the app's real endpoints.
+ * reconciles cleanly: a never-Ready Deployment would make the simulator churn pods,
+ * so probe paths point at the app's real endpoints.
  */
 
 const WEB_IMAGE = { ref: "klab/web-app:1.0.0", description: "Web server: /healthz 200, / 200." };

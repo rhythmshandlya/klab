@@ -13,7 +13,7 @@ const enabled = !args.includes("--off");
 if (!email) {
   console.error(
     "Usage: pnpm community:official -- --email owner@example.com [--off]\n" +
-      "The target must already have a KLab account.",
+      "The target must already have a product account.",
   );
   process.exit(1);
 }
@@ -28,7 +28,7 @@ const rows = await sql`
   returning "id", "name", "is_official"
 `;
 const changed = rows[0];
-if (!changed) throw new Error("No existing KLab account matches that email.");
+if (!changed) throw new Error("No existing product account matches that email.");
 console.log(
-  `${changed.name} (${changed.id}) is ${changed.is_official ? "now" : "no longer"} a KLab Team account.`,
+  `${changed.name} (${changed.id}) is ${changed.is_official ? "now" : "no longer"} an official team account.`,
 );

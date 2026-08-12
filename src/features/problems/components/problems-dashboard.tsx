@@ -14,8 +14,7 @@ import { useProgress } from "@/features/progress/use-progress";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * The /problems dashboard (reference: referance-images/problem-dashboard.png).
- * The catalog itself is static and arrives from the server component as props;
+ * The /problems dashboard. The catalog is static and arrives from the server component as props;
  * everything client-side here is presentation + local progress (filters, solved
  * state, bookmarks) read from localStorage.
  */

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { BRAND } from "@/config/brand";
+
 test("architecture builds present an honest static design workflow", async ({ page }) => {
   const runtimeErrors: string[] = [];
   page.on("pageerror", (error) =>
@@ -17,7 +19,7 @@ test("architecture builds present an honest static design workflow", async ({ pa
   await expect(page.getByText("Static architecture review", { exact: true }).first()).toBeVisible();
   await expect(
     page.getByText(
-      "KLab checks submitted manifests, required fields, and resource relationships. It does not provision a real cluster or prove the stated SLO and failure scenarios.",
+      `${BRAND.name} checks submitted manifests, required fields, and resource relationships. It does not provision a real cluster or prove the stated SLO and failure scenarios.`,
       { exact: true },
     ),
   ).toBeVisible();

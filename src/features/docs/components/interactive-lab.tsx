@@ -12,6 +12,7 @@ import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BRAND } from "@/config/brand";
 import {
   deploymentReadyReplicas,
   isPodReady,
@@ -220,7 +221,7 @@ function LiveLab({ lab }: { lab: Lab }) {
                 <XtermTerminal
                   onCommand={runCommand}
                   welcome={[
-                    "klab lab terminal: type a command and press Enter.",
+                    `${BRAND.name} lab terminal: type a command and press Enter.`,
                     "Try: kubectl get pods",
                   ]}
                 />

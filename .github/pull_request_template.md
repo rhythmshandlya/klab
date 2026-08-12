@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to klab! -->
+<!-- Thanks for contributing to k8lab! -->
 
 ## What & why
 
