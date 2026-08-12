@@ -115,6 +115,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate Vercel credentials
+        shell: bash
+        run: |
+          if [[ "$VERCEL_TOKEN" != vcp_* ]]; then
+            echo "::error::VERCEL_TOKEN is not a Vercel personal access token."
+            exit 1
+          fi
+
+          if [[ "$VERCEL_TOKEN" =~ [[:space:]] ]]; then
+            echo "::error::VERCEL_TOKEN contains whitespace. Copy only the one-time token value."
+            exit 1
+          fi
+
+          auth_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            https://api.vercel.com/v2/user)"
+          if [[ "$auth_status" != "200" ]]; then
+            echo "::error::Vercel rejected VERCEL_TOKEN during account authentication (HTTP $auth_status)."
+            exit 1
+          fi
+
+          project_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          if [[ "$project_status" != "200" ]]; then
+            echo "::error::VERCEL_TOKEN cannot access the configured Vercel team project (HTTP $project_status)."
+            exit 1
+          fi
+
       - name: Pull production configuration
         run: pnpm exec vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
