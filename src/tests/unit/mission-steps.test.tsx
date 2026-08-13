@@ -35,6 +35,22 @@ const EMPTY_SNAPSHOT: ClusterSnapshot = {
   events: [],
 };
 
+const READY_SNAPSHOT: ClusterSnapshot = {
+  ...EMPTY_SNAPSHOT,
+  pods: [
+    {
+      metadata: { name: "web-1", namespace: "default", labels: { app: "web" } },
+      status: {
+        phase: "Running",
+        conditions: [{ type: "Ready", status: "True" }],
+        containerStatuses: [
+          { ready: true, restartCount: 0, name: "web", image: "web:latest", imageID: "" },
+        ],
+      },
+    },
+  ] as ClusterSnapshot["pods"],
+};
+
 describe("DoStep", () => {
   const doStep = {
     kind: "do" as const,
@@ -58,6 +74,31 @@ describe("DoStep", () => {
       validate: vi.fn(),
     } as unknown as UseSimulator;
   }
+
+  const run: MissionRun = {
+    initialManifests: [],
+    mission: {
+      slug: ["test", "mission"],
+      section: "Test",
+      order: 1,
+      title: "Test mission",
+      coldOpen: {
+        goal: "Keep learning while the cluster runs.",
+        clusterNote: "A local cluster is ready.",
+      },
+      steps: [
+        doStep,
+        {
+          kind: "debrief",
+          id: "wrap",
+          summary: "Complete.",
+          takeaways: ["State persists."],
+        },
+      ],
+      inheritsCluster: false,
+      concepts: [],
+    },
+  };
 
   it("does not complete before Apply, and stays incomplete if the check still fails after Apply", async () => {
     const onComplete = vi.fn();
@@ -83,26 +124,19 @@ describe("DoStep", () => {
     fireEvent.click(screen.getByText("Apply changes"));
     await waitFor(() => expect(sim.applyFiles).toHaveBeenCalled());
 
-    const readySnapshot: ClusterSnapshot = {
-      ...EMPTY_SNAPSHOT,
-      pods: [
-        {
-          metadata: { name: "web-1", namespace: "default", labels: { app: "web" } },
-          status: {
-            phase: "Running",
-            conditions: [{ type: "Ready", status: "True" }],
-            containerStatuses: [
-              { ready: true, restartCount: 0, name: "web", image: "web:latest", imageID: "" },
-            ],
-          },
-        },
-      ] as ClusterSnapshot["pods"],
-    };
-    const readySim = { ...sim, snapshot: readySnapshot };
+    const readySim = { ...sim, snapshot: READY_SNAPSHOT };
     rerender(<DoStep step={doStep} sim={readySim} onComplete={onComplete} />);
 
-    await waitFor(() => expect(screen.getByText("done!")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Goal met")).toBeInTheDocument());
     expect(onComplete).toHaveBeenCalledTimes(1);
+
+    const disclosure = screen.getByText("Goal met").closest("details");
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(screen.getByText("done!")).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("Goal met"));
+    expect(disclosure).toHaveAttribute("open");
+    expect(screen.getByText("done!")).toBeVisible();
   });
 
   it("offers compact Editor, Terminal, and Cluster views", () => {
@@ -121,30 +155,6 @@ describe("DoStep", () => {
   it("minimizes into a reading companion without remounting the mission", () => {
     const sim = makeFakeSim(EMPTY_SNAPSHOT);
     useSimulatorMock.mockReturnValue(sim);
-    const run: MissionRun = {
-      initialManifests: [],
-      mission: {
-        slug: ["test", "mission"],
-        section: "Test",
-        order: 1,
-        title: "Test mission",
-        coldOpen: {
-          goal: "Keep learning while the cluster runs.",
-          clusterNote: "A local cluster is ready.",
-        },
-        steps: [
-          doStep,
-          {
-            kind: "debrief",
-            id: "wrap",
-            summary: "Complete.",
-            takeaways: ["State persists."],
-          },
-        ],
-        inheritsCluster: false,
-        concepts: [],
-      },
-    };
 
     render(<MissionWorkspaceCard run={run} />);
     fireEvent.click(screen.getByRole("button", { name: "Start mission" }));
@@ -163,5 +173,28 @@ describe("DoStep", () => {
     fireEvent.click(screen.getByRole("button", { name: "Expand mission" }));
     expect(screen.getByRole("dialog", { name: "Mission: Test mission" })).toBeInTheDocument();
     expect(screen.getByTestId("mission-editor")).toBe(editorBeforeMinimize);
+  });
+
+  it("keeps the mission recap closed until the learner chooses to open it", async () => {
+    const sim = makeFakeSim(EMPTY_SNAPSHOT);
+    useSimulatorMock.mockReturnValue(sim);
+    const view = render(<MissionWorkspaceCard run={run} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start mission" }));
+    fireEvent.click(screen.getByText("Apply changes"));
+    await waitFor(() => expect(sim.applyFiles).toHaveBeenCalled());
+
+    useSimulatorMock.mockReturnValue({ ...sim, snapshot: READY_SNAPSHOT });
+    view.rerender(<MissionWorkspaceCard run={run} />);
+
+    await waitFor(() => expect(screen.getByText("Mission complete")).toBeInTheDocument());
+    const disclosure = screen.getByText("Mission complete").closest("details");
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(screen.getByText("Complete.")).not.toBeVisible();
+    expect(screen.getByTestId("mission-editor")).toBeVisible();
+
+    fireEvent.click(screen.getByText("Mission complete"));
+    expect(disclosure).toHaveAttribute("open");
+    expect(screen.getByText("Complete.")).toBeVisible();
   });
 });

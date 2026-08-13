@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "jest-axe";
 import { describe, expect, it, vi } from "vitest";
@@ -24,8 +24,14 @@ describe("landing entry choice", () => {
     expect(screen.getByRole("button", { name: "Try as guest" })).toBeVisible();
     expect(screen.getByText(/Guest work stays here/)).toBeVisible();
     expect(screen.queryByRole("navigation", { name: "Primary" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "#product");
-    expect(screen.getByRole("link", { name: "Simulator" })).toHaveAttribute("href", "#simulator");
+    const landingNav = within(screen.getByRole("navigation", { name: "Landing page" }));
+    expect(landingNav.getByText("Blogs", { exact: true })).toHaveAttribute(
+      "title",
+      "Blogs coming soon",
+    );
+    expect(landingNav.queryByRole("link", { name: "Product" })).not.toBeInTheDocument();
+    expect(landingNav.queryByRole("link", { name: "Simulator" })).not.toBeInTheDocument();
+    expect(landingNav.queryByRole("link", { name: "Community" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Everything connects." })).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "Kubernetes behavior, simulated in your browser." }),

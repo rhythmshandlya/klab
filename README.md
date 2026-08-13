@@ -26,7 +26,7 @@ Three areas, all backed by the same in-browser Kubernetes simulation:
 
 ## Quick start
 
-Requires **Node 22** and **pnpm 11.10.0** (via
+Requires **Node 24** and **pnpm 11.10.0** (via
 [corepack](https://nodejs.org/api/corepack.html)).
 
 ```bash

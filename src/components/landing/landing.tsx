@@ -88,36 +88,11 @@ export function Landing({
             />
           </Link>
 
-          <nav
-            aria-label="Landing page"
-            className="border-border bg-panel/70 text-muted ml-auto hidden items-center rounded-lg border p-1 text-xs md:flex"
-          >
-            <a
-              className="hover:bg-panel-hover hover:text-foreground rounded-md px-3 py-2"
-              href="#simulator"
-            >
-              Simulator
-            </a>
-            <a
-              className="hover:bg-panel-hover hover:text-foreground rounded-md px-3 py-2"
-              href="#product"
-            >
-              Product
-            </a>
-            <Link
-              className="hover:bg-panel-hover hover:text-foreground rounded-md px-3 py-2"
-              href="/community"
-            >
-              Community
-            </Link>
+          <nav aria-label="Landing page" className="text-muted ml-auto flex items-center text-xs">
+            <span className="rounded-md px-3 py-2" title="Blogs coming soon">
+              Blogs
+            </span>
           </nav>
-
-          <Link
-            className="text-muted hover:text-foreground ml-auto text-xs transition-colors md:hidden"
-            href="/community"
-          >
-            Community
-          </Link>
 
           <HeaderEntryAction
             authEnabled={authEnabled}

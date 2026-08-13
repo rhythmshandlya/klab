@@ -97,6 +97,7 @@ export function PlaygroundWorkspace({
   const sim = useSimulator(simulatorBootSpec);
   const columnsLayout = usePersistedLayout("klab:layout:playground-workspace:columns:v2");
   const centerLayout = usePersistedLayout("klab:layout:playground-workspace:center");
+  const inspectorLayout = usePersistedLayout("klab:layout:playground-workspace:inspector:v2");
   const [rightTab, setRightTab] = useState<RightTab>("explorer");
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [applying, setApplying] = useState(false);
@@ -354,9 +355,12 @@ export function PlaygroundWorkspace({
             className="h-full"
           >
             <ResizablePane id="center-editor" defaultSize="60%" minSize="20%" className="h-full">
-              <Panel className="h-full">
-                <div className="border-border flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-3 py-1.5">
-                  <div className="flex min-w-0 items-center gap-2">
+              <Panel className="@container h-full">
+                <div
+                  className="border-border flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b px-3 py-1.5"
+                  data-testid="playground-editor-header"
+                >
+                  <div className="order-1 flex w-full min-w-48 items-center gap-2 @4xl:w-auto @4xl:min-w-0 @4xl:flex-1">
                     <input
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
@@ -369,13 +373,15 @@ export function PlaygroundWorkspace({
                         }
                       }}
                       aria-label="Playground name"
-                      className="text-foreground focus:bg-code focus:ring-ring max-w-64 min-w-0 rounded px-1.5 py-1 text-sm font-semibold outline-none focus:ring-2"
+                      className="text-foreground focus:bg-code focus:ring-ring w-0 max-w-64 min-w-0 flex-1 rounded px-1.5 py-1 text-sm font-semibold outline-none focus:ring-2"
                     />
-                    <SaveIndicator state={saveState} transient={!playground} />
+                    <div className="ml-auto shrink-0 @4xl:ml-0">
+                      <SaveIndicator state={saveState} transient={!playground} />
+                    </div>
                     {applyMessage ? (
                       <span
                         className={cn(
-                          "max-w-40 truncate text-[11px]",
+                          "hidden max-w-40 truncate text-[11px] @3xl:inline",
                           applyMessage === "Manifests applied" ? "text-green" : "text-red",
                         )}
                         role="status"
@@ -384,7 +390,55 @@ export function PlaygroundWorkspace({
                       </span>
                     ) : null}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div
+                    className="order-2 flex min-w-0 flex-wrap items-center gap-1.5 @4xl:ml-auto"
+                    role="toolbar"
+                    aria-label="Secondary playground actions"
+                  >
+                    {playground ? (
+                      <ToolbarButton
+                        onClick={openPublish}
+                        disabled={identity === undefined}
+                        label={playground.publishedCopyId ? "Manage publication" : "Publish"}
+                      >
+                        <icons.community aria-hidden />
+                        <span className="hidden @4xl:inline">
+                          {playground.publishedCopyId ? "Published" : "Publish"}
+                        </span>
+                      </ToolbarButton>
+                    ) : null}
+                    {playground ? (
+                      <ToolbarButton onClick={() => void handleDuplicate()} label="Duplicate">
+                        <icons.copy aria-hidden />
+                        <span className="hidden @4xl:inline">Duplicate</span>
+                      </ToolbarButton>
+                    ) : null}
+                    <ToolbarButton onClick={handleExport} label="Export YAML">
+                      <icons.download aria-hidden />
+                      <span className="hidden @4xl:inline">Export</span>
+                    </ToolbarButton>
+                    <ToolbarButton
+                      onClick={togglePause}
+                      disabled={!sim.ready}
+                      label={paused ? "Resume" : "Pause"}
+                    >
+                      {paused ? <icons.run aria-hidden /> : <icons.pause aria-hidden />}
+                      <span className="hidden @4xl:inline">{paused ? "Resume" : "Pause"}</span>
+                    </ToolbarButton>
+                    <ToolbarButton
+                      onClick={() => void handleReset()}
+                      disabled={!sim.ready}
+                      label="Reset"
+                    >
+                      <icons.reset aria-hidden />
+                      <span className="hidden @4xl:inline">Reset</span>
+                    </ToolbarButton>
+                  </div>
+                  <div
+                    className="order-3 ml-auto flex shrink-0 items-center gap-1.5 @4xl:ml-0"
+                    role="toolbar"
+                    aria-label="Primary playground actions"
+                  >
                     {playground ? (
                       <ToolbarButton
                         onClick={() =>
@@ -398,42 +452,6 @@ export function PlaygroundWorkspace({
                         />
                       </ToolbarButton>
                     ) : null}
-                    {playground ? (
-                      <ToolbarButton
-                        onClick={openPublish}
-                        disabled={identity === undefined}
-                        label={playground.publishedCopyId ? "Manage publication" : "Publish"}
-                      >
-                        <icons.community aria-hidden />
-                        {playground.publishedCopyId ? "Published" : "Publish"}
-                      </ToolbarButton>
-                    ) : null}
-                    {playground ? (
-                      <ToolbarButton onClick={() => void handleDuplicate()} label="Duplicate">
-                        <icons.copy aria-hidden />
-                        Duplicate
-                      </ToolbarButton>
-                    ) : null}
-                    <ToolbarButton onClick={handleExport} label="Export YAML">
-                      <icons.download aria-hidden />
-                      Export
-                    </ToolbarButton>
-                    <ToolbarButton
-                      onClick={togglePause}
-                      disabled={!sim.ready}
-                      label={paused ? "Resume" : "Pause"}
-                    >
-                      {paused ? <icons.run aria-hidden /> : <icons.pause aria-hidden />}
-                      {paused ? "Resume" : "Pause"}
-                    </ToolbarButton>
-                    <ToolbarButton
-                      onClick={() => void handleReset()}
-                      disabled={!sim.ready}
-                      label="Reset"
-                    >
-                      <icons.reset aria-hidden />
-                      Reset
-                    </ToolbarButton>
                     <ToolbarButton
                       onClick={() => void handleApply()}
                       disabled={applying || !sim.ready}
@@ -483,11 +501,22 @@ export function PlaygroundWorkspace({
           maxSize="42%"
           className="h-full"
         >
-          <div className="flex h-full min-h-0 flex-col gap-1">
-            <div className="aspect-square w-full shrink-0">
+          <ResizableGroup
+            orientation="vertical"
+            id="playground-inspector"
+            defaultLayout={inspectorLayout.defaultLayout}
+            onLayoutChanged={inspectorLayout.onLayoutChanged}
+            className="h-full"
+          >
+            <ResizablePane
+              id="playground-topology"
+              defaultSize="33vw"
+              minSize="35%"
+              className="h-full"
+            >
               <Panel className="h-full">
                 <PanelHeader title="Cluster Topology" icon={<icons.cluster />} />
-                <PanelBody scroll={false} className="p-0">
+                <PanelBody scroll={false} className="p-0" data-testid="playground-topology-body">
                   <ErrorBoundary label="Topology">
                     <ServiceTopology
                       snapshot={sim.snapshot}
@@ -497,9 +526,11 @@ export function PlaygroundWorkspace({
                   </ErrorBoundary>
                 </PanelBody>
               </Panel>
-            </div>
+            </ResizablePane>
 
-            <div className="min-h-0 flex-1">
+            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
+
+            <ResizablePane id="playground-inspector-tabs" minSize="15%" className="h-full">
               <Panel className="h-full">
                 <div className="border-border flex h-10 shrink-0 items-center gap-1 border-b px-1.5">
                   {RIGHT_TABS.map((tab) => (
@@ -544,8 +575,8 @@ export function PlaygroundWorkspace({
                   )}
                 </div>
               </Panel>
-            </div>
-          </div>
+            </ResizablePane>
+          </ResizableGroup>
         </ResizablePane>
       </ResizableGroup>
       {playground ? (

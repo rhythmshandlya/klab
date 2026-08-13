@@ -27,6 +27,7 @@ test("architecture builds present an honest static design workflow", async ({ pa
   await expect(page.getByRole("button", { name: "Submit Static Review" })).toBeVisible();
   await expect(page.getByText("Design Inventory", { exact: true })).toBeVisible();
   await expect(page.getByText("Static Review Runtime", { exact: true })).toBeVisible();
+  await expect(page.getByRole("separator", { name: "Resize topology" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Deploy Design" })).toHaveCount(0);
 
   await expect(page.getByText("Scenario ready", { exact: true })).toBeVisible({ timeout: 60_000 });
@@ -74,6 +75,10 @@ test("the capstone signed-promotion architecture challenge renders cleanly", asy
   await expect(
     page.getByRole("tab", { name: "break-glass-ticket-policy.yaml", exact: true }),
   ).toBeVisible();
+  const fileTabs = page.getByRole("tablist", { name: "Problem files" });
+  await expect
+    .poll(() => fileTabs.evaluate((element) => getComputedStyle(element).overflowY))
+    .toBe("hidden");
   await page.waitForTimeout(1_000);
   expect(runtimeErrors).toEqual([]);
 });

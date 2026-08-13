@@ -9,12 +9,14 @@ import { requestPasswordReset, signIn, signUp } from "@/lib/auth/client";
 import type { AuthCapabilities } from "@/lib/env";
 import { cn } from "@/lib/utils/cn";
 
+import { useAuthCapabilities } from "./auth-capabilities-context";
+
 type Mode = "signin" | "signup" | "magic" | "forgot";
 
 export function SignInDialog({
   open,
   onOpenChange,
-  capabilities = { github: true, email: true },
+  capabilities: capabilitiesOverride,
   callbackURL,
 }: {
   open: boolean;
@@ -22,6 +24,8 @@ export function SignInDialog({
   capabilities?: AuthCapabilities;
   callbackURL?: string;
 }) {
+  const configuredCapabilities = useAuthCapabilities();
+  const capabilities = capabilitiesOverride ?? configuredCapabilities;
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

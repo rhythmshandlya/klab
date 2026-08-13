@@ -6,7 +6,7 @@ and production is deployed to [klab-five.vercel.app](https://klab-five.vercel.ap
 
 ## First-time setup
 
-Install Node.js 22 and enable the pnpm version pinned by the repository:
+Install Node.js 24 and enable the pnpm version pinned by the repository:
 
 ```bash
 corepack enable
@@ -112,7 +112,7 @@ commit SHAs; retain that policy when adding a new action.
 
 ## Troubleshooting
 
-- `pnpm doctor` fails Node or pnpm: use Node 22 and run `corepack prepare pnpm@11.10.0 --activate`.
+- `pnpm doctor` fails Node or pnpm: use Node 24 and run `corepack prepare pnpm@11.10.0 --activate`.
 - The account UI is absent locally: complete a database, Better Auth secret, canonical URL, and at
   least one provider pair in `.env.local`.
 - Playwright is missing Chromium: run `pnpm exec playwright install chromium`.

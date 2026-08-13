@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { AppShell } from "@/components/app-shell/app-shell";
+import { Toaster } from "@/components/ui/sonner";
 import { BRAND } from "@/config/brand";
 import { getAuthCapabilities, isAuthConfigured } from "@/lib/env";
 import { SITE_ORIGIN } from "@/lib/seo";
@@ -33,6 +34,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const authCapabilities = getAuthCapabilities();
+  const isVercelDeployment = process.env.VERCEL === "1";
 
   return (
     <html
@@ -46,8 +48,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppShell authEnabled={isAuthConfigured()} authCapabilities={authCapabilities}>
           {children}
         </AppShell>
-        <Analytics />
-        <SpeedInsights />
+        <Toaster />
+        {isVercelDeployment ? (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );

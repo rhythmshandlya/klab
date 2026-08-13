@@ -9,7 +9,7 @@ identifiers, not visible branding, and should not be renamed during a brand refr
 
 ## Development setup
 
-Requires **Node 22** and **pnpm 11.10.0** (via corepack). The complete onboarding and daily
+Requires **Node 24** and **pnpm 11.10.0** (via corepack). The complete onboarding and daily
 branch workflow lives in [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md).
 
 ```bash
