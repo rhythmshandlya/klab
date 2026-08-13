@@ -11,14 +11,19 @@ function record(level, label, detail) {
 }
 
 function command(name, args) {
-  return spawnSync(name, args, { encoding: "utf8", shell: process.platform === "win32" });
+  if (process.platform === "win32" && name === "pnpm") {
+    return spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "pnpm.cmd", ...args], {
+      encoding: "utf8",
+    });
+  }
+  return spawnSync(name, args, { encoding: "utf8" });
 }
 
 const nodeMajor = Number(process.versions.node.split(".")[0]);
 record(
-  nodeMajor === 22 ? "pass" : "fail",
+  nodeMajor === 24 ? "pass" : "fail",
   "Node.js",
-  `${process.versions.node}${nodeMajor === 22 ? "" : " (expected 22.x)"}`,
+  `${process.versions.node}${nodeMajor === 24 ? "" : " (expected 24.x)"}`,
 );
 
 const pnpm = command("pnpm", ["--version"]);
