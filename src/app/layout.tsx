@@ -33,6 +33,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const authCapabilities = getAuthCapabilities();
+  const isVercelDeployment = process.env.VERCEL === "1";
 
   return (
     <html
@@ -46,8 +47,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppShell authEnabled={isAuthConfigured()} authCapabilities={authCapabilities}>
           {children}
         </AppShell>
-        <Analytics />
-        <SpeedInsights />
+        {isVercelDeployment ? (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );
