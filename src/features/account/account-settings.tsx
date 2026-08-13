@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ export function AccountSettings({
   email: string;
   initialPublicProfile: boolean;
 }) {
+  const router = useRouter();
   const [name, setName] = useState(initialName);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -130,7 +132,8 @@ export function AccountSettings({
       });
       return;
     }
-    window.location.assign("/");
+    router.replace("/");
+    router.refresh();
   };
 
   return (
