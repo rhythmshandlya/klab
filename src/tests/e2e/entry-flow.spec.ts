@@ -11,8 +11,14 @@ test("visitors explicitly enter as a guest before opening the product", async ({
   ).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Try as guest" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Product" })).toHaveAttribute("href", "#product");
-  await expect(page.getByRole("link", { name: "Simulator" })).toHaveAttribute("href", "#simulator");
+  const landingNav = page.getByRole("navigation", { name: "Landing page" });
+  await expect(landingNav.getByText("Blogs", { exact: true })).toHaveAttribute(
+    "title",
+    "Blogs coming soon",
+  );
+  await expect(landingNav.getByRole("link", { name: "Product" })).toHaveCount(0);
+  await expect(landingNav.getByRole("link", { name: "Simulator" })).toHaveCount(0);
+  await expect(landingNav.getByRole("link", { name: "Community" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Everything connects." })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Kubernetes behavior, simulated in your browser." }),

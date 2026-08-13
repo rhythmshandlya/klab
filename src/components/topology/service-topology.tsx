@@ -35,6 +35,8 @@ const FIT_VIEW_OPTIONS = {
 } satisfies FitViewOptions<Node>;
 
 const RESIZE_FIT_DELAY_MS = 120;
+const MEASUREMENT_RETRY_MS = 16;
+const MAX_MEASUREMENT_RETRIES = 8;
 const COLUMN_GAP = 12;
 const NODE_WIDTH = 176;
 const DEPLOYMENT_ROW_Y = 108;
@@ -262,10 +264,44 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
       if (nodes.length === 0) return;
       if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
 
-      fitTimerRef.current = setTimeout(() => {
+      const fitWhenReady = (retriesLeft: number) => {
         fitTimerRef.current = null;
-        void flowRef.current?.fitView({ ...FIT_VIEW_OPTIONS, duration });
-      }, delay);
+        const container = containerRef.current;
+        const instance = flowRef.current;
+        if (!container || !instance) return;
+
+        // React Flow's fit calculation divides by both the graph bounds and viewport
+        // dimensions. Mission panes use display:none while another compact tab is active;
+        // fitting during that transition can turn the viewport zoom into NaN, which then
+        // leaks into Background's SVG circle attributes.
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+          return;
+        }
+
+        const flowNodes = instance.getNodes();
+        const nodesMeasured =
+          flowNodes.length > 0 &&
+          flowNodes.every((node) => {
+            const measured = instance.getInternalNode(node.id)?.measured;
+            return (measured?.width ?? 0) > 0 && (measured?.height ?? 0) > 0;
+          });
+
+        if (!nodesMeasured) {
+          if (retriesLeft > 0) {
+            fitTimerRef.current = setTimeout(
+              () => fitWhenReady(retriesLeft - 1),
+              MEASUREMENT_RETRY_MS,
+            );
+          }
+          return;
+        }
+
+        void instance.fitView({ ...FIT_VIEW_OPTIONS, duration });
+      };
+
+      fitTimerRef.current = setTimeout(() => fitWhenReady(MAX_MEASUREMENT_RETRIES), delay);
     },
     [nodes.length],
   );
@@ -318,7 +354,6 @@ export function ServiceTopology({ snapshot, namespace, namespaces, onSelect }: T
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        fitView
         fitViewOptions={FIT_VIEW_OPTIONS}
         onInit={handleInit}
         nodesDraggable={false}

@@ -177,7 +177,11 @@ function LiveLab({ lab }: { lab: Lab }) {
         {/* Left: editor + terminal */}
         <div className="bg-panel border-border flex min-h-0 flex-col border-r">
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="border-border flex h-9 shrink-0 items-center gap-1 border-b px-2">
+            <div
+              className="border-border flex h-9 min-w-0 shrink-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-b px-2"
+              role="tablist"
+              aria-label="Lab files"
+            >
               <span className="text-subtle mr-1 text-[11px] font-semibold tracking-[0.08em] uppercase">
                 Desired state
               </span>
@@ -185,9 +189,11 @@ function LiveLab({ lab }: { lab: Lab }) {
                 <button
                   key={path}
                   type="button"
+                  role="tab"
+                  aria-selected={path === activePath}
                   onClick={() => setActivePath(path)}
                   className={cn(
-                    "h-7 rounded px-2 font-mono text-[11px]",
+                    "h-7 shrink-0 rounded px-2 font-mono text-[11px]",
                     path === activePath
                       ? "bg-panel-hover text-foreground"
                       : "text-subtle hover:text-muted",

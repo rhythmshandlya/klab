@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { AppShell } from "@/components/app-shell/app-shell";
+import { Toaster } from "@/components/ui/sonner";
 import { BRAND } from "@/config/brand";
 import { getAuthCapabilities, isAuthConfigured } from "@/lib/env";
 import { SITE_ORIGIN } from "@/lib/seo";
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppShell authEnabled={isAuthConfigured()} authCapabilities={authCapabilities}>
           {children}
         </AppShell>
+        <Toaster />
         {isVercelDeployment ? (
           <>
             <Analytics />

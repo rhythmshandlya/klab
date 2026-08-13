@@ -205,7 +205,7 @@ export function DoStep({
           )}
         >
           <div
-            className="border-border flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b px-2"
+            className="border-border flex h-10 min-w-0 shrink-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-b px-2"
             role="tablist"
             aria-label="Mission files"
           >
@@ -308,13 +308,20 @@ export function DoStep({
       </div>
 
       {goalMet ? (
-        <div className="border-green/30 bg-green/5 rounded-md border p-3">
-          <p className="text-green flex items-center gap-2 text-sm font-semibold">
+        <details className="border-green/30 bg-green/5 group rounded-md border">
+          <summary className="text-green flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold select-none [&::-webkit-details-marker]:hidden">
             <icons.success aria-hidden />
-            Goal met
+            <span>Goal met</span>
+            <span className="text-muted ml-auto text-xs font-medium">View debrief</span>
+            <icons.chevronDown
+              className="text-muted size-4 transition-transform group-open:rotate-180"
+              aria-hidden
+            />
+          </summary>
+          <p className="text-muted border-green/20 border-t px-3 py-3 text-sm leading-relaxed">
+            {step.debrief}
           </p>
-          <p className="text-muted mt-1 text-sm leading-relaxed">{step.debrief}</p>
-        </div>
+        </details>
       ) : null}
     </div>
   );

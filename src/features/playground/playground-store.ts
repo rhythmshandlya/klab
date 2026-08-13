@@ -2,6 +2,8 @@ import { create } from "zustand";
 
 import type { PlaygroundTemplate } from "@/lib/domain/types";
 
+export type RenameFileResult = "renamed" | "unchanged" | "invalid" | "exists" | "missing";
+
 /** Multi-file sandbox UI state. Simulator/cluster state lives in the useSimulator hook. */
 interface PlaygroundState {
   template: PlaygroundTemplate | null;
@@ -14,6 +16,8 @@ interface PlaygroundState {
   initTemplate: (template: PlaygroundTemplate) => void;
   setFile: (path: string, content: string) => void;
   addFile: (path: string) => void;
+  renameFile: (path: string, nextPath: string) => RenameFileResult;
+  restoreFile: (path: string, content: string, index: number, activate: boolean) => boolean;
   removeFile: (path: string) => void;
   setActiveFile: (path: string) => void;
   resetToTemplate: () => void;
@@ -55,6 +59,44 @@ export const usePlaygroundStore = create<PlaygroundState>((set, get) => ({
       activeFilePath: clean,
       contentRevision: s.contentRevision + 1,
     }));
+  },
+
+  renameFile: (path, nextPath) => {
+    const clean = nextPath.trim();
+    const state = get();
+
+    if (clean === "" || clean.length > 260) return "invalid";
+    if (state.files[path] === undefined) return "missing";
+    if (clean === path) return "unchanged";
+    if (state.files[clean] !== undefined) return "exists";
+
+    const files = Object.fromEntries(
+      Object.entries(state.files).map(([currentPath, contents]) => [
+        currentPath === path ? clean : currentPath,
+        contents,
+      ]),
+    );
+
+    set({
+      files,
+      activeFilePath: state.activeFilePath === path ? clean : state.activeFilePath,
+      contentRevision: state.contentRevision + 1,
+    });
+    return "renamed";
+  },
+
+  restoreFile: (path, content, index, activate) => {
+    const state = get();
+    if (state.files[path] !== undefined) return false;
+
+    const entries = Object.entries(state.files);
+    entries.splice(Math.max(0, Math.min(index, entries.length)), 0, [path, content]);
+    set({
+      files: Object.fromEntries(entries),
+      activeFilePath: activate ? path : state.activeFilePath,
+      contentRevision: state.contentRevision + 1,
+    });
+    return true;
   },
 
   removeFile: (path) =>

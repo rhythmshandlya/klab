@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { icons } from "@/components/icons";
 import { PLAYGROUND_TEMPLATES } from "@/content/playground-templates";
@@ -45,6 +46,126 @@ spec:
           image: klab/web-app:1.0.0
           ports: [{ containerPort: 8080 }]
 `,
+  ConfigMap: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  LOG_LEVEL: info
+  API_URL: http://my-svc
+`,
+  Secret: `apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+type: Opaque
+stringData:
+  API_TOKEN: replace-me
+`,
+  Namespace: `apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-app
+`,
+  StatefulSet: `apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  serviceName: web
+  replicas: 2
+  selector:
+    matchLabels: { app: web }
+  template:
+    metadata:
+      labels: { app: web }
+    spec:
+      containers:
+        - name: web
+          image: klab/web-app:1.0.0
+`,
+  DaemonSet: `apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-agent
+spec:
+  selector:
+    matchLabels: { app: node-agent }
+  template:
+    metadata:
+      labels: { app: node-agent }
+    spec:
+      containers:
+        - name: agent
+          image: klab/web-app:1.0.0
+`,
+  Job: `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: one-off-job
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: task
+          image: busybox:1.36
+          command: ["sh", "-c", "echo done"]
+`,
+  CronJob: `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scheduled-job
+spec:
+  schedule: "*/15 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: task
+              image: busybox:1.36
+              command: ["sh", "-c", "date"]
+`,
+  Ingress: `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-svc
+                port:
+                  number: 80
+`,
+  NetworkPolicy: `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+`,
+  PersistentVolumeClaim: `apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+`,
 };
 
 function templateFiles(template: PlaygroundTemplate): Record<string, string> {
@@ -64,20 +185,33 @@ export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?:
   const remove = usePlaygroundsStore((state) => state.remove);
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(() => new Set());
+  const deleteTimers = useRef(new Map<string, number>());
   const [creating, setCreating] = useState(false);
 
-  const recent = playgrounds.slice(0, 5);
-  const starred = playgrounds.filter((playground) => playground.starred);
+  const visiblePlaygrounds = useMemo(
+    () => playgrounds.filter((playground) => !pendingDeleteIds.has(playground.id)),
+    [pendingDeleteIds, playgrounds],
+  );
+  const recent = visiblePlaygrounds.slice(0, 5);
+  const starred = visiblePlaygrounds.filter((playground) => playground.starred);
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return normalized
-      ? playgrounds.filter((playground) => playground.name.toLowerCase().includes(normalized))
+      ? visiblePlaygrounds.filter((playground) =>
+          playground.name.toLowerCase().includes(normalized),
+        )
       : [];
-  }, [playgrounds, query]);
+  }, [query, visiblePlaygrounds]);
 
   const insertSnippet = (kind: string) => {
-    const path = `${kind.toLowerCase()}-${Object.keys(files).length + 1}.yaml`;
+    const stem = kind.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+    let suffix = Object.keys(files).length + 1;
+    let path = `${stem}-${suffix}.yaml`;
+    while (files[path] !== undefined) {
+      suffix += 1;
+      path = `${stem}-${suffix}.yaml`;
+    }
     addFile(path);
     setFile(path, SNIPPETS[kind] ?? "");
   };
@@ -109,43 +243,76 @@ export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?:
     if (created) router.push(`/playground/p/${created.id}`);
   };
 
-  const handleDelete = async (playground: SavedPlayground) => {
-    if (pendingDelete !== playground.id) {
-      setPendingDelete(playground.id);
-      return;
-    }
-    setPendingDelete(null);
-    await remove(playground.id);
-    if (currentPlaygroundId === playground.id) router.push("/playground");
+  const handleDelete = (playground: SavedPlayground) => {
+    if (pendingDeleteIds.has(playground.id)) return;
+
+    setPendingDeleteIds((current) => new Set(current).add(playground.id));
+
+    const restore = () => {
+      const timer = deleteTimers.current.get(playground.id);
+      if (timer !== undefined) window.clearTimeout(timer);
+      deleteTimers.current.delete(playground.id);
+      setPendingDeleteIds((current) => {
+        const next = new Set(current);
+        next.delete(playground.id);
+        return next;
+      });
+    };
+
+    const timer = window.setTimeout(() => {
+      deleteTimers.current.delete(playground.id);
+      void remove(playground.id)
+        .then(() => {
+          setPendingDeleteIds((current) => {
+            const next = new Set(current);
+            next.delete(playground.id);
+            return next;
+          });
+          if (currentPlaygroundId === playground.id) router.push("/playground");
+        })
+        .catch(() => {
+          restore();
+          toast.error(`Could not delete ${playground.name}.`);
+        });
+    }, 5_000);
+    deleteTimers.current.set(playground.id, timer);
+
+    toast("Playground deleted", {
+      description: playground.name,
+      duration: 5_000,
+      action: { label: "Undo", onClick: restore },
+    });
   };
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-3 text-sm">
-      <button
-        type="button"
-        onClick={() => void startFrom(PLAYGROUND_TEMPLATES[0]!)}
-        disabled={!hydrated || creating}
-        className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring flex h-9 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-      >
-        <icons.plus className="size-4" aria-hidden />
-        {creating ? "Creating…" : "New Playground"}
-      </button>
-
-      <div>
-        <label htmlFor="playground-search" className="sr-only">
-          Search playgrounds
-        </label>
-        <div className="relative">
-          <icons.search className="text-subtle pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-          <input
-            id="playground-search"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search playgrounds"
-            className="border-border bg-code text-foreground placeholder:text-subtle focus-visible:ring-ring h-8 w-full rounded-md border pr-2 pl-8 text-xs outline-none focus-visible:ring-2"
-          />
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="playground-search" className="sr-only">
+            Search playgrounds
+          </label>
+          <div className="relative">
+            <icons.search className="text-subtle pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+            <input
+              id="playground-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search playgrounds"
+              className="border-border bg-code text-foreground placeholder:text-subtle focus-visible:ring-ring h-9 w-full rounded-md border pr-2 pl-8 text-xs outline-none focus-visible:ring-2"
+            />
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={() => void startFrom(PLAYGROUND_TEMPLATES[0]!)}
+          disabled={!hydrated || creating}
+          aria-label={creating ? "Creating playground" : "New playground"}
+          title={creating ? "Creating playground" : "New playground"}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring flex size-9 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+        >
+          <icons.plus className={cn("size-4", creating && "animate-pulse")} aria-hidden />
+        </button>
       </div>
 
       {query.trim() ? (
@@ -153,7 +320,6 @@ export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?:
           <PlaygroundList
             playgrounds={results}
             currentPlaygroundId={currentPlaygroundId}
-            pendingDelete={pendingDelete}
             onStar={(playground) => void update(playground.id, { starred: !playground.starred })}
             onDuplicate={(playground) => void handleDuplicate(playground)}
             onDelete={(playground) => void handleDelete(playground)}
@@ -165,12 +331,11 @@ export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?:
             <PlaygroundList
               playgrounds={recent}
               currentPlaygroundId={currentPlaygroundId}
-              pendingDelete={pendingDelete}
               onStar={(playground) => void update(playground.id, { starred: !playground.starred })}
               onDuplicate={(playground) => void handleDuplicate(playground)}
               onDelete={(playground) => void handleDelete(playground)}
             />
-            {playgrounds.length > 5 ? (
+            {visiblePlaygrounds.length > 5 ? (
               <button
                 type="button"
                 onClick={() => setShowAll((value) => !value)}
@@ -187,7 +352,6 @@ export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?:
               <PlaygroundList
                 playgrounds={starred}
                 currentPlaygroundId={currentPlaygroundId}
-                pendingDelete={pendingDelete}
                 onStar={(playground) =>
                   void update(playground.id, { starred: !playground.starred })
                 }
@@ -200,9 +364,8 @@ export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?:
           {showAll ? (
             <Section title="All Playgrounds">
               <PlaygroundList
-                playgrounds={playgrounds}
+                playgrounds={visiblePlaygrounds}
                 currentPlaygroundId={currentPlaygroundId}
-                pendingDelete={pendingDelete}
                 onStar={(playground) =>
                   void update(playground.id, { starred: !playground.starred })
                 }
@@ -257,14 +420,12 @@ export function TemplateSidebar({ currentPlaygroundId }: { currentPlaygroundId?:
 function PlaygroundList({
   playgrounds,
   currentPlaygroundId,
-  pendingDelete,
   onStar,
   onDuplicate,
   onDelete,
 }: {
   playgrounds: SavedPlayground[];
   currentPlaygroundId?: string;
-  pendingDelete: string | null;
   onStar: (playground: SavedPlayground) => void;
   onDuplicate: (playground: SavedPlayground) => void;
   onDelete: (playground: SavedPlayground) => void;
@@ -277,7 +438,6 @@ function PlaygroundList({
     <ul className="space-y-0.5">
       {playgrounds.map((playground) => {
         const active = playground.id === currentPlaygroundId;
-        const armed = pendingDelete === playground.id;
         return (
           <li key={playground.id} className="group relative">
             <Link
@@ -289,7 +449,7 @@ function PlaygroundList({
                   : "text-muted hover:bg-panel-hover hover:text-foreground",
               )}
             >
-              <icons.yaml
+              <icons.playground
                 className={cn("size-3.5 shrink-0", active ? "text-blue" : "text-subtle")}
               />
               <span className="min-w-0 flex-1 truncate">{playground.name}</span>
@@ -315,15 +475,10 @@ function PlaygroundList({
                 <icons.copy className="size-3" />
               </ActionButton>
               <ActionButton
-                label={armed ? `Confirm delete ${playground.name}` : `Delete ${playground.name}`}
+                label={`Delete ${playground.name}`}
                 onClick={() => onDelete(playground)}
-                destructive={armed}
               >
-                {armed ? (
-                  <span className="text-[9px] font-bold">Sure?</span>
-                ) : (
-                  <icons.trash className="size-3" />
-                )}
+                <icons.trash className="size-3" />
               </ActionButton>
             </span>
           </li>
@@ -338,13 +493,11 @@ function ActionButton({
   onClick,
   children,
   active,
-  destructive,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
   active?: boolean;
-  destructive?: boolean;
 }) {
   return (
     <button
@@ -352,14 +505,7 @@ function ActionButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={cn(
-        "rounded p-1",
-        active
-          ? "text-amber"
-          : destructive
-            ? "bg-red/10 text-red"
-            : "text-subtle hover:text-foreground",
-      )}
+      className={cn("rounded p-1", active ? "text-amber" : "text-subtle hover:text-foreground")}
     >
       {children}
     </button>

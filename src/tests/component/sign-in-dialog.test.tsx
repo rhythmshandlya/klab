@@ -20,6 +20,7 @@ vi.mock("@/lib/auth/client", () => ({
 }));
 
 import { SignInDialog } from "@/components/auth/sign-in-dialog";
+import { AuthCapabilitiesProvider } from "@/components/auth/auth-capabilities-context";
 import { BRAND } from "@/config/brand";
 
 describe("SignInDialog", () => {
@@ -54,5 +55,17 @@ describe("SignInDialog", () => {
       "GitHub sign-in could not be started. Please try again.",
     );
     expect(screen.getByRole("button", { name: "Continue with GitHub" })).toBeEnabled();
+  });
+
+  it("uses the app-wide configured providers when an entry point omits capabilities", () => {
+    render(
+      <AuthCapabilitiesProvider capabilities={{ github: true, email: true }}>
+        <SignInDialog open onOpenChange={vi.fn()} />
+      </AuthCapabilitiesProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Continue with GitHub" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 });

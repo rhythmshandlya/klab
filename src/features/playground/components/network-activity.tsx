@@ -30,7 +30,7 @@ export function NetworkActivity({ simulator }: { simulator: KubeSimulator }) {
     () => simulator.getNetworkActivity(),
     () => EMPTY,
   );
-  const [showProbes, setShowProbes] = useState(false);
+  const [showProbes, setShowProbes] = useState(true);
   const visible = showProbes ? events : events.filter((e) => !e.isProbe);
   const probeCount = events.length - events.filter((e) => !e.isProbe).length;
 

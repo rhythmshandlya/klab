@@ -225,26 +225,33 @@ function LiveMission({
               ))}
             </div>
             {!minimized && done && wrap ? (
-              <div className="border-green/30 bg-green/5 rounded-md border p-4">
-                <p className="text-green flex items-center gap-2 text-sm font-semibold">
+              <details className="border-green/30 bg-green/5 group rounded-md border">
+                <summary className="text-green flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm font-semibold select-none [&::-webkit-details-marker]:hidden">
                   <icons.success aria-hidden />
-                  Mission complete
-                </p>
-                <p className="text-muted mt-1 text-sm leading-relaxed">{wrap.summary}</p>
-                <ul className="mt-3 space-y-2">
-                  {wrap.takeaways.map((item) => (
-                    <li key={item} className="text-muted flex gap-2 text-sm leading-relaxed">
-                      <span className="text-green mt-0.5" aria-hidden>
-                        -
-                      </span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button variant="secondary" size="sm" className="mt-4" onClick={onClose}>
-                  Back to reading
-                </Button>
-              </div>
+                  <span>Mission complete</span>
+                  <span className="text-muted ml-auto text-xs font-medium">View recap</span>
+                  <icons.chevronDown
+                    className="text-muted size-4 transition-transform group-open:rotate-180"
+                    aria-hidden
+                  />
+                </summary>
+                <div className="border-green/20 border-t px-4 py-3">
+                  <p className="text-muted text-sm leading-relaxed">{wrap.summary}</p>
+                  <ul className="mt-3 space-y-2">
+                    {wrap.takeaways.map((item) => (
+                      <li key={item} className="text-muted flex gap-2 text-sm leading-relaxed">
+                        <span className="text-green mt-0.5" aria-hidden>
+                          -
+                        </span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button variant="secondary" size="sm" className="mt-4" onClick={onClose}>
+                    Back to reading
+                  </Button>
+                </div>
+              </details>
             ) : null}
           </div>
         ) : (

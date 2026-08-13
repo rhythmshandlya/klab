@@ -156,6 +156,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   // Persisted, user-resizable pane layouts (drag the separators; arrow keys work too).
   const columnsLayout = usePersistedLayout("klab:layout:level-workspace:columns:v2");
   const centerLayout = usePersistedLayout("klab:layout:level-workspace:center:v2");
+  const inspectorLayout = usePersistedLayout("klab:layout:level-workspace:inspector:v2");
   const explorerLayout = usePersistedLayout("klab:layout:level-workspace:explorer");
 
   const terminalRunnerRef = useRef<((line: string) => void) | null>(null);
@@ -525,7 +526,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                 <div
                   role="tablist"
                   aria-label="Problem files"
-                  className="border-border flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5"
+                  className="border-border flex h-9 min-w-0 shrink-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-b px-1.5"
                 >
                   {visibleFiles.map((file) => {
                     const active = file.path === activeFilePath;
@@ -746,14 +747,20 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
           maxSize="42%"
           className="h-full"
         >
-          <div className="flex h-full min-h-0 flex-col gap-1">
-            <div className="aspect-square w-full shrink-0">
+          <ResizableGroup
+            orientation="vertical"
+            id="level-inspector"
+            defaultLayout={inspectorLayout.defaultLayout}
+            onLayoutChanged={inspectorLayout.onLayoutChanged}
+            className="h-full"
+          >
+            <ResizablePane id="level-topology" defaultSize="33vw" minSize="35%" className="h-full">
               <Panel className="h-full">
                 <PanelHeader
                   title={isBuild ? "Design Inventory" : "Service Topology"}
                   icon={isBuild ? <icons.cluster /> : <icons.service />}
                 />
-                <PanelBody scroll={false} className="p-0">
+                <PanelBody scroll={false} className="p-0" data-testid="problem-topology-body">
                   <ErrorBoundary label="Topology">
                     {isBuild ? (
                       <ArchitectureInventory level={level} files={files} />
@@ -767,9 +774,11 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                   </ErrorBoundary>
                 </PanelBody>
               </Panel>
-            </div>
+            </ResizablePane>
 
-            <div className="min-h-0 flex-1">
+            <ResizableHandle orientation="horizontal" aria-label="Resize topology" />
+
+            <ResizablePane id="level-inspector-details" minSize="15%" className="h-full">
               <Panel className="h-full">
                 <PanelHeader
                   title={isBuild ? "Static Review Runtime" : "Cluster Explorer"}
@@ -805,8 +814,8 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                   </ResizablePane>
                 </ResizableGroup>
               </Panel>
-            </div>
-          </div>
+            </ResizablePane>
+          </ResizableGroup>
         </ResizablePane>
       </ResizableGroup>
 

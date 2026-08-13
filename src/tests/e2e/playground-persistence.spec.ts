@@ -2,7 +2,15 @@ import { expect, test } from "@playwright/test";
 
 test("autosaves, restores, finds, duplicates, and deletes a guest playground", async ({ page }) => {
   await page.goto("/playground/empty");
-  await expect(page.getByRole("button", { name: "New Playground" })).toBeEnabled();
+  const newPlayground = page.getByRole("button", { name: "New playground" });
+  await expect(newPlayground).toBeEnabled();
+  const newPlaygroundBox = await newPlayground.boundingBox();
+  const searchBox = await page.getByRole("searchbox", { name: "Search playgrounds" }).boundingBox();
+  expect(newPlaygroundBox).not.toBeNull();
+  expect(searchBox).not.toBeNull();
+  expect(Math.abs(newPlaygroundBox!.width - newPlaygroundBox!.height)).toBeLessThan(1);
+  expect(Math.abs(newPlaygroundBox!.y - searchBox!.y)).toBeLessThan(1);
+  await expect(page.getByRole("button", { name: "+ ConfigMap" })).toBeVisible();
   await expect(page.getByText("Simulator ready", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -17,6 +25,16 @@ test("autosaves, restores, finds, duplicates, and deletes a guest playground", a
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
     await page.getByRole("button", { name: "Close" }).click();
+  });
+
+  await test.step("the command palette uses keyboard-searchable command items", async () => {
+    await page.keyboard.press("Control+K");
+    const palette = page.getByRole("dialog", { name: "Supported k8s commands" });
+    await expect(palette).toBeVisible();
+    await palette.getByPlaceholder("Search commands… (e.g. scale, rollout, exec)").fill("rollout");
+    await expect(palette.getByText(/kubectl rollout status/).first()).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(palette).toBeHidden();
   });
 
   await test.step("inline rename and star persist", async () => {
@@ -55,11 +73,16 @@ test("autosaves, restores, finds, duplicates, and deletes a guest playground", a
     );
   });
 
-  await test.step("delete removes the current copy and returns to a clean workspace", async () => {
+  await test.step("delete offers a five-second undo instead of inline confirmation", async () => {
     await page.getByRole("button", { name: "Delete persistence devtools check copy" }).click();
-    await page
-      .getByRole("button", { name: "Confirm delete persistence devtools check copy" })
-      .click();
-    await expect(page).toHaveURL(/\/playground$/);
+    await expect(page.getByText("Playground deleted", { exact: true })).toBeVisible();
+    await expect(page.getByText("Sure?", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(
+      page.getByRole("link", { name: /persistence devtools check copy/ }).first(),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete persistence devtools check copy" }).click();
+    await expect(page).toHaveURL(/\/playground$/, { timeout: 10_000 });
   });
 });
