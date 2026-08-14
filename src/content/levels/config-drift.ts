@@ -100,22 +100,22 @@ export const configDrift = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=web-app].image",
           operator: "equals",
           value: "klab/web-app:1.0.0",
         },
         {
-          path: "spec.template.spec.containers.0.ports.0.containerPort",
+          path: "spec.template.spec.containers[name=web-app].ports[name=http].containerPort",
           operator: "equals",
           value: 8080,
         },
         {
-          path: "spec.template.spec.containers.0.readinessProbe.httpGet.path",
+          path: "spec.template.spec.containers[name=web-app].readinessProbe.httpGet.path",
           operator: "equals",
           value: "/healthz",
         },
         {
-          path: "spec.template.spec.containers.0.readinessProbe.httpGet.port",
+          path: "spec.template.spec.containers[name=web-app].readinessProbe.httpGet.port",
           operator: "equals",
           value: 8080,
         },
@@ -275,6 +275,7 @@ export const configDrift = {
     prevention:
       "Own runtime ports in one configuration source, render probes and Services from it, and verify the live listener during rollout smoke tests.",
     relatedConcepts: ["deployments", "readiness-probes", "networking"],
+    docsHref: "/docs/debugging/readiness-probes",
     recommendedNextSlugs: ["broken-service-chain"],
   },
 } satisfies ProblemLevel;

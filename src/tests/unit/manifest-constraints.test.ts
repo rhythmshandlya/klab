@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { getLevelBySlug, LEVELS } from "@/content/levels";
 import { LEVEL_SOLUTIONS } from "@/content/levels/solutions";
-import { evaluateLevelConstraints } from "@/lib/kube/manifest-constraints";
+import { evaluateLevelConstraints, parseManifestPath } from "@/lib/kube/manifest-constraints";
 import { parseKubernetesManifests, stringifyManifest } from "@/lib/kube/manifest-parser";
 import { evaluateWorkspaceSemantics } from "@/lib/kube/workspace-semantics";
 
@@ -50,28 +50,70 @@ function expectSemanticIssue(
   expect(evaluateWorkspaceSemantics(level, files)).toContain(expected);
 }
 
+function hasValue(assertion: { operator: string }): boolean {
+  return [
+    "equals",
+    "not-equals",
+    "gte",
+    "lte",
+    "matches",
+    "not-matches",
+    "array-contains",
+    "array-not-contains",
+  ].includes(assertion.operator);
+}
+
+/** Walks the same path grammar the evaluator uses, including `[field=value]`. */
 function mutatePath(
   root: Record<string, unknown>,
   path: string,
   replacement: unknown,
   remove = false,
 ): void {
-  const segments = path.split(".");
+  const steps = parseManifestPath(path);
   let current: unknown = root;
-  for (const segment of segments.slice(0, -1)) {
-    current = Array.isArray(current)
-      ? current[Number(segment)]
-      : (current as Record<string, unknown>)[segment];
+  for (const step of steps.slice(0, -1)) {
+    if (step.kind === "index") {
+      current = Array.isArray(current) ? current[step.index] : undefined;
+    } else if (step.kind === "match") {
+      current = Array.isArray(current)
+        ? current.find(
+            (entry) =>
+              typeof entry === "object" &&
+              entry !== null &&
+              String((entry as Record<string, unknown>)[step.field]) === step.value,
+          )
+        : undefined;
+    } else {
+      current =
+        typeof current === "object" && current !== null
+          ? (current as Record<string, unknown>)[step.key]
+          : undefined;
+    }
+    if (current === undefined) throw new Error(`mutatePath: ${path} does not resolve`);
   }
-  const leaf = segments.at(-1)!;
-  if (Array.isArray(current)) {
-    if (remove) current.splice(Number(leaf), 1);
-    else current[Number(leaf)] = replacement;
-  } else if (remove) {
-    delete (current as Record<string, unknown>)[leaf];
-  } else {
-    (current as Record<string, unknown>)[leaf] = replacement;
+
+  const leaf = steps.at(-1)!;
+  if (leaf.kind === "index") {
+    if (!Array.isArray(current)) throw new Error(`mutatePath: ${path} expected an array`);
+    if (remove) current.splice(leaf.index, 1);
+    else current[leaf.index] = replacement;
+    return;
   }
+  if (leaf.kind === "match") {
+    // Breaking an identity selector means removing the entry it selects.
+    if (!Array.isArray(current)) throw new Error(`mutatePath: ${path} expected an array`);
+    const index = current.findIndex(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        String((entry as Record<string, unknown>)[leaf.field]) === leaf.value,
+    );
+    if (index >= 0) current.splice(index, 1);
+    return;
+  }
+  if (remove) delete (current as Record<string, unknown>)[leaf.key];
+  else (current as Record<string, unknown>)[leaf.key] = replacement;
 }
 
 describe("machine-enforced problem constraints", () => {
@@ -183,6 +225,29 @@ describe("machine-enforced problem constraints", () => {
         );
       },
       "NetworkPolicy/frontend-egress must allow DNS over both UDP and TCP",
+    );
+    expectSemanticIssue(
+      "build-default-deny-service-graph",
+      "frontend-egress.yaml",
+      (resource) => {
+        const egress = (resource.spec as Record<string, unknown>).egress as Array<
+          Record<string, unknown>
+        >;
+        const peer = (egress[0]!.to as Array<Record<string, unknown>>)[0]!;
+        peer.podSelector = { matchLabels: { app: "payments" } };
+      },
+      "NetworkPolicy/frontend-egress does not match its exact egress traffic contract",
+    );
+    expectSemanticIssue(
+      "build-default-deny-service-graph",
+      "orders-ingress.yaml",
+      (resource) => {
+        const ingress = (resource.spec as Record<string, unknown>).ingress as Array<
+          Record<string, unknown>
+        >;
+        (ingress[0]!.ports as unknown[]).push({ protocol: "TCP", port: 9090 });
+      },
+      "NetworkPolicy/orders-ingress does not match its exact ingress traffic contract",
     );
     expectSemanticIssue(
       "build-default-deny-service-graph",
@@ -490,6 +555,55 @@ describe("machine-enforced problem constraints", () => {
     expect(evaluateWorkspaceSemantics(observability, observabilityFiles)).toEqual([]);
   });
 
+  it("grades the three-zone API by rollout and autoscaling outcomes", () => {
+    const level = getLevelBySlug("build-three-zone-api")!;
+    const alternative = solvedFilesFor(level.slug);
+    const deployment = parsedResource(alternative["deployment.yaml"]!);
+    const rollingUpdate = (
+      (deployment.spec as Record<string, unknown>).strategy as Record<string, unknown>
+    ).rollingUpdate as Record<string, unknown>;
+    rollingUpdate.maxUnavailable = "0%";
+    rollingUpdate.maxSurge = "25%";
+    alternative["deployment.yaml"] = stringifyManifest(deployment);
+    const hpa = parsedResource(alternative["hpa.yaml"]!);
+    const metrics = (hpa.spec as Record<string, unknown>).metrics as Array<Record<string, unknown>>;
+    const target = ((metrics[0]!.resource as Record<string, unknown>).target ?? {}) as Record<
+      string,
+      unknown
+    >;
+    target.averageUtilization = 70;
+    alternative["hpa.yaml"] = stringifyManifest(hpa);
+
+    expect(evaluateLevelConstraints(level, alternative).every((result) => result.passed)).toBe(
+      true,
+    );
+    expect(evaluateWorkspaceSemantics(level, alternative)).toEqual([]);
+
+    target.averageUtilization = 100;
+    alternative["hpa.yaml"] = stringifyManifest(hpa);
+    expectConstraintFailure(level.slug, alternative, "architecture-hpa-yaml");
+    target.averageUtilization = 70;
+    alternative["hpa.yaml"] = stringifyManifest(hpa);
+
+    (deployment.spec as Record<string, unknown>).replicas = 5;
+    alternative["deployment.yaml"] = stringifyManifest(deployment);
+    expectConstraintFailure(level.slug, alternative, "architecture-deployment-yaml");
+    (deployment.spec as Record<string, unknown>).replicas = 4;
+
+    rollingUpdate.maxSurge = 0;
+    alternative["deployment.yaml"] = stringifyManifest(deployment);
+    expectConstraintFailure(level.slug, alternative, "architecture-deployment-yaml");
+
+    rollingUpdate.maxSurge = 1;
+    const podSpec = (
+      (deployment.spec as Record<string, unknown>).template as Record<string, unknown>
+    ).spec as Record<string, unknown>;
+    const spread = podSpec.topologySpreadConstraints as Array<Record<string, unknown>>;
+    spread[0]!.whenUnsatisfiable = "ScheduleAnyway";
+    alternative["deployment.yaml"] = stringifyManifest(deployment);
+    expectConstraintFailure(level.slug, alternative, "architecture-deployment-yaml");
+  });
+
   it("rejects swapping the crash-looping worker for an unrelated healthy image", () => {
     const files = filesFor("pod-crashloop-mystery");
     files["deployment.yaml"] = files["deployment.yaml"]!.replace(
@@ -536,6 +650,60 @@ describe("machine-enforced problem constraints", () => {
     expectConstraintFailure(level.slug, readonlyChanged, "edit-svc-only");
   });
 
+  /**
+   * The observational `detail` deliberately withholds the fix, so the post-submission
+   * `diagnostic` is the learner's only precise feedback. It has to name *every* unmet
+   * requirement: reporting one at a time turns revision into a guessing loop.
+   */
+  it("reports every unmet requirement in the post-submission diagnostic", () => {
+    // Whichever level carries the richest scalar rubric exercises this best.
+    const [level, constraint] = LEVELS.flatMap((candidate) =>
+      candidate.constraints
+        .filter((rule) => rule.kind === "manifest")
+        .map((rule) => [candidate, rule] as const),
+    ).sort(
+      (a, b) =>
+        (b[1].kind === "manifest" ? b[1].assertions : []).filter((x) => x.operator === "equals")
+          .length -
+        (a[1].kind === "manifest" ? a[1].assertions : []).filter((x) => x.operator === "equals")
+          .length,
+    )[0]!;
+    if (constraint.kind !== "manifest") throw new Error("expected a manifest constraint");
+
+    const canonical = { ...filesFor(level.slug), ...LEVEL_SOLUTIONS[level.slug]?.files };
+    const broken = parsedResource(canonical[constraint.file]!);
+    const scalarAssertions = constraint.assertions.filter((assertion) => {
+      if (assertion.operator !== "equals") return false;
+      // Overwriting a field that a later selector matches on would break the walk
+      // rather than the requirement; those are covered by the bypass test instead.
+      const steps = parseManifestPath(assertion.path);
+      const leaf = steps.at(-1);
+      return (
+        leaf?.kind === "key" &&
+        !steps.some((step) => step.kind === "match" && step.field === leaf.key)
+      );
+    });
+    expect(scalarAssertions.length).toBeGreaterThanOrEqual(2);
+    for (const assertion of scalarAssertions) {
+      mutatePath(broken, assertion.path, "__wrong__");
+    }
+
+    const result = evaluateLevelConstraints(level, {
+      ...canonical,
+      [constraint.file]: stringifyManifest(broken),
+    }).find((candidate) => candidate.id === `constraint:${constraint.id}`)!;
+
+    expect(result.passed).toBe(false);
+    expect(result.diagnostic).toBeDefined();
+    for (const assertion of scalarAssertions) {
+      expect(result.diagnostic, assertion.path).toContain(assertion.path);
+    }
+    // …and the free surface still gives none of it away.
+    for (const assertion of scalarAssertions) {
+      expect(result.detail).not.toContain(assertion.path);
+    }
+  });
+
   it("rejects three independent bypass classes for every authored level", () => {
     for (const level of LEVELS) {
       const constraint = level.constraints.find((candidate) => candidate.kind === "manifest");
@@ -563,28 +731,39 @@ describe("machine-enforced problem constraints", () => {
         constraint.id,
       );
 
-      const assertion = constraint.assertions[0]!;
-      const mutated = structuredClone(parsed.value[0]!.raw);
-      const replacement =
-        assertion.operator === "gte"
-          ? Number(assertion.value) - 1
-          : assertion.operator === "lte"
-            ? Number(assertion.value) + 1
-            : assertion.operator === "not-equals"
-              ? assertion.value
-              : assertion.operator === "equals"
-                ? typeof assertion.value === "number"
-                  ? assertion.value + 1
-                  : typeof assertion.value === "boolean"
-                    ? !assertion.value
-                    : `${assertion.value}-bypass`
-                : "__bypass__";
-      mutatePath(mutated, assertion.path, replacement, assertion.operator === "present");
-      expectConstraintFailure(
-        level.slug,
-        { ...canonical, [constraint.file]: stringifyManifest(mutated) },
-        constraint.id,
-      );
+      // Mutation coverage: EVERY authored requirement must be load-bearing. Checking
+      // only the first assertion let a rubric ship requirements that nothing enforces,
+      // so a wrong answer could still pass on the strength of the others.
+      for (const assertion of constraint.assertions) {
+        const mutated = structuredClone(parsed.value[0]!.raw);
+        const replacement =
+          assertion.operator === "array-not-contains"
+            ? [assertion.value]
+            : assertion.operator === "gte"
+              ? Number(assertion.value) - 1
+              : assertion.operator === "lte"
+                ? Number(assertion.value) + 1
+                : assertion.operator === "not-equals"
+                  ? assertion.value
+                  : assertion.operator === "equals"
+                    ? typeof assertion.value === "number"
+                      ? assertion.value + 1
+                      : typeof assertion.value === "boolean"
+                        ? !assertion.value
+                        : `${assertion.value}-bypass`
+                    : "__bypass__";
+        // `absent` is satisfied by removal, so breaking it means adding the field.
+        const remove = assertion.operator !== "absent" && !hasValue(assertion);
+        mutatePath(mutated, assertion.path, replacement, remove);
+        const files = { ...canonical, [constraint.file]: stringifyManifest(mutated) };
+        const result = evaluateLevelConstraints(level, files).find(
+          (candidate) => candidate.id === `constraint:${constraint.id}`,
+        );
+        expect(
+          result?.passed,
+          `${level.slug}/${constraint.id}: breaking ${assertion.path} (${assertion.operator}) still passed`,
+        ).toBe(false);
+      }
     }
   });
 });

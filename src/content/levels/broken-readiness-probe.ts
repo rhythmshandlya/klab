@@ -8,7 +8,9 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * The bug lives in `pod.yaml`: the readiness probe targets `/readyz`, which the
  * `klab/web-app` image answers with 404. The container is healthy (`/healthz` → 200) so
  * it keeps running, but the kubelet marks it NotReady, the EndpointSlice controller
- * drops it, and the Service ends up with zero endpoints → 503s.
+ * records its endpoint as not ready, and the Service has no eligible backend. Direct
+ * connections fail; a proxy or gateway in front of the Service commonly surfaces
+ * that as 503.
  *
  * The fix (never stated outright to the learner) is to point the readiness probe at
  * `/healthz`. Evidence exposes the signals; the learner connects them.
@@ -69,13 +71,13 @@ export const brokenReadinessProbe = {
   estimatedMinutes: 15,
   successRate: 76,
   concepts: ["readiness-probes", "pods", "services", "endpointslices", "debugging"],
-  blurb: "Pods run but never go Ready, and the Service serves 503s.",
+  blurb: "Pods run but never go Ready, leaving the Service with no usable backend.",
   story:
-    "On-call paged you: users are getting 503s from web-svc. The pod looks like it started fine, but traffic isn't flowing. Figure out why the Service isn't serving.",
+    "On-call paged you: users are getting 503s from the gateway in front of web-svc. The pod looks like it started fine, but traffic isn't flowing. Figure out why the Service has no usable backend.",
   objective: "Restore traffic through web-svc so it returns HTTP 200 again.",
   learningObjectives: [
     "Distinguish a Running container from a Ready Pod.",
-    "Connect readiness failures to EndpointSlice membership and Service availability.",
+    "Connect readiness failures to EndpointSlice readiness conditions and Service availability.",
   ],
   prerequisites: [],
   learningPaths: ["kubernetes-foundations", "reliability"],
@@ -96,9 +98,13 @@ export const brokenReadinessProbe = {
       resource: { kind: "Pod", name: "web-app" },
       exclusive: true,
       assertions: [
-        { path: "spec.containers.0.image", operator: "equals", value: "klab/web-app:1.0.0" },
-        { path: "spec.containers.0.readinessProbe", operator: "present" },
-        { path: "spec.containers.0.livenessProbe", operator: "present" },
+        {
+          path: "spec.containers[name=web-app].image",
+          operator: "equals",
+          value: "klab/web-app:1.0.0",
+        },
+        { path: "spec.containers[name=web-app].readinessProbe", operator: "present" },
+        { path: "spec.containers[name=web-app].livenessProbe", operator: "present" },
       ],
     },
   ],
@@ -130,7 +136,7 @@ export const brokenReadinessProbe = {
         prefer: "not-ready",
       },
     },
-    { id: "command-3", command: "kubectl get endpoints web-svc" },
+    { id: "command-3", command: "kubectl describe svc web-svc" },
     { id: "command-4", command: "kubectl get events" },
     {
       id: "command-5",
@@ -198,7 +204,7 @@ export const brokenReadinessProbe = {
     {
       id: "hint-3",
       title: "Compare what the app serves",
-      body: "The container answers /healthz with 200 but /readyz with 404. Probe both with curl. Then look closely at which path your readiness probe is checking.",
+      body: "The readiness event reports HTTP 404 for /readyz. Compare the Readiness and Liveness lines in `kubectl describe pod <name>`: the healthy liveness check already shows which path this app serves.",
       xpPenalty: 35,
       unlockAfter: ["r-readyz-404"],
     },
@@ -226,7 +232,11 @@ export const brokenReadinessProbe = {
       label: "Service has zero ready endpoints",
       hiddenLabel: "Service endpoints inspected",
       source: "terminal",
-      trigger: { type: "command", commandMatches: "get endpoints", outputMatches: "<none>" },
+      trigger: {
+        type: "command",
+        commandMatches: "get endpoints|describe (svc|service)",
+        outputMatches: "<none>",
+      },
     },
     {
       id: "r-probe-event",
@@ -239,26 +249,50 @@ export const brokenReadinessProbe = {
     {
       id: "r-readyz-404",
       evidenceId: "readyz-404",
-      label: "GET /readyz returns 404",
-      hiddenLabel: "Probe endpoint tested",
-      source: "network",
-      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/readyz", status: 404 },
+      label: "The readiness probe gets HTTP 404 from /readyz",
+      hiddenLabel: "Readiness failure inspected",
+      source: "events",
+      trigger: {
+        type: "event-reason",
+        reason: "Unhealthy",
+        messageMatches: "Readiness probe failed.*statuscode: 404",
+      },
     },
     {
-      id: "r-healthz-200",
-      evidenceId: "healthz-200",
-      label: "GET /healthz returns 200",
-      hiddenLabel: "Health endpoint tested",
+      id: "r-probe-paths",
+      evidenceId: "probe-paths",
+      label: "Readiness checks /readyz while liveness checks /healthz",
+      hiddenLabel: "Probe configuration compared",
+      source: "terminal",
+      trigger: {
+        type: "command",
+        commandMatches: "describe pod",
+        outputMatches: "Readiness:\\s+http-get /readyz[\\s\\S]*Liveness:\\s+http-get /healthz",
+      },
+    },
+    {
+      id: "r-service-unavailable",
+      evidenceId: "service-unavailable",
+      label: "web-svc has no route to a ready endpoint",
+      hiddenLabel: "Service response tested",
       source: "network",
-      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/healthz", status: 200 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "^/$", status: 503 },
+    },
+    {
+      id: "r-service-unavailable-no-response",
+      evidenceId: "service-unavailable",
+      label: "web-svc has no route to a ready endpoint",
+      hiddenLabel: "Service response tested",
+      source: "network",
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "^/$", status: 0 },
     },
   ],
   postSolveExplanation: {
     rootCause: "The readiness probe targeted /readyz, a path the app answers with 404.",
     whyItFailed:
-      "The container was healthy (/healthz → 200) so it kept running, but the kubelet's readiness probe hit /readyz and got 404. It marked the pod NotReady. The EndpointSlice controller only publishes Ready pods, so web-svc had zero endpoints and returned 503 to every request.",
+      "The container was healthy (/healthz → 200) so it kept running, but the kubelet's readiness probe hit /readyz and got 404. It marked the pod NotReady. With no ready address for web-svc, direct requests failed; the gateway surfaced those failures as 503.",
     whatFixedIt:
-      "Pointing the readiness probe at /healthz (which returns 200) let the pods report Ready. They were then added to the Service's EndpointSlice, and traffic flowed again.",
+      "Pointing the readiness probe at /healthz (which returns 200) let the pod report Ready. Its EndpointSlice condition became ready, making it eligible for Service traffic again.",
     prevention:
       "Contract-test probe paths against the built image and monitor Ready replicas and endpoints independently from container liveness.",
     relatedConcepts: ["readiness-probes", "endpointslices", "services"],

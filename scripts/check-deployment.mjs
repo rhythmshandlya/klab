@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import process from "node:process";
 
-for (const file of [".env.production.local", ".env.local"]) {
+// Vercel replaces sensitive production values with unreadable placeholders when
+// they are pulled locally. Load the developer's real ignored values first;
+// process.loadEnvFile intentionally preserves variables that are already set.
+for (const file of [".env.local", ".env.production.local"]) {
   if (existsSync(file) && typeof process.loadEnvFile === "function") process.loadEnvFile(file);
 }
 

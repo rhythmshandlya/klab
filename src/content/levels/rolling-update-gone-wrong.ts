@@ -112,17 +112,17 @@ export const rollingUpdateGoneWrong = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=web-app].image",
           operator: "equals",
           value: "klab/web-app:1.0.0",
         },
         {
-          path: "spec.template.spec.containers.0.readinessProbe.httpGet.path",
+          path: "spec.template.spec.containers[name=web-app].readinessProbe.httpGet.path",
           operator: "equals",
           value: "/healthz",
         },
         {
-          path: "spec.template.spec.containers.0.readinessProbe.httpGet.port",
+          path: "spec.template.spec.containers[name=web-app].readinessProbe.httpGet.port",
           operator: "equals",
           value: 8080,
         },
@@ -180,6 +180,7 @@ export const rollingUpdateGoneWrong = {
   quickCommands: [
     { id: "command-1", command: "kubectl get pods" },
     { id: "command-2", command: "kubectl get rs" },
+    { id: "command-rollout-history", command: "kubectl rollout history deployment/web-app" },
     {
       id: "command-3",
       command: "kubectl describe pod <pod>",
@@ -247,7 +248,7 @@ export const rollingUpdateGoneWrong = {
     {
       id: "hint-2",
       title: "Is the app itself healthy?",
-      body: "The readiness probe only reports what the app tells it. Read the app's own logs (`kubectl logs <pod>`) and probe /healthz yourself. Is the probe wrong, or is the app really failing?",
+      body: "The readiness probe only reports what the app tells it. Read the new Pod's logs (`kubectl logs <pod>`), then test web-svc. A no-ready-endpoints failure means readiness withheld every broken backend; the log explains why the app itself cannot serve.",
       xpPenalty: 40,
       unlockAfter: ["r-v2-image"],
     },
@@ -297,12 +298,20 @@ export const rollingUpdateGoneWrong = {
       trigger: { type: "event-reason", reason: "Unhealthy" },
     },
     {
-      id: "r-healthz-500",
-      evidenceId: "healthz-500",
-      label: "GET /healthz returns 500: the app really is sick",
-      hiddenLabel: "Health endpoint tested",
+      id: "r-service-unreachable",
+      evidenceId: "service-unavailable",
+      label: "web-svc cannot route the request because no v2 Pod passes readiness",
+      hiddenLabel: "Service reachability tested",
       source: "network",
-      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/healthz", status: 500 },
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/healthz", status: 0 },
+    },
+    {
+      id: "r-service-503",
+      evidenceId: "service-unavailable",
+      label: "web-svc cannot route the request because no v2 Pod passes readiness",
+      hiddenLabel: "Service reachability tested",
+      source: "network",
+      trigger: { type: "probe", hostMatches: "^web-svc$", pathMatches: "/healthz", status: 503 },
     },
   ],
   postSolveExplanation: {

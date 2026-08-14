@@ -99,20 +99,69 @@ export const slowStartWithoutStartupProbe = {
     },
     {
       id: "add-startup-protection",
-      label: "Keep both steady-state probes and add startup protection to the same image",
+      label:
+        "Keep the existing steady-state health policy and add a bounded gate for the five-second warm-up",
       kind: "manifest",
       file: "deployment.yaml",
       resource: { kind: "Deployment", name: "reports-api" },
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=api].image",
           operator: "equals",
           value: "klab/slow-api:1.0.0",
         },
-        { path: "spec.template.spec.containers.0.startupProbe", operator: "present" },
-        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
-        { path: "spec.template.spec.containers.0.livenessProbe", operator: "present" },
+        {
+          path: "spec.template.spec.containers[name=api].readinessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        {
+          path: "spec.template.spec.containers[name=api].readinessProbe.periodSeconds",
+          operator: "equals",
+          value: 1,
+        },
+        {
+          path: "spec.template.spec.containers[name=api].readinessProbe.failureThreshold",
+          operator: "equals",
+          value: 2,
+        },
+        {
+          path: "spec.template.spec.containers[name=api].livenessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        {
+          path: "spec.template.spec.containers[name=api].livenessProbe.periodSeconds",
+          operator: "equals",
+          value: 1,
+        },
+        {
+          path: "spec.template.spec.containers[name=api].livenessProbe.failureThreshold",
+          operator: "equals",
+          value: 2,
+        },
+      ],
+      goals: [
+        {
+          goal: "probe-targets-serving-port",
+          container: "api",
+          servingPort: 8080,
+          probe: "readinessProbe",
+        },
+        {
+          goal: "probe-targets-serving-port",
+          container: "api",
+          servingPort: 8080,
+          probe: "livenessProbe",
+        },
+        {
+          goal: "startup-probe-covers-warmup",
+          container: "api",
+          servingPort: 8080,
+          httpPath: "/healthz",
+          minBudgetSeconds: 6,
+        },
       ],
     },
   ],

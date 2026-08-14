@@ -13,7 +13,7 @@ import type {
 
 import { brokenReadinessProbe } from "./broken-readiness-probe";
 import { brokenServiceChain } from "./broken-service-chain";
-import { ARCHITECTURE_BUILD_LEVELS } from "./architecture-builds";
+import { ARCHITECTURE_BUILD_LEVELS } from "./architecture";
 import { commandOverrideCrash } from "./command-override-crash";
 import { configDrift } from "./config-drift";
 import { dnsResolutionFailure } from "./dns-resolution-failure";

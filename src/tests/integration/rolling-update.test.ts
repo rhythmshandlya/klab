@@ -59,6 +59,25 @@ describe("Rolling Update Gone Wrong staged incident", () => {
     });
     expect(command.isError).toBe(false);
     expect((command.output.match(/web-app-/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    const history = await runCommandLine("kubectl rollout history deployment/web-app", {
+      simulator,
+      namespace: "default",
+      files: {},
+    });
+    expect(history.isError).toBe(false);
+    expect(history.output).toContain("REVISION");
+    expect((history.output.match(/web-app-/g) ?? []).length).toBeGreaterThanOrEqual(2);
+
+    // NotReady v2 Pods are intentionally absent from the Service's EndpointSlice.
+    // A Service-level request therefore reports no ready backends (503); it cannot
+    // expose the Pod's internal 500 without bypassing readiness.
+    let brokenHealth = await simulator.probe("http://web-svc/healthz");
+    const serviceUnavailable = await waitFor(async () => {
+      brokenHealth = await simulator!.probe("http://web-svc/healthz");
+      return !brokenHealth.ok;
+    }, 10_000);
+    expect(serviceUnavailable, JSON.stringify(brokenHealth)).toBe(true);
+    expect([0, 503]).toContain(brokenHealth.status);
 
     const currentFiles = Object.fromEntries(
       level.files

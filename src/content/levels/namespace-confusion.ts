@@ -138,16 +138,21 @@ export const namespaceConfusion = {
     },
     {
       id: "keep-namespaces",
-      label: "Keep the storefront workload in default and checkout in shop",
+      label: "Keep storefront in default and route its upstream to checkout in shop",
       kind: "manifest",
       file: "storefront.yaml",
       resource: { kind: "Deployment", name: "storefront", namespace: "default" },
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=storefront].image",
           operator: "equals",
           value: "klab/api:1.0.0",
+        },
+        {
+          path: "spec.template.spec.containers[name=storefront].env[name=UPSTREAM_URL].value",
+          operator: "matches",
+          value: "^http://checkout-svc\\.shop(?:\\.svc(?:\\.cluster\\.local)?)?\\.?(?::80)?/?$",
         },
         { path: "spec.template.metadata.labels.app", operator: "equals", value: "storefront" },
         { path: "spec.replicas", operator: "gte", value: 1 },
@@ -186,8 +191,9 @@ export const namespaceConfusion = {
   ],
   quickCommands: [
     { id: "command-1", command: "kubectl get pods" },
+    { id: "command-2", command: "curl http://storefront-svc/" },
     {
-      id: "command-2",
+      id: "command-3",
       command: "kubectl logs <pod>",
       target: {
         kind: "pod",
@@ -196,9 +202,11 @@ export const namespaceConfusion = {
         prefer: "first",
       },
     },
-    { id: "command-3", command: "kubectl get namespaces" },
-    { id: "command-4", command: "kubectl get svc -n shop" },
-    { id: "command-5", command: "dig checkout-svc" },
+    { id: "command-4", command: "kubectl get namespaces" },
+    { id: "command-5", command: "kubectl get pods -n shop" },
+    { id: "command-6", command: "kubectl get svc -n shop" },
+    { id: "command-7", command: "dig checkout-svc" },
+    { id: "command-8", command: "dig checkout-svc.shop" },
   ],
   probeTargets: ["http://storefront-svc/", "http://checkout-svc.shop/"],
   validators: [
@@ -245,7 +253,7 @@ export const namespaceConfusion = {
     {
       id: "hint-2",
       title: "Where does checkout actually live?",
-      body: "`kubectl get namespaces`, then `kubectl get svc -n shop`. Is checkout-svc where the storefront thinks it is? `dig checkout-svc` shows the full DNS name it resolves to.",
+      body: "`kubectl get namespaces`, then inspect the pods and Services in `shop`. From `default`, `dig checkout-svc` returns NXDOMAIN while `dig checkout-svc.shop` resolves the cross-namespace name.",
       xpPenalty: 25,
       unlockAfter: ["r-upstream-fail"],
     },
@@ -275,6 +283,18 @@ export const namespaceConfusion = {
       trigger: { type: "log", podMatches: "^storefront-", messageMatches: "upstream call failed" },
     },
     {
+      id: "r-upstream-fail-terminal",
+      evidenceId: "upstream-fail",
+      label: "Storefront logs: the upstream call fails",
+      hiddenLabel: "Storefront logs read",
+      source: "terminal",
+      trigger: {
+        type: "command",
+        commandMatches: "logs",
+        outputMatches: "upstream call failed",
+      },
+    },
+    {
       id: "r-502",
       evidenceId: "storefront-502",
       label: "storefront-svc answers 502 Bad Gateway",
@@ -302,8 +322,32 @@ export const namespaceConfusion = {
       source: "terminal",
       trigger: {
         type: "command",
-        commandMatches: "(-n|--namespace[= ])\\s*shop|dig checkout-svc",
-        outputMatches: "checkout(-svc)?",
+        commandMatches: "get (svc|service|services).*(-n|--namespace[= ])\\s*shop",
+        outputMatches: "checkout-svc",
+      },
+    },
+    {
+      id: "r-short-name-nxdomain",
+      evidenceId: "short-name-nxdomain",
+      label: "checkout-svc does not resolve from the default namespace",
+      hiddenLabel: "Namespace-relative DNS tested",
+      source: "terminal",
+      trigger: {
+        type: "command",
+        commandMatches: "^dig checkout-svc$",
+        outputMatches: "NXDOMAIN",
+      },
+    },
+    {
+      id: "r-qualified-name-resolves",
+      evidenceId: "qualified-name-resolves",
+      label: "checkout-svc.shop resolves to the checkout Service",
+      hiddenLabel: "Qualified Service DNS tested",
+      source: "terminal",
+      trigger: {
+        type: "command",
+        commandMatches: "^dig checkout-svc\\.shop$",
+        outputMatches: "checkout-svc\\.shop\\.svc\\.cluster\\.local",
       },
     },
   ],

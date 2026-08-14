@@ -94,11 +94,11 @@ export const serviceHasNoEndpoints = {
       assertions: [
         { path: "spec.replicas", operator: "gte", value: 2 },
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=web-app].image",
           operator: "equals",
           value: "klab/web-app:1.0.0",
         },
-        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
+        { path: "spec.template.spec.containers[name=web-app].readinessProbe", operator: "present" },
       ],
     },
   ],

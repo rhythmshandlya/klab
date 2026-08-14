@@ -29,6 +29,19 @@ describe("parseCommand", () => {
     expect(parseCommand("k get deploy")).toMatchObject({ kind: "get", resource: "deployments" });
   });
 
+  it("keeps unstructured resource kinds for fixture-backed incidents", () => {
+    expect(parseCommand("kubectl get storageclass regional-ssd")).toMatchObject({
+      kind: "get",
+      resource: "storageclass",
+      name: "regional-ssd",
+    });
+    expect(parseCommand("kubectl describe validatingwebhookconfiguration policy")).toMatchObject({
+      kind: "describe",
+      resource: "validatingwebhookconfiguration",
+      name: "policy",
+    });
+  });
+
   it("parses -o yaml and a name", () => {
     expect(parseCommand("kubectl get pod web-app -o yaml")).toMatchObject({
       kind: "get",
@@ -376,6 +389,37 @@ describe("new executors against a fake runtime", () => {
     expect(result.output).toContain("v1.36.0");
   });
 
+  it("gets and describes unstructured fixture resources", async () => {
+    const runtime = makeRuntime({
+      resources: [
+        {
+          apiVersion: "storage.k8s.io/v1",
+          kind: "StorageClass",
+          metadata: { name: "regional-ssd", labels: { tier: "production" } },
+          provisioner: "pd.csi.storage.gke.io",
+          volumeBindingMode: "WaitForFirstConsumer",
+        },
+      ],
+    });
+
+    const listed = await runCommandLine("kubectl get storageclass regional-ssd -o yaml", {
+      simulator: runtime,
+      namespace: "default",
+      files: {},
+    });
+    expect(listed.isError).toBe(false);
+    expect(listed.output).toContain("kind: StorageClass");
+
+    const described = await runCommandLine("kubectl describe sc regional-ssd", {
+      simulator: runtime,
+      namespace: "default",
+      files: {},
+    });
+    expect(described.isError).toBe(false);
+    expect(described.output).toContain("Kind:               StorageClass");
+    expect(described.output).toContain("WaitForFirstConsumer");
+  });
+
   it("kubectl create namespace applies a namespace manifest", async () => {
     const runtime = makeRuntime({});
     const result = await runCommandLine("kubectl create namespace team-a", {
@@ -421,7 +465,9 @@ describe("Service DNS", () => {
 
   it("resolves an unqualified Service only in the caller's namespace", async () => {
     expect((await run("web-svc")).output).toContain("web-svc.default.svc.cluster.local");
-    expect((await run("checkout-svc")).output).toContain("NXDOMAIN");
+    const missing = await run("checkout-svc");
+    expect(missing.output).toContain("status: NXDOMAIN");
+    expect(missing.output).not.toContain("timed out");
     expect((await run("checkout-svc", "shop")).output).toContain(
       "checkout-svc.shop.svc.cluster.local",
     );

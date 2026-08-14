@@ -8,7 +8,7 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * The Service's targetPort is 3000 but the container listens on 8080. Selection works
  * (endpoints exist, pods Ready): the request dies on the last hop, connecting to a
  * port nothing listens on. Teaches the port chain: Service port → targetPort →
- * containerPort. Fix: targetPort 8080 in service.yaml.
+ * containerPort. Fix: targetPort `http` (preferred) or 8080 in service.yaml.
  */
 
 const SERVICE_YAML = `apiVersion: v1
@@ -93,8 +93,16 @@ export const portRoutingBug = {
       resource: { kind: "Service", name: "web-svc" },
       exclusive: true,
       assertions: [
-        { path: "spec.ports.0.port", operator: "equals", value: 80 },
+        { path: "spec.ports[name=http].port", operator: "equals", value: 80 },
         { path: "spec.selector.app", operator: "equals", value: "web-app" },
+      ],
+      goals: [
+        {
+          goal: "service-targets-serving-port",
+          servicePort: 80,
+          servingPort: 8080,
+          servingPortName: "http",
+        },
       ],
     },
   ],
@@ -116,7 +124,10 @@ export const portRoutingBug = {
   ],
   quickCommands: [
     { id: "command-1", command: "kubectl get pods" },
-    { id: "command-2", command: "kubectl get endpoints web-svc" },
+    {
+      id: "command-2",
+      command: "kubectl get endpointslices -l kubernetes.io/service-name=web-svc",
+    },
     { id: "command-3", command: "kubectl describe svc web-svc" },
     {
       id: "command-4",
@@ -176,7 +187,7 @@ export const portRoutingBug = {
     {
       id: "hint-3",
       title: "3000 goes nowhere",
-      body: "The Service forwards to port 3000, but the container listens on 8080. Fix targetPort in service.yaml and Apply.",
+      body: "The Service forwards to port 3000, but the container exposes 8080 as the named port `http`. Set targetPort to `http` (preferred, because it survives a future port-number change) or 8080, then Apply.",
       xpPenalty: 35,
       unlockAfter: ["r-listen-8080"],
     },
@@ -198,7 +209,7 @@ export const portRoutingBug = {
       source: "terminal",
       trigger: {
         type: "command",
-        commandMatches: "get endpoints",
+        commandMatches: "get endpoints|describe (svc|service)",
         outputMatches: "\\d+\\.\\d+\\.\\d+\\.\\d+",
       },
     },
@@ -223,6 +234,18 @@ export const portRoutingBug = {
       trigger: { type: "log", podMatches: "^web-app-", messageMatches: "listening on :8080" },
     },
     {
+      id: "r-listen-8080-terminal",
+      evidenceId: "listen-8080",
+      label: "The app logs say it listens on :8080",
+      hiddenLabel: "App logs read",
+      source: "terminal",
+      trigger: {
+        type: "command",
+        commandMatches: "logs",
+        outputMatches: "listening on :8080",
+      },
+    },
+    {
       id: "r-refused",
       evidenceId: "svc-refused",
       label: "Requests through web-svc are refused",
@@ -244,7 +267,7 @@ export const portRoutingBug = {
     whyItFailed:
       "Readiness and endpoint selection don't validate ports: the pods probed healthy on 8080 and were published as endpoints. But every request forwarded by the Service went to port 3000, where nothing was listening, so connections were refused.",
     whatFixedIt:
-      "Setting targetPort to 8080 pointed the Service at the port the container actually binds. The port chain (80 → 8080 → 8080) lined up and requests completed.",
+      "Setting targetPort to the container's named `http` port resolved it to 8080. The port chain (Service 80 → targetPort http → container 8080) lined up and requests completed.",
     prevention:
       "Prefer named container and Service ports sourced from one value, and include an end-to-end Service probe in deployment checks.",
     relatedConcepts: ["services", "networking", "endpoints"],

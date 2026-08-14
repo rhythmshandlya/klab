@@ -2,6 +2,7 @@ import type { ProblemCapability, ProblemLevel } from "@/lib/domain/types";
 import { err, ok, type Result } from "@/lib/utils/result";
 
 import type { LogLine } from "./images/log-sink";
+import { evaluateGoal } from "./goal-checks";
 import { evaluateLevelConstraints } from "./manifest-constraints";
 import { parseKubernetesManifests } from "./manifest-parser";
 import type { ParsedManifest } from "./manifest-parser";
@@ -10,6 +11,12 @@ import { evaluateWorkspaceSemantics } from "./workspace-semantics";
 
 export interface ScriptedScenarioRuntime {
   readonly capabilities: ReadonlySet<ProblemCapability>;
+  /**
+   * True when the scenario grades the workspace as a whole and cannot act on a
+   * single manifest. `kubectl apply -f <file>` then re-runs the full review instead
+   * of failing, so the terminal and the Apply button stay consistent.
+   */
+  readonly appliesWholeWorkspace?: boolean;
   boot(): Result<AppliedResourceRef[], string>;
   snapshot(): ClusterSnapshot;
   apply(manifests: readonly ParsedManifest[]): Result<AppliedResourceRef[], string>;
@@ -20,6 +27,12 @@ export interface ScriptedScenarioRuntime {
   probe(url: string): ProbeResult;
   logs(namespace: string, pod: string, container?: string): LogLine[];
 }
+
+/** Shown before the learner has submitted anything for review. */
+const UNREVIEWED_ISSUE = "the submitted manifests have not passed static review";
+
+/** The two-node analytics cluster cannot hold a surge replica; must match the level. */
+const SCHEDULABLE_ANALYTICS_REPLICAS = 2;
 
 const PRIVATE_REGISTRY_CAPABILITIES = new Set<ProblemCapability>([
   "pods",
@@ -144,12 +157,13 @@ export function emptyScriptedSnapshot(): ClusterSnapshot {
  */
 class ManifestAssessmentScenario implements ScriptedScenarioRuntime {
   readonly capabilities = MANIFEST_ASSESSMENT_CAPABILITIES;
+  readonly appliesWholeWorkspace = true;
   private fixed = false;
-  private issues: string[] = ["The submitted manifests have not passed static review"];
+  private issues: string[] = [UNREVIEWED_ISSUE];
 
   boot(): Result<AppliedResourceRef[], string> {
     this.fixed = false;
-    this.issues = ["The submitted manifests have not passed static review"];
+    this.issues = [UNREVIEWED_ISSUE];
     return ok([
       { kind: "Deployment", name: "manifest-assessment", namespace: "default" },
       { kind: "Service", name: "assessment-svc", namespace: "default" },
@@ -157,7 +171,7 @@ class ManifestAssessmentScenario implements ScriptedScenarioRuntime {
   }
 
   snapshot(): ClusterSnapshot {
-    return manifestAssessmentSnapshot(this.fixed, this.issues);
+    return manifestAssessmentSnapshot(this.fixed, this.rejectionMessage());
   }
 
   apply(_manifests: readonly ParsedManifest[]): Result<AppliedResourceRef[], string> {
@@ -193,6 +207,19 @@ class ManifestAssessmentScenario implements ScriptedScenarioRuntime {
     return ok(resources);
   }
 
+  /**
+   * The rejection event a learner reads on the Events tab. It always names the
+   * production-requirements boundary (the phrase the level's evidence rule matches)
+   * and then summarizes how much is unmet, without naming the fix.
+   */
+  private rejectionMessage(): string {
+    // The phrase "production requirements" is load-bearing: it is the boundary the
+    // level's evidence rule matches on, so it must survive every issue count.
+    return `production requirements not satisfied (${this.issues.length} unmet): ${
+      this.issues[0] ?? UNREVIEWED_ISSUE
+    }`;
+  }
+
   probe(url: string): ProbeResult {
     const host = safeHostname(url);
     if (host !== "assessment-svc" && host !== "assessment-svc.default.svc.cluster.local") {
@@ -216,7 +243,7 @@ class ManifestAssessmentScenario implements ScriptedScenarioRuntime {
         "policy-engine",
         this.fixed
           ? "all production requirements satisfied"
-          : `configuration rejected: ${this.issues[0] ?? "inspect the scenario requirements"}`,
+          : `configuration rejected: ${this.rejectionMessage()}`,
       ),
     ];
   }
@@ -224,6 +251,7 @@ class ManifestAssessmentScenario implements ScriptedScenarioRuntime {
 
 class PrivateRegistryScenario implements ScriptedScenarioRuntime {
   readonly capabilities = PRIVATE_REGISTRY_CAPABILITIES;
+  readonly appliesWholeWorkspace = true;
   private fixed = false;
 
   boot(): Result<AppliedResourceRef[], string> {
@@ -243,9 +271,37 @@ class PrivateRegistryScenario implements ScriptedScenarioRuntime {
       (manifest) => manifest.kind === "Deployment" && manifest.name === "private-api",
     );
     if (!deployment) return err("The private-api Deployment is missing.");
-    const template = objectAt(deployment.raw, "spec.template.spec");
-    const pullSecrets = Array.isArray(template?.imagePullSecrets) ? template.imagePullSecrets : [];
-    this.fixed = pullSecrets.some((entry) => objectAt(entry, "")?.name === "registry-credentials");
+    // One source of truth with the level's acceptance goal, so the simulated cluster
+    // and the validator can never disagree about whether the incident is fixed.
+    this.fixed = evaluateGoal(
+      { goal: "pulls-with-credentials", secret: "registry-credentials" },
+      deployment.raw,
+    ).passed;
+    return ok([{ kind: "Deployment", name: "private-api", namespace: "default" }]);
+  }
+
+  applyFiles(
+    level: ProblemLevel,
+    files: Readonly<Record<string, string>>,
+  ): Result<AppliedResourceRef[], string> {
+    const mergedFiles = Object.fromEntries(
+      level.files.map((file) => [file.path, files[file.path] ?? file.initialValue]),
+    );
+    const source = mergedFiles["deployment.yaml"];
+    if (!source) return err("The private-api Deployment is missing.");
+    const parsed = parseKubernetesManifests(source);
+    if (!parsed.ok) return err(`deployment.yaml: ${parsed.error.message}`);
+    const deployment = parsed.value.find(
+      (manifest) => manifest.kind === "Deployment" && manifest.name === "private-api",
+    );
+    if (!deployment) return err("The private-api Deployment is missing.");
+
+    // The cluster state must agree with the complete acceptance rubric. Checking
+    // only imagePullSecrets made a scaled-to-zero or disconnected workload appear
+    // healthy even though validation correctly rejected it.
+    this.fixed =
+      evaluateLevelConstraints(level, mergedFiles).every((result) => result.passed) &&
+      evaluateWorkspaceSemantics(level, mergedFiles).length === 0;
     return ok([{ kind: "Deployment", name: "private-api", namespace: "default" }]);
   }
 
@@ -289,14 +345,10 @@ class GracefulShutdownScenario implements ScriptedScenarioRuntime {
     );
     if (!deployment) return err("The edge-api Deployment is missing.");
 
-    const podSpec = objectAt(deployment.raw, "spec.template.spec");
-    const grace = Number(podSpec?.terminationGracePeriodSeconds ?? 0);
-    const containers = Array.isArray(podSpec?.containers) ? podSpec.containers : [];
-    const container = objectAt(containers[0], "");
-    const command = valueAt(container, "lifecycle.preStop.exec.command");
-    const hasDrainDelay =
-      Array.isArray(command) && command.some((part) => String(part).match(/^sleep\s+10$/));
-    this.fixed = grace >= 15 && hasDrainDelay;
+    this.fixed = evaluateGoal(
+      { goal: "graceful-drain", container: "api", minGraceSeconds: 15 },
+      deployment.raw,
+    ).passed;
     this.probeIndex = 0;
     return ok([{ kind: "Deployment", name: "edge-api", namespace: "default" }]);
   }
@@ -364,10 +416,12 @@ class RecreateStrategyScenario implements ScriptedScenarioRuntime {
       (manifest) => manifest.kind === "Deployment" && manifest.name === "checkout",
     );
     if (!deployment) return err("The checkout Deployment is missing.");
-    const strategy = valueAt(deployment.raw, "spec.strategy.type");
-    const rollingUpdate = objectAt(deployment.raw, "spec.strategy.rollingUpdate");
-    const maxUnavailable = rollingUpdate ? valueAt(rollingUpdate, "maxUnavailable") : undefined;
-    this.fixed = strategy === "RollingUpdate" && (maxUnavailable === 0 || maxUnavailable === "0");
+    if (!hasOriginalAppSelector(deployment.raw, "checkout")) {
+      return err(
+        'The Deployment "checkout" is invalid: spec.selector: Invalid value: field is immutable',
+      );
+    }
+    this.fixed = evaluateGoal({ goal: "zero-downtime-rollout" }, deployment.raw).passed;
     return ok([{ kind: "Deployment", name: "checkout", namespace: "default" }]);
   }
 
@@ -429,16 +483,10 @@ class RolloutMaxSurgeScenario implements ScriptedScenarioRuntime {
       (manifest) => manifest.kind === "Deployment" && manifest.name === "analytics",
     );
     if (!deployment) return err("The analytics Deployment is missing.");
-    const strategy = valueAt(deployment.raw, "spec.strategy.type");
-    const rollingUpdate = objectAt(deployment.raw, "spec.strategy.rollingUpdate");
-    const maxSurge = rollingUpdate ? valueAt(rollingUpdate, "maxSurge") : undefined;
-    const maxUnavailable = rollingUpdate ? valueAt(rollingUpdate, "maxUnavailable") : undefined;
-    const surgeFits = maxSurge === 0 || maxSurge === "0";
-    const maxUnavailableNum =
-      typeof maxUnavailable === "number" ? maxUnavailable : Number(maxUnavailable);
-    const allowsRoom = !Number.isNaN(maxUnavailableNum) && maxUnavailableNum >= 1;
-    this.fixed =
-      (strategy === undefined || strategy === "RollingUpdate") && surgeFits && allowsRoom;
+    this.fixed = evaluateGoal(
+      { goal: "rollout-fits-capacity", schedulableReplicas: SCHEDULABLE_ANALYTICS_REPLICAS },
+      deployment.raw,
+    ).passed;
     return ok([{ kind: "Deployment", name: "analytics", namespace: "default" }]);
   }
 
@@ -480,6 +528,7 @@ class ImmutableSelectorScenario implements ScriptedScenarioRuntime {
   private fixed = false;
 
   boot(): Result<AppliedResourceRef[], string> {
+    this.fixed = false;
     return ok([
       { kind: "Deployment", name: "search", namespace: "default" },
       { kind: "Service", name: "search-svc", namespace: "default" },
@@ -495,11 +544,7 @@ class ImmutableSelectorScenario implements ScriptedScenarioRuntime {
       (manifest) => manifest.kind === "Deployment" && manifest.name === "search",
     );
     if (!deployment) return err("The search Deployment is missing.");
-    const selector = objectAt(deployment.raw, "spec.selector.matchLabels");
-    const selectorKeys = selector ? Object.keys(selector) : [];
-    const selectorChanged =
-      selectorKeys.length !== 1 || (selector as Record<string, unknown>)?.app !== "search";
-    if (selectorChanged) {
+    if (!hasOriginalAppSelector(deployment.raw, "search")) {
       return err(
         'The Deployment "search" is invalid: spec.selector: Invalid value: field is immutable',
       );
@@ -531,7 +576,18 @@ class ImmutableSelectorScenario implements ScriptedScenarioRuntime {
   }
 }
 
-function manifestAssessmentSnapshot(fixed: boolean, issues: readonly string[]): ClusterSnapshot {
+function hasOriginalAppSelector(resource: Record<string, unknown>, app: string): boolean {
+  const selector = objectAt(resource, "spec.selector");
+  const matchLabels = objectAt(resource, "spec.selector.matchLabels");
+  return (
+    selector !== undefined &&
+    Object.keys(selector).length === 1 &&
+    Object.keys(matchLabels ?? {}).length === 1 &&
+    matchLabels?.app === app
+  );
+}
+
+function manifestAssessmentSnapshot(fixed: boolean, rejectionMessage: string): ClusterSnapshot {
   const podName = "manifest-assessment";
   const pod = {
     metadata: {
@@ -617,7 +673,7 @@ function manifestAssessmentSnapshot(fixed: boolean, issues: readonly string[]): 
             },
             type: "Warning",
             reason: "ConfigRejected",
-            message: issues[0] ?? "One or more production requirements are not satisfied",
+            message: rejectionMessage,
           },
         ],
   } as unknown as ClusterSnapshot;
@@ -625,11 +681,24 @@ function manifestAssessmentSnapshot(fixed: boolean, issues: readonly string[]): 
 
 function privateRegistrySnapshot(fixed: boolean): ClusterSnapshot {
   const podName = "private-api-6f4d9";
+  const podTemplate = {
+    metadata: { labels: { app: "private-api" } },
+    spec: {
+      ...(fixed ? { imagePullSecrets: [{ name: "registry-credentials" }] } : {}),
+      containers: [
+        {
+          name: "api",
+          image: "registry.example/private/api:1.0.0",
+          ports: [{ name: "http", containerPort: 8080 }],
+        },
+      ],
+    },
+  };
   const pod = {
     metadata: { name: podName, namespace: "default", labels: { app: "private-api" } },
     spec: {
+      ...podTemplate.spec,
       nodeName: "node-1",
-      containers: [{ name: "api", image: "registry.example/private/api:1.0.0" }],
     },
     status: {
       phase: fixed ? "Running" : "Pending",
@@ -666,9 +735,15 @@ function privateRegistrySnapshot(fixed: boolean): ClusterSnapshot {
         spec: {
           replicas: 1,
           selector: { matchLabels: { app: "private-api" } },
-          template: pod,
+          template: podTemplate,
         },
-        status: { replicas: 1, readyReplicas: fixed ? 1 : 0, unavailableReplicas: fixed ? 0 : 1 },
+        status: {
+          replicas: 1,
+          updatedReplicas: 1,
+          availableReplicas: fixed ? 1 : 0,
+          readyReplicas: fixed ? 1 : 0,
+          unavailableReplicas: fixed ? 0 : 1,
+        },
       },
     ],
     replicaSets: [],
@@ -694,32 +769,53 @@ function privateRegistrySnapshot(fixed: boolean): ClusterSnapshot {
     ],
     namespaces: [{ metadata: { name: "default" } }],
     nodes: [{ metadata: { name: "node-1" } }],
+    resources: [
+      {
+        apiVersion: "v1",
+        kind: "Secret",
+        metadata: { name: "registry-credentials", namespace: "default" },
+        type: "kubernetes.io/dockerconfigjson",
+        data: {
+          ".dockerconfigjson":
+            "eyJhdXRocyI6eyJyZWdpc3RyeS5leGFtcGxlIjp7ImF1dGgiOiJSRURBQ1RFRCJ9fX0=",
+        },
+      },
+    ],
     events: fixed
       ? []
       : [
           {
             metadata: { name: "private-api-pull", namespace: "default" },
+            involvedObject: { kind: "Pod", name: podName, namespace: "default" },
             type: "Warning",
             reason: "Failed",
             message:
-              "Failed to pull image registry.example/private/api:1.0.0: secret registry-credentials not found",
+              "Failed to pull image registry.example/private/api:1.0.0: pull access denied; registry authorization failed",
           },
         ],
   } as unknown as ClusterSnapshot;
 }
 
 function gracefulShutdownSnapshot(fixed: boolean): ClusterSnapshot {
+  // Matches the accepted repair: a drain window long enough to contain the preStop hook.
+  const grace = fixed ? 15 : 5;
   const newPods = [
-    scriptedRunningPod("edge-api-new-a", "10.0.0.31", "new"),
-    scriptedRunningPod("edge-api-new-b", "10.0.0.32", "new"),
+    scriptedRunningPod("edge-api-new-a", "10.0.0.31", "new", false, grace),
+    scriptedRunningPod("edge-api-new-b", "10.0.0.32", "new", false, grace),
   ];
-  const oldPod = scriptedRunningPod("edge-api-old", "10.0.0.30", "old", true);
+  const oldPod = scriptedRunningPod("edge-api-old", "10.0.0.30", "old", true, 5);
   const pods = fixed ? newPods : [oldPod, ...newPods];
-  const endpoints = pods.map((pod) => ({
-    addresses: [pod.status.podIP],
-    conditions: { ready: true, terminating: pod.metadata.deletionTimestamp !== undefined },
-    targetRef: { name: pod.metadata.name },
-  }));
+  const endpoints = pods.map((pod) => {
+    const terminating = pod.metadata.deletionTimestamp !== undefined;
+    return {
+      addresses: [pod.status.podIP],
+      // EndpointSlice keeps a terminating endpoint visible for drain-aware consumers,
+      // but marks `ready` false for backward compatibility. `serving` communicates
+      // whether it can still drain traffic while external routes converge.
+      conditions: { ready: !terminating, serving: true, terminating },
+      targetRef: { name: pod.metadata.name },
+    };
+  });
   const service = {
     metadata: { name: "edge-api-svc", namespace: "default" },
     spec: {
@@ -779,7 +875,11 @@ function gracefulShutdownSnapshot(fixed: boolean): ClusterSnapshot {
 function recreateOutageSnapshot(fixed: boolean): ClusterSnapshot {
   const image = "klab/checkout:2.1.0";
   const podSpec = (name: string, ready: boolean, podIP: string | undefined) => ({
-    metadata: { name, namespace: "default", labels: { app: "checkout" } },
+    metadata: {
+      name,
+      namespace: "default",
+      labels: { app: "checkout", "pod-template-hash": "7d9c1" },
+    },
     spec: {
       nodeName: "node-1",
       containers: [{ name: "api", image, ports: [{ name: "http", containerPort: 8080 }] }],
@@ -805,7 +905,10 @@ function recreateOutageSnapshot(fixed: boolean): ClusterSnapshot {
   });
   const pods = fixed
     ? [podSpec("checkout-a", true, "10.0.0.41"), podSpec("checkout-b", true, "10.0.0.42")]
-    : [podSpec("checkout-new-a", false, undefined), podSpec("checkout-new-b", false, undefined)];
+    : [
+        podSpec("checkout-new-a", false, "10.0.0.41"),
+        podSpec("checkout-new-b", false, "10.0.0.42"),
+      ];
   const readyPods = pods.filter((pod) => pod.status.conditions[0]?.status === "True");
   const endpoints = readyPods.map((pod) => ({
     addresses: [pod.status.podIP],
@@ -832,7 +935,22 @@ function recreateOutageSnapshot(fixed: boolean): ClusterSnapshot {
             ? { type: "RollingUpdate", rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } }
             : { type: "Recreate" },
           selector: { matchLabels: { app: "checkout" } },
-          template: { metadata: { labels: { app: "checkout" } } },
+          template: {
+            metadata: { labels: { app: "checkout" } },
+            spec: {
+              containers: [
+                {
+                  name: "api",
+                  image,
+                  ports: [{ name: "http", containerPort: 8080 }],
+                  readinessProbe: {
+                    httpGet: { path: "/healthz", port: 8080 },
+                    periodSeconds: 2,
+                  },
+                },
+              ],
+            },
+          },
         },
         status: {
           replicas: 2,
@@ -843,16 +961,37 @@ function recreateOutageSnapshot(fixed: boolean): ClusterSnapshot {
       },
     ],
     replicaSets: [
+      ...(!fixed
+        ? [
+            {
+              metadata: {
+                name: "checkout-5f2a1-oldrs",
+                namespace: "default",
+                labels: { app: "checkout", "pod-template-hash": "5f2a1" },
+              },
+              spec: {
+                replicas: 0,
+                selector: { matchLabels: { app: "checkout", "pod-template-hash": "5f2a1" } },
+                template: {
+                  metadata: { labels: { app: "checkout", "pod-template-hash": "5f2a1" } },
+                },
+              },
+              status: { replicas: 0, readyReplicas: 0, availableReplicas: 0 },
+            },
+          ]
+        : []),
       {
         metadata: {
           name: fixed ? "checkout-7d9c1-rs" : "checkout-7d9c1-newrs",
           namespace: "default",
-          labels: { app: "checkout" },
+          labels: { app: "checkout", "pod-template-hash": "7d9c1" },
         },
         spec: {
           replicas: 2,
-          selector: { matchLabels: { app: "checkout" } },
-          template: { metadata: { labels: { app: "checkout" } } },
+          selector: { matchLabels: { app: "checkout", "pod-template-hash": "7d9c1" } },
+          template: {
+            metadata: { labels: { app: "checkout", "pod-template-hash": "7d9c1" } },
+          },
         },
         status: { replicas: 2, readyReplicas: fixed ? 2 : 0, availableReplicas: fixed ? 2 : 0 },
       },
@@ -876,6 +1015,11 @@ function recreateOutageSnapshot(fixed: boolean): ClusterSnapshot {
       : [
           {
             metadata: { name: "checkout-scaling", namespace: "default" },
+            involvedObject: {
+              kind: "ReplicaSet",
+              name: "checkout-5f2a1-oldrs",
+              namespace: "default",
+            },
             type: "Normal",
             reason: "ScalingReplicaSet",
             message: "Scaled down replica set checkout-5f2a1-oldrs to 0 (Recreate strategy)",
@@ -1121,7 +1265,22 @@ function immutableSelectorSnapshot(fixed: boolean): ClusterSnapshot {
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: "search" } },
-          template: { metadata: { labels } },
+          template: {
+            metadata: { labels },
+            spec: {
+              containers: [
+                {
+                  name: "api",
+                  image,
+                  ports: [{ name: "http", containerPort: 8080 }],
+                  readinessProbe: {
+                    httpGet: { path: "/healthz", port: 8080 },
+                    periodSeconds: 2,
+                  },
+                },
+              ],
+            },
+          },
         },
         status: { replicas: 2, readyReplicas: 2, updatedReplicas: 2 },
       },
@@ -1151,22 +1310,24 @@ function immutableSelectorSnapshot(fixed: boolean): ClusterSnapshot {
     ],
     namespaces: [{ metadata: { name: "default" } }],
     nodes: [{ metadata: { name: "node-1" } }],
-    events: fixed
-      ? []
-      : [
-          {
-            metadata: { name: "search-endpoints-empty", namespace: "default" },
-            involvedObject: { kind: "Service", name: "search-svc", namespace: "default" },
-            type: "Warning",
-            reason: "FailedToUpdateEndpoint",
-            message:
-              "Service search-svc selector app=search,tier=api matches no pods; current pods only carry app=search",
-          },
-        ],
+    // A Service with no matching Pods does not emit a warning Event; the empty
+    // EndpointSlice is the real diagnostic surface.
+    events: [],
   } as unknown as ClusterSnapshot;
 }
 
-function scriptedRunningPod(name: string, podIP: string, release: string, terminating = false) {
+function scriptedRunningPod(
+  name: string,
+  podIP: string,
+  release: string,
+  terminating = false,
+  /**
+   * The whole incident is "the drain window is too short", so the running Pod has to
+   * report the window the manifest actually asks for. Defaulting it silently to 30s
+   * made `kubectl describe pod` contradict the manifest on screen.
+   */
+  gracePeriodSeconds = 5,
+) {
   return {
     metadata: {
       name,
@@ -1176,6 +1337,7 @@ function scriptedRunningPod(name: string, podIP: string, release: string, termin
     },
     spec: {
       nodeName: release === "old" ? "node-1" : "node-2",
+      terminationGracePeriodSeconds: gracePeriodSeconds,
       containers: [
         {
           name: "api",

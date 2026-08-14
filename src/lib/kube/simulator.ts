@@ -18,6 +18,7 @@ import type {
 } from "@ngrok/webernetes";
 
 import { err, ok, type Result } from "@/lib/utils/result";
+import type { FixtureResource } from "@/lib/domain/types";
 
 import { logSink, type LogLine } from "./images/log-sink";
 import { parseManifests, type ParsedManifest } from "./manifest-parser";
@@ -46,6 +47,8 @@ export interface ClusterSnapshot {
   namespaces: V1Namespace[];
   nodes: V1Node[];
   events: CoreV1Event[];
+  /** Unstructured APIs exposed by fixture-backed incidents. */
+  resources?: FixtureResource[];
 }
 
 export interface ProbeResult {

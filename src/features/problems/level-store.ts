@@ -2,6 +2,11 @@ import { create } from "zustand";
 
 import type { ProblemLevel } from "@/lib/domain/types";
 import type { ValidationReport } from "@/lib/kube/validators";
+import {
+  clearLevelWorkspace,
+  readLevelWorkspace,
+  saveLevelWorkspace,
+} from "@/lib/storage/level-workspace";
 
 /** Tabs in the center workspace's upper pane. */
 export type CenterTab = "terminal" | "logs" | "events" | "network" | "diff";
@@ -32,8 +37,11 @@ interface LevelState {
   selected: SelectedObject | null;
   /** Hints are collapsed by default so investigation surfaces come first. */
   hintsOpen: boolean;
+  /** True when this session's workspace was rehydrated from a previous visit. */
+  restoredFromStorage: boolean;
 
   initLevel: (level: ProblemLevel) => void;
+  /** Discard saved work and return every editable file to its authored state. */
   resetFiles: () => void;
   setFile: (path: string, content: string) => void;
   setActiveFile: (path: string) => void;
@@ -57,6 +65,45 @@ function filesFromLevel(level: ProblemLevel): Record<string, string> {
   );
 }
 
+/**
+ * Rehydrate saved work, but only where it still lines up with the authored level.
+ * Content ships with the app, so a level can gain, lose, or lock a file between
+ * visits; stale paths and edits to now-readonly files are dropped rather than
+ * resurrected into a workspace that can no longer accept them.
+ */
+function restoreFiles(
+  level: ProblemLevel,
+  saved: Readonly<Record<string, string>>,
+): { files: Record<string, string>; changed: boolean } {
+  const files = filesFromLevel(level);
+  let changed = false;
+  for (const file of level.files) {
+    if (file.access !== "editable") continue;
+    const content = saved[file.path];
+    if (typeof content !== "string" || content === file.initialValue) continue;
+    files[file.path] = content;
+    changed = true;
+  }
+  return { files, changed };
+}
+
+function persist(
+  state: Pick<
+    LevelState,
+    "level" | "files" | "activeFilePath" | "revealedHintIds" | "collectedEvidence"
+  >,
+): void {
+  if (!state.level) return;
+  saveLevelWorkspace({
+    slug: state.level.slug,
+    contentVersion: state.level.contentVersion,
+    files: state.files,
+    activeFilePath: state.activeFilePath,
+    revealedHintIds: state.revealedHintIds,
+    collectedEvidence: state.collectedEvidence,
+  });
+}
+
 export const useLevelStore = create<LevelState>((set, get) => ({
   level: null,
   files: {},
@@ -70,17 +117,28 @@ export const useLevelStore = create<LevelState>((set, get) => ({
   centerTab: "terminal",
   selected: null,
   hintsOpen: false,
+  restoredFromStorage: false,
 
-  initLevel: (level) =>
+  initLevel: (level) => {
+    const saved = readLevelWorkspace(level.slug, level.contentVersion);
+    const { files, changed } = restoreFiles(level, saved?.files ?? {});
+    const visiblePaths = new Set(
+      level.files.filter((file) => file.access !== "hidden").map((file) => file.path),
+    );
+    const fallbackPath =
+      level.files.find((file) => file.access === "editable")?.path ??
+      level.files.find((file) => file.access !== "hidden")?.path ??
+      "";
+    const ruleIds = new Set(level.evidenceRules.map((rule) => rule.evidenceId));
+    const hintIds = new Set(level.hints.map((hint) => hint.id));
+
     set({
       level,
-      files: filesFromLevel(level),
+      files,
       activeFilePath:
-        level.files.find((file) => file.access === "editable")?.path ??
-        level.files.find((file) => file.access !== "hidden")?.path ??
-        "",
-      collectedEvidence: [],
-      revealedHintIds: [],
+        saved && visiblePaths.has(saved.activeFilePath) ? saved.activeFilePath : fallbackPath,
+      collectedEvidence: (saved?.collectedEvidence ?? []).filter((id) => ruleIds.has(id)),
+      revealedHintIds: (saved?.revealedHintIds ?? []).filter((id) => hintIds.has(id)),
       validation: null,
       checks: null,
       validating: false,
@@ -88,35 +146,58 @@ export const useLevelStore = create<LevelState>((set, get) => ({
       centerTab: "terminal",
       selected: null,
       hintsOpen: false,
-    }),
+      restoredFromStorage: changed,
+    });
+  },
 
   resetFiles: () => {
     const level = get().level;
-    if (level) set({ files: filesFromLevel(level), validation: null, solved: false });
+    if (!level) return;
+    clearLevelWorkspace(level.slug);
+    set({
+      files: filesFromLevel(level),
+      activeFilePath:
+        level.files.find((file) => file.access === "editable")?.path ??
+        level.files.find((file) => file.access !== "hidden")?.path ??
+        "",
+      validation: null,
+      solved: false,
+      restoredFromStorage: false,
+    });
   },
 
   setFile: (path, content) =>
     set((state) => {
       const file = state.level?.files.find((candidate) => candidate.path === path);
       if (!file || file.access !== "editable") return state;
-      return { files: { ...state.files, [path]: content } };
+      const next = { ...state, files: { ...state.files, [path]: content } };
+      persist(next);
+      return { files: next.files };
     }),
 
-  setActiveFile: (path) => set({ activeFilePath: path }),
+  setActiveFile: (path) =>
+    set((state) => {
+      persist({ ...state, activeFilePath: path });
+      return { activeFilePath: path };
+    }),
 
   addEvidence: (ids) => {
-    const current = get().collectedEvidence;
-    const fresh = ids.filter((id) => !current.includes(id));
-    if (fresh.length > 0) set({ collectedEvidence: [...current, ...fresh] });
+    const state = get();
+    const fresh = ids.filter((id) => !state.collectedEvidence.includes(id));
+    if (fresh.length === 0) return fresh;
+    const collectedEvidence = [...state.collectedEvidence, ...fresh];
+    persist({ ...state, collectedEvidence });
+    set({ collectedEvidence });
     return fresh;
   },
 
   revealHint: (id) =>
-    set((state) =>
-      state.revealedHintIds.includes(id)
-        ? state
-        : { revealedHintIds: [...state.revealedHintIds, id] },
-    ),
+    set((state) => {
+      if (state.revealedHintIds.includes(id)) return state;
+      const revealedHintIds = [...state.revealedHintIds, id];
+      persist({ ...state, revealedHintIds });
+      return { revealedHintIds };
+    }),
 
   setValidation: (report) => set({ validation: report }),
   setChecks: (report) => set({ checks: report }),

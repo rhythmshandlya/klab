@@ -34,7 +34,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const authCapabilities = getAuthCapabilities();
-  const isVercelDeployment = process.env.VERCEL === "1";
+  // `vercel env pull` also writes VERCEL=1 into local production env files. A real
+  // deployment always has a deployment URL, while a local `next build && next start`
+  // does not. Requiring both avoids injecting analytics endpoints that cannot exist
+  // on the local Next server (and keeps local browser consoles clean).
+  const isVercelDeployment = process.env.VERCEL === "1" && Boolean(process.env.VERCEL_URL);
 
   return (
     <html

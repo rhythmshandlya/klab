@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+
+import { handleTabKeyDown } from "@/components/ui/tabs";
 
 import {
   isPodReady,
@@ -14,26 +16,37 @@ import { cn } from "@/lib/utils/cn";
 
 import type { SelectedObject } from "@/features/problems/level-store";
 
-type KubeObject = { metadata?: { name?: string; namespace?: string } };
+type KubeObject = {
+  apiVersion?: string;
+  kind?: string;
+  metadata?: { name?: string; namespace?: string; labels?: Record<string, string> };
+  status?: unknown;
+};
 
 function findObject(snapshot: ClusterSnapshot, selected: SelectedObject): KubeObject | undefined {
   const match = (o: KubeObject) =>
     o.metadata?.name === selected.name &&
     (o.metadata?.namespace ?? "default") === selected.namespace;
-  switch (selected.kind) {
-    case "Pod":
-      return snapshot.pods.find(match);
-    case "Service":
-      return snapshot.services.find(match);
-    case "Deployment":
-      return snapshot.deployments.find(match);
-    case "ReplicaSet":
-      return snapshot.replicaSets.find(match);
-    case "EndpointSlice":
-      return snapshot.endpointSlices.find(match);
-    default:
-      return undefined;
-  }
+  const core = (() => {
+    switch (selected.kind) {
+      case "Pod":
+        return snapshot.pods.find(match);
+      case "Service":
+        return snapshot.services.find(match);
+      case "Deployment":
+        return snapshot.deployments.find(match);
+      case "ReplicaSet":
+        return snapshot.replicaSets.find(match);
+      case "EndpointSlice":
+        return snapshot.endpointSlices.find(match);
+      default:
+        return undefined;
+    }
+  })();
+  return (
+    core ??
+    snapshot.resources?.find((resource) => resource.kind === selected.kind && match(resource))
+  );
 }
 
 export function ObjectDetails({
@@ -44,6 +57,7 @@ export function ObjectDetails({
   selected: SelectedObject | null;
 }) {
   const [tab, setTab] = useState<"details" | "yaml">("details");
+  const tabsId = useId();
 
   if (!selected) {
     return (
@@ -54,16 +68,31 @@ export function ObjectDetails({
   }
   const object = findObject(snapshot, selected);
   if (!object) {
-    return <p className="text-subtle p-3 text-sm">{selected.name} is no longer present.</p>;
+    return (
+      <p className="text-subtle p-3 text-sm" role="status" aria-live="polite">
+        {selected.name} is no longer present.
+      </p>
+    );
   }
+  const activeTabId = `${tabsId}-${tab}-tab`;
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="border-border flex items-center gap-1 border-b px-2">
+      <div
+        className="border-border flex items-center gap-1 border-b px-2"
+        role="tablist"
+        aria-label={`${selected.kind} ${selected.name} views`}
+      >
         {(["details", "yaml"] as const).map((t) => (
           <button
             key={t}
+            id={`${tabsId}-${t}-tab`}
             type="button"
+            role="tab"
+            aria-selected={tab === t}
+            aria-controls={`${tabsId}-panel`}
+            tabIndex={tab === t ? 0 : -1}
+            onKeyDown={handleTabKeyDown}
             onClick={() => setTab(t)}
             className={cn(
               "h-8 rounded-md px-2.5 text-xs font-medium capitalize transition-colors",
@@ -74,7 +103,12 @@ export function ObjectDetails({
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div
+        id={`${tabsId}-panel`}
+        role="tabpanel"
+        aria-labelledby={activeTabId}
+        className="min-h-0 flex-1 overflow-auto p-3"
+      >
         {tab === "details" ? (
           <Details snapshot={snapshot} selected={selected} object={object} />
         ) : (
@@ -112,6 +146,26 @@ function Details({
   selected: SelectedObject;
   object: KubeObject;
 }) {
+  const generic = snapshot.resources?.some((candidate) => candidate === object) ?? false;
+  if (generic) {
+    return (
+      <div>
+        <Row label="Kind" value={selected.kind} />
+        <Row label="API version" value={object.apiVersion ?? "<unknown>"} />
+        <Row label="Name" value={selected.name} />
+        <Row label="Namespace" value={selected.namespace} />
+        <LabelList labels={object.metadata?.labels} />
+        {object.status !== undefined ? (
+          <div className="mt-3">
+            <p className="text-subtle mb-1 text-[11px] tracking-wide uppercase">Status</p>
+            <pre className="border-border bg-panel-elevated text-muted overflow-x-auto rounded border p-2 font-mono text-[11px] leading-relaxed">
+              {stringifyManifest({ status: object.status })}
+            </pre>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
   const inNs = <T extends KubeObject>(o: T) =>
     o.metadata?.name === selected.name &&
     (o.metadata?.namespace ?? "default") === selected.namespace;

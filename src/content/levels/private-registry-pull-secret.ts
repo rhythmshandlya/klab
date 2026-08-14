@@ -32,7 +32,7 @@ metadata:
   namespace: default
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: <redacted>
+  .dockerconfigjson: eyJhdXRocyI6eyJyZWdpc3RyeS5leGFtcGxlIjp7ImF1dGgiOiJSRURBQ1RFRCJ9fX0=
 `;
 
 export const privateRegistryPullSecret = {
@@ -81,17 +81,22 @@ export const privateRegistryPullSecret = {
       resource: { kind: "Deployment", name: "private-api" },
       exclusive: true,
       assertions: [
+        { path: "spec.replicas", operator: "gte", value: 1 },
+        { path: "spec.template.metadata.labels.app", operator: "equals", value: "private-api" },
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=api].image",
           operator: "equals",
           value: "registry.example/private/api:1.0.0",
         },
         {
-          path: "spec.template.spec.imagePullSecrets.0.name",
+          path: "spec.template.spec.containers[name=api].ports[name=http].containerPort",
           operator: "equals",
-          value: "registry-credentials",
+          value: 8080,
         },
       ],
+      // This workspace exposes the existing Secret but no editable ServiceAccount,
+      // so the repair must attach the credential to this Pod template.
+      goals: [{ goal: "pulls-with-credentials", secret: "registry-credentials" }],
     },
   ],
   files: [
@@ -123,7 +128,8 @@ export const privateRegistryPullSecret = {
       },
     },
     { id: "events", command: "kubectl get events" },
-    { id: "deployment", command: "kubectl describe deployment private-api" },
+    { id: "deployment", command: "kubectl get deployment private-api -o yaml" },
+    { id: "secret", command: "kubectl get secret registry-credentials -o yaml" },
   ],
   probeTargets: ["http://private-api-svc/"],
   validators: [
@@ -198,10 +204,14 @@ export const privateRegistryPullSecret = {
     {
       id: "r-pull-event",
       evidenceId: "pull-event",
-      label: "Kubelet cannot find registry-credentials while pulling the image",
+      label: "The registry rejects the kubelet's unauthenticated image pull",
       hiddenLabel: "Image pull events reviewed",
       source: "events",
-      trigger: { type: "event-reason", reason: "Failed", messageMatches: "registry-credentials" },
+      trigger: {
+        type: "event-reason",
+        reason: "Failed",
+        messageMatches: "unauthorized|authorization|pull access denied",
+      },
     },
     {
       id: "r-secret-view",
@@ -214,6 +224,30 @@ export const privateRegistryPullSecret = {
         kind: "Pod",
         nameMatches: "^private-api-",
         namespace: "default",
+      },
+    },
+    {
+      id: "r-secret-view-terminal",
+      evidenceId: "secret-reference-missing",
+      label: "The private-api Pod template has no image pull Secret attached",
+      hiddenLabel: "Deployment configuration inspected",
+      source: "terminal",
+      trigger: {
+        type: "command",
+        commandMatches: "get deployment private-api.*-o yaml",
+        outputMatches: "registry\\.example/private/api:1\\.0\\.0",
+      },
+    },
+    {
+      id: "r-secret-exists",
+      evidenceId: "registry-secret-exists",
+      label: "registry-credentials exists and is a docker registry Secret",
+      hiddenLabel: "Registry credential inspected",
+      source: "terminal",
+      trigger: {
+        type: "command",
+        commandMatches: "get secret registry-credentials.*-o yaml",
+        outputMatches: "kubernetes\\.io/dockerconfigjson",
       },
     },
     {

@@ -1,9 +1,19 @@
-import type { ProblemCapability, ProblemEngineSpec, ProblemLevel } from "@/lib/domain/types";
-import { err, type Result } from "@/lib/utils/result";
+import type {
+  ClusterFixture,
+  FixtureResource,
+  LevelFixture,
+  ProblemCapability,
+  ProblemEngineSpec,
+  ProblemLevel,
+} from "@/lib/domain/types";
+import { err, ok, type Result } from "@/lib/utils/result";
 
+import { fixtureLogs, fixtureProbe, renderFixtureSnapshot } from "./cluster-fixture";
 import { runCommandLine, type CommandResult } from "./command-runner";
+import { evaluateLevelConstraints } from "./manifest-constraints";
+import { evaluateWorkspaceSemantics } from "./workspace-semantics";
 import type { LogLine } from "./images/log-sink";
-import { parseManifests } from "./manifest-parser";
+import { parseKubernetesManifests, parseManifests } from "./manifest-parser";
 import { applyProblemBoot } from "./problem-boot";
 import { capabilitiesForEngine, unsupportedProblemCapabilities } from "./problem-capabilities";
 import {
@@ -115,10 +125,21 @@ export class ScriptedIncidentEngine implements ProblemEngine {
   private readonly listeners = new Set<ProblemSnapshotListener>();
   private readonly runtime: ScriptedScenarioRuntime | undefined;
   private activeLevel: ProblemLevel | undefined;
+  /**
+   * Defined only for scenarios that review the workspace as a whole, so the command
+   * runner can tell `kubectl apply -f` to re-run the review rather than reject a
+   * single manifest the scenario was never able to act on.
+   */
+  readonly applyWorkspace?: (
+    files: Record<string, string>,
+  ) => Promise<Result<AppliedResourceRef[], string>>;
 
   constructor(private readonly scenarioId: string) {
     this.capabilities = capabilitiesForEngine({ kind: "scripted", scenarioId });
     this.runtime = createScriptedScenarioRuntime(scenarioId);
+    if (this.runtime?.appliesWholeWorkspace) {
+      this.applyWorkspace = (files) => this.applyFiles(files);
+    }
   }
 
   async boot(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
@@ -211,8 +232,193 @@ export class ScriptedIncidentEngine implements ProblemEngine {
   }
 }
 
+/**
+ * Runs a level's own declarative cluster. The learner investigates the workload the
+ * incident brief describes, in the namespace it names; submitting a workspace that
+ * satisfies every acceptance rule moves the cluster to its healthy state.
+ */
+export class FixtureIncidentEngine implements ProblemEngine {
+  readonly kind = "fixture" as const;
+  readonly capabilities: ReadonlySet<ProblemCapability>;
+  readonly appliesWholeWorkspace = true;
+  private readonly listeners = new Set<ProblemSnapshotListener>();
+  private state: ClusterFixture;
+  private activeLevel: ProblemLevel | undefined;
+  private currentResources: FixtureResource[];
+
+  constructor(private readonly fixture: LevelFixture) {
+    this.capabilities = capabilitiesForEngine({ kind: "fixture", fixture });
+    this.state = fixture.broken;
+    this.currentResources = fixture.broken.resources ?? [];
+  }
+
+  async boot(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
+    this.activeLevel = level;
+    this.state = this.fixture.broken;
+    this.currentResources = mergeFixtureResources(
+      this.state.resources ?? [],
+      resourcesFromWorkspace(level, {}),
+    );
+    this.emit();
+    return ok(
+      (this.state.workloads ?? []).map((workload) => ({
+        kind: "Deployment",
+        name: workload.name,
+        namespace: this.state.namespace,
+      })),
+    );
+  }
+
+  reset(level: ProblemLevel): Promise<Result<AppliedResourceRef[], string>> {
+    return this.boot(level);
+  }
+
+  async close(): Promise<void> {
+    this.listeners.clear();
+  }
+
+  subscribe(listener: ProblemSnapshotListener): () => void {
+    this.listeners.add(listener);
+    listener(this.getSnapshot());
+    return () => this.listeners.delete(listener);
+  }
+
+  getSnapshot(): ClusterSnapshot {
+    return renderFixtureSnapshot({ ...this.state, resources: this.currentResources });
+  }
+
+  async applyFiles(
+    files: Readonly<Record<string, string>>,
+  ): Promise<Result<AppliedResourceRef[], string>> {
+    const level = this.activeLevel;
+    if (!level) return err("The scenario has not booted yet.");
+
+    const merged = Object.fromEntries(
+      level.files.map((file) => [file.path, files[file.path] ?? file.initialValue]),
+    );
+    const applied: AppliedResourceRef[] = [];
+    for (const file of level.files.filter((candidate) => candidate.access === "editable")) {
+      // The permissive parser: a fixture only reports what was submitted, so it must
+      // accept every Kubernetes kind, not just the six the browser control plane runs.
+      const parsed = parseKubernetesManifests(merged[file.path] ?? file.initialValue);
+      if (!parsed.ok) return err(`${file.path}: ${parsed.error.message}`);
+      applied.push(
+        ...parsed.value.map((manifest) => ({
+          kind: manifest.kind,
+          name: manifest.name,
+          namespace: manifest.namespace,
+        })),
+      );
+    }
+
+    const unresolved = [
+      ...evaluateLevelConstraints(level, merged).filter((result) => !result.passed),
+      ...evaluateWorkspaceSemantics(level, merged),
+    ];
+    this.state = unresolved.length === 0 ? this.fixture.healthy : this.fixture.broken;
+    const submittedResources = resourcesFromWorkspace(level, merged);
+    const resourcesToMerge =
+      this.state === this.fixture.healthy
+        ? submittedResources.filter(
+            (resource) => !healthyResourceTombstones(this.fixture).has(resourceIdentity(resource)),
+          )
+        : submittedResources;
+    this.currentResources = mergeFixtureResources(this.state.resources ?? [], resourcesToMerge);
+    this.emit();
+    return ok(applied);
+  }
+
+  async probe(url: string): Promise<ProbeResult> {
+    return fixtureProbe(this.state, url);
+  }
+
+  getLogs(namespace: string, pod: string, container?: string): LogLine[] {
+    return fixtureLogs(this.state, namespace, pod, container);
+  }
+
+  validate(
+    level: ProblemLevel,
+    files: Readonly<Record<string, string>>,
+  ): Promise<ValidationReport> {
+    return runLevelValidation(level, files, { simulator: this });
+  }
+
+  runCommand(
+    line: string,
+    namespace: string,
+    files: Record<string, string>,
+  ): Promise<CommandResult> {
+    return runCommandLine(line, { simulator: this, namespace, files });
+  }
+
+  applyWorkspace = (files: Record<string, string>) => this.applyFiles(files);
+
+  async applyYaml(_yamlText: string): Promise<Result<AppliedResourceRef[], string>> {
+    return err("This incident is reviewed as a whole workspace; use Apply or `kubectl apply -f`.");
+  }
+
+  async deleteYaml(_yamlText: string): Promise<Result<AppliedResourceRef[], string>> {
+    return err("Deleting fixture resources is not supported.");
+  }
+
+  private emit(): void {
+    const snapshot = this.getSnapshot();
+    for (const listener of this.listeners) listener(snapshot);
+  }
+}
+
+function resourcesFromWorkspace(
+  level: ProblemLevel,
+  files: Readonly<Record<string, string>>,
+): FixtureResource[] {
+  return level.files.flatMap((file) => {
+    const parsed = parseKubernetesManifests(files[file.path] ?? file.initialValue);
+    return parsed.ok ? parsed.value.map((manifest) => manifest.raw as FixtureResource) : [];
+  });
+}
+
+function mergeFixtureResources(
+  supportingResources: readonly FixtureResource[],
+  workspaceResources: readonly FixtureResource[],
+): FixtureResource[] {
+  const byIdentity = new Map<string, FixtureResource>();
+  for (const resource of [...supportingResources, ...workspaceResources]) {
+    const identity = resourceIdentity(resource);
+    const existing = byIdentity.get(identity);
+    byIdentity.set(
+      identity,
+      existing
+        ? {
+            ...existing,
+            ...resource,
+            metadata: { ...existing.metadata, ...resource.metadata },
+          }
+        : resource,
+    );
+  }
+  return [...byIdentity.values()];
+}
+
+/** Resources intentionally present only in the broken fixture represent deletions. */
+function healthyResourceTombstones(fixture: LevelFixture): ReadonlySet<string> {
+  const healthyIdentities = new Set((fixture.healthy.resources ?? []).map(resourceIdentity));
+  return new Set(
+    (fixture.broken.resources ?? [])
+      .map(resourceIdentity)
+      .filter((identity) => !healthyIdentities.has(identity)),
+  );
+}
+
+function resourceIdentity(resource: FixtureResource): string {
+  return [
+    resource.kind.toLowerCase(),
+    resource.metadata.namespace ?? "",
+    resource.metadata.name,
+  ].join("/");
+}
+
 export function createProblemEngine(spec: ProblemEngineSpec): ProblemEngine {
-  return spec.kind === "webernetes"
-    ? new WebernetesProblemEngine()
-    : new ScriptedIncidentEngine(spec.scenarioId);
+  if (spec.kind === "webernetes") return new WebernetesProblemEngine();
+  if (spec.kind === "fixture") return new FixtureIncidentEngine(spec.fixture);
+  return new ScriptedIncidentEngine(spec.scenarioId);
 }

@@ -7,10 +7,11 @@ import type {
   V1ReplicaSet,
   V1Service,
 } from "@ngrok/webernetes";
+import { load } from "js-yaml";
 
 import { BRAND } from "@/config/brand";
 
-import { stringifyManifest } from "./manifest-parser";
+import { parseKubernetesManifests, stringifyManifest } from "./manifest-parser";
 import { createProbeSignal, type InvestigationSignal } from "./evidence";
 import {
   deploymentReadyReplicas,
@@ -39,6 +40,12 @@ export interface CommandRuntime {
   getLogs(namespace: string, pod: string, container?: string): LogLine[];
   applyYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
   deleteYaml(yamlText: string): Promise<Result<AppliedResourceRef[], string>>;
+  /**
+   * Present only for scenarios that grade the submitted files as one workspace and
+   * cannot act on a single manifest. `kubectl apply -f <file>` then re-runs the whole
+   * review, so the terminal agrees with the Apply button instead of erroring out.
+   */
+  applyWorkspace?(files: Record<string, string>): Promise<Result<AppliedResourceRef[], string>>;
   // Optional capabilities: KubeSimulator provides them all; scripted problem
   // engines may omit them, and the matching commands degrade with a clear message.
   exec?(
@@ -85,8 +92,6 @@ type GetResource =
   | "nodes"
   | "all";
 
-type DescribeResource = "pod" | "service" | "deployment" | "replicaset" | "namespace" | "node";
-
 export type Command =
   | { kind: "clear" }
   | { kind: "help" }
@@ -94,7 +99,7 @@ export type Command =
   | { kind: "dig"; name: string }
   | {
       kind: "get";
-      resource: GetResource;
+      resource: string;
       name?: string;
       outputYaml: boolean;
       outputWide: boolean;
@@ -105,12 +110,13 @@ export type Command =
     }
   | {
       kind: "describe";
-      resource: DescribeResource;
+      resource: string;
       name: string;
       namespace?: string;
     }
   | { kind: "logs"; pod: string; container?: string; namespace?: string }
   | { kind: "apply"; file: string }
+  | { kind: "kustomize"; path: string }
   | { kind: "delete"; file: string }
   | { kind: "delete-resource"; manifestKind: string; name: string; namespace?: string }
   | { kind: "scale"; name: string; replicas: number; namespace?: string }
@@ -302,12 +308,11 @@ function parseKubectl(args: string[]): Command {
       const resourceToken = parsed.positionals[0];
       if (!resourceToken)
         return unsupported("kubectl get: specify a resource, e.g. 'kubectl get pods'.");
-      const resource = GET_RESOURCE_ALIASES[resourceToken.toLowerCase()];
-      if (!resource) {
-        return unsupported(
-          `kubectl get: unknown resource "${resourceToken}". Try pods, svc, deployments, replicasets, endpoints, endpointslices, namespaces, or events.`,
-        );
-      }
+      // Known resources use the strongly-rendered core views. Fixture-backed
+      // incidents can also expose arbitrary Kubernetes APIs (CRDs, StorageClasses,
+      // admission webhooks, operator resources), which keep their normalized token.
+      const resource =
+        GET_RESOURCE_ALIASES[resourceToken.toLowerCase()] ?? resourceToken.toLowerCase();
       return {
         kind: "get",
         resource,
@@ -324,7 +329,7 @@ function parseKubectl(args: string[]): Command {
       const parsed = parseArgs(rest);
       const typeToken = (parsed.positionals[0] ?? "").toLowerCase();
       const name = parsed.positionals[1];
-      const describable: Partial<Record<GetResource, DescribeResource>> = {
+      const describable: Partial<Record<GetResource, string>> = {
         pods: "pod",
         services: "service",
         deployments: "deployment",
@@ -333,9 +338,8 @@ function parseKubectl(args: string[]): Command {
         nodes: "node",
       };
       const alias = GET_RESOURCE_ALIASES[typeToken];
-      const resource = alias ? describable[alias] : undefined;
-      if (!resource)
-        return unsupported("kubectl describe: supported for pod, svc, deployment, rs, ns, node.");
+      const resource = alias ? (describable[alias] ?? typeToken) : typeToken;
+      if (!resource) return unsupported("kubectl describe: specify a resource type.");
       if (!name) return unsupported(`kubectl describe ${typeToken}: specify a name.`);
       return { kind: "describe", resource, name, namespace: parsed.namespace };
     }
@@ -416,6 +420,15 @@ function parseKubectl(args: string[]): Command {
         );
       return { kind: "apply", file };
     }
+    case "kustomize": {
+      const path = parseArgs(rest).positionals[0];
+      if (!path) {
+        return unsupported(
+          "kubectl kustomize: specify a directory, e.g. 'kubectl kustomize overlays/production'.",
+        );
+      }
+      return { kind: "kustomize", path };
+    }
     case "delete": {
       const parsed = parseArgs(rest);
       if (parsed.file) return { kind: "delete", file: parsed.file };
@@ -436,7 +449,7 @@ function parseKubectl(args: string[]): Command {
     }
     default:
       return unsupported(
-        `kubectl ${sub ?? ""}: unsupported subcommand. Supported: get, describe, logs, exec, scale, rollout, create, apply, delete.`,
+        `kubectl ${sub ?? ""}: unsupported subcommand. Supported: get, describe, logs, exec, scale, rollout, create, apply, delete, kustomize.`,
       );
   }
 }
@@ -497,6 +510,8 @@ export async function executeCommand(
       return runLogs(command, rawLine, ctx);
     case "apply":
       return runApply(command.file, ctx);
+    case "kustomize":
+      return runKustomize(command.path, ctx);
     case "delete":
       return runDelete(command.file, ctx);
     case "delete-resource":
@@ -542,8 +557,14 @@ function runDig(name: string, ctx: TerminalContext): CommandResult {
       (s.metadata?.namespace ?? "default") === query.namespace,
   );
   if (!service?.spec?.clusterIP) {
+    const output = [
+      `; <<>> ${BRAND.name} dig <<>> ${name}`,
+      ";; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN",
+      ";; QUESTION SECTION:",
+      `;${name}.\tIN\tA`,
+    ].join("\n");
     return {
-      output: `;; connection timed out; no servers could be reached\n; ${name}: NXDOMAIN`,
+      output,
       isError: false,
       signals: [{ type: "command", command: `dig ${name}`, output: "NXDOMAIN" }],
     };
@@ -646,7 +667,21 @@ function renderGet(
         "",
         renderReplicaSets(pick(snapshot.replicaSets), opts),
       ].join("\n");
+    default:
+      return renderGenericResources(pick(genericResourcesFor(snapshot, resource)), opts);
   }
+}
+
+function renderGenericResources(
+  resources: NonNullable<ClusterSnapshot["resources"]>,
+  opts: RenderOpts,
+): string {
+  if (resources.length === 0) return "No resources found.";
+  const rows = resources.map((resource) => {
+    const cells = [resource.metadata.name, resource.kind, resource.apiVersion];
+    return { namespace: resource.metadata.namespace ?? "default", cells };
+  });
+  return withNamespaceColumn(opts, ["NAME", "KIND", "API-VERSION"], rows);
 }
 
 function withNamespaceColumn(
@@ -850,43 +885,51 @@ function runDescribe(
         item.metadata?.name === command.name &&
         (!namespaced || (item.metadata?.namespace ?? "default") === namespace),
     );
+  const generic = () => findGenericResource(snapshot, command.resource, command.name, namespace);
+  const missingOrGeneric = () => {
+    const resource = generic();
+    return resource
+      ? describeGenericResource(resource, snapshot)
+      : notFound(command.resource, command.name, namespace);
+  };
 
   let output: string;
   switch (command.resource) {
     case "pod": {
       const pod = named(snapshot.pods);
-      output = pod ? describePod(pod, snapshot) : notFound("pod", command.name, namespace);
+      output = pod ? describePod(pod, snapshot) : missingOrGeneric();
       break;
     }
     case "service": {
       const svc = named(snapshot.services);
-      output = svc ? describeService(svc, snapshot) : notFound("service", command.name, namespace);
+      output = svc ? describeService(svc, snapshot) : missingOrGeneric();
       break;
     }
     case "deployment": {
       const dep = named(snapshot.deployments);
-      output = dep
-        ? describeDeployment(dep, snapshot)
-        : notFound("deployment", command.name, namespace);
+      output = dep ? describeDeployment(dep, snapshot) : missingOrGeneric();
       break;
     }
     case "replicaset": {
       const rs = named(snapshot.replicaSets);
-      output = rs
-        ? describeReplicaSet(rs, snapshot)
-        : notFound("replicaset", command.name, namespace);
+      output = rs ? describeReplicaSet(rs, snapshot) : missingOrGeneric();
       break;
     }
     case "namespace": {
       const ns = named(snapshot.namespaces, false);
-      output = ns
-        ? describeNamespace(ns, snapshot)
-        : notFound("namespace", command.name, namespace);
+      output = ns ? describeNamespace(ns, snapshot) : missingOrGeneric();
       break;
     }
     case "node": {
       const node = named(snapshot.nodes, false);
-      output = node ? describeNode(node, snapshot) : notFound("node", command.name, namespace);
+      output = node ? describeNode(node, snapshot) : missingOrGeneric();
+      break;
+    }
+    default: {
+      const resource = findGenericResource(snapshot, command.resource, command.name, namespace);
+      output = resource
+        ? describeGenericResource(resource, snapshot)
+        : notFound(command.resource, command.name, namespace);
       break;
     }
   }
@@ -895,6 +938,33 @@ function runDescribe(
     isError: false,
     signals: [{ type: "command", command: rawLine, output }],
   };
+}
+
+function describeGenericResource(
+  resource: NonNullable<ClusterSnapshot["resources"]>[number],
+  snapshot: ClusterSnapshot,
+): string {
+  const namespace = resource.metadata.namespace ?? "default";
+  const lines = [
+    `Name:               ${resource.metadata.name}`,
+    `Namespace:          ${namespace}`,
+    `Kind:               ${resource.kind}`,
+    `API Version:        ${resource.apiVersion}`,
+    `Labels:             ${formatSelector(resource.metadata.labels)}`,
+    "Manifest:",
+    ...stringifyManifest(resource)
+      .trimEnd()
+      .split("\n")
+      .map((line) => `  ${line}`),
+  ];
+  const events = relatedEvents(snapshot.events, resource.metadata.name);
+  if (events.length > 0) {
+    lines.push("Events:");
+    for (const event of events) {
+      lines.push(`  ${event.type ?? "Normal"}  ${event.reason ?? ""}  ${event.message ?? ""}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 function describeDeployment(dep: V1Deployment, snapshot: ClusterSnapshot): string {
@@ -1110,6 +1180,164 @@ function runLogs(
   return { output, isError: false, signals: [{ type: "command", command: rawLine, output }] };
 }
 
+function runKustomize(path: string, ctx: TerminalContext): CommandResult {
+  const rendered = renderKustomization(path, ctx.files, new Set());
+  if (!rendered.ok) {
+    return { output: `error: ${rendered.error}`, isError: true, signals: [] };
+  }
+  const output = rendered.resources.map(stringifyManifest).join("---\n").trimEnd();
+  return {
+    output: output || "no resources rendered",
+    isError: false,
+    signals: [{ type: "command", command: `kubectl kustomize ${path}`, output }],
+  };
+}
+
+type KustomizeRenderResult =
+  { ok: true; resources: Record<string, unknown>[] } | { ok: false; error: string };
+
+function renderKustomization(
+  requestedPath: string,
+  files: Readonly<Record<string, string>>,
+  visited: Set<string>,
+): KustomizeRenderResult {
+  const normalized = normalizeWorkspacePath(requestedPath);
+  const directory =
+    normalized.endsWith(".yaml") || normalized.endsWith(".yml")
+      ? workspaceDirname(normalized)
+      : normalized;
+  const kustomizationPath =
+    files[normalized] !== undefined
+      ? normalized
+      : files[`${directory}/kustomization.yaml`] !== undefined
+        ? `${directory}/kustomization.yaml`
+        : `${directory}/kustomization.yml`;
+  const source = files[kustomizationPath];
+  if (source === undefined) {
+    return { ok: false, error: `the kustomization path "${requestedPath}" does not exist` };
+  }
+  if (visited.has(kustomizationPath)) {
+    return { ok: false, error: `recursive kustomization reference at "${kustomizationPath}"` };
+  }
+  visited.add(kustomizationPath);
+
+  let document: unknown;
+  try {
+    document = load(source);
+  } catch (error) {
+    return { ok: false, error: `${kustomizationPath}: ${(error as Error).message}` };
+  }
+  const kustomization = plainObject(document);
+  if (!kustomization || kustomization.kind !== "Kustomization") {
+    return { ok: false, error: `${kustomizationPath} is not a Kustomization` };
+  }
+
+  const resources: Record<string, unknown>[] = [];
+  for (const reference of stringValues(kustomization.resources)) {
+    const resourcePath = normalizeWorkspacePath(`${directory}/${reference}`);
+    const sourceFile = files[resourcePath];
+    if (sourceFile === undefined) {
+      const nested = renderKustomization(resourcePath, files, visited);
+      if (!nested.ok) return nested;
+      resources.push(...nested.resources);
+      continue;
+    }
+    const parsed = parseKubernetesManifests(sourceFile);
+    if (!parsed.ok) return { ok: false, error: `${resourcePath}: ${parsed.error.message}` };
+    resources.push(...parsed.value.map((manifest) => structuredClone(manifest.raw)));
+  }
+
+  const namespace =
+    typeof kustomization.namespace === "string" ? kustomization.namespace : undefined;
+  for (const resource of resources) {
+    if (namespace && !KUSTOMIZE_CLUSTER_SCOPED_KINDS.has(String(resource.kind ?? ""))) {
+      const metadata = plainObject(resource.metadata) ?? {};
+      metadata.namespace = namespace;
+      resource.metadata = metadata;
+    }
+    applyImageTransforms(resource, kustomization.images);
+  }
+  visited.delete(kustomizationPath);
+  return { ok: true, resources };
+}
+
+const KUSTOMIZE_CLUSTER_SCOPED_KINDS = new Set([
+  "ClusterRole",
+  "ClusterRoleBinding",
+  "CustomResourceDefinition",
+  "Namespace",
+  "Node",
+  "PersistentVolume",
+  "StorageClass",
+]);
+
+function applyImageTransforms(resource: unknown, transformsValue: unknown): void {
+  const transforms = Array.isArray(transformsValue)
+    ? transformsValue.map(plainObject).filter((value) => value !== undefined)
+    : [];
+  if (transforms.length === 0) return;
+
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    const object = plainObject(value);
+    if (!object) return;
+    if (typeof object.image === "string") {
+      const currentImage = object.image;
+      const transform = transforms.find(
+        (candidate) =>
+          typeof candidate.name === "string" && imageRepository(currentImage) === candidate.name,
+      );
+      if (transform && typeof transform.name === "string") {
+        const repository =
+          typeof transform.newName === "string" ? transform.newName : transform.name;
+        if (typeof transform.digest === "string")
+          object.image = `${repository}@${transform.digest}`;
+        else if (typeof transform.newTag === "string")
+          object.image = `${repository}:${transform.newTag}`;
+      }
+    }
+    Object.values(object).forEach(visit);
+  };
+  visit(resource);
+}
+
+function imageRepository(image: string): string {
+  const withoutDigest = image.split("@", 1)[0] ?? image;
+  const lastSlash = withoutDigest.lastIndexOf("/");
+  const lastColon = withoutDigest.lastIndexOf(":");
+  return lastColon > lastSlash ? withoutDigest.slice(0, lastColon) : withoutDigest;
+}
+
+function normalizeWorkspacePath(path: string): string {
+  const parts: string[] = [];
+  for (const part of path.replaceAll("\\", "/").split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") parts.pop();
+    else parts.push(part);
+  }
+  return parts.join("/");
+}
+
+function workspaceDirname(path: string): string {
+  const index = path.lastIndexOf("/");
+  return index === -1 ? "" : path.slice(0, index);
+}
+
+function plainObject(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringValues(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 async function runApply(file: string, ctx: TerminalContext): Promise<CommandResult> {
   const content = ctx.files[file];
   if (content === undefined) {
@@ -1119,6 +1347,20 @@ async function runApply(file: string, ctx: TerminalContext): Promise<CommandResu
       signals: [],
     };
   }
+  if (ctx.simulator.applyWorkspace) {
+    const reviewed = await ctx.simulator.applyWorkspace(ctx.files);
+    if (!reviewed.ok) return { output: `error: ${reviewed.error}`, isError: true, signals: [] };
+    const resources = reviewed.value.map((r) => `${r.kind.toLowerCase()}/${r.name} reviewed`);
+    return {
+      output: [
+        `static review re-run over the submitted workspace (${Object.keys(ctx.files).length} files)`,
+        ...resources,
+      ].join("\n"),
+      isError: false,
+      signals: [],
+    };
+  }
+
   const result = await ctx.simulator.applyYaml(content);
   if (!result.ok) return { output: `error: ${result.error}`, isError: true, signals: [] };
   const output = result.value.map((r) => `${r.kind.toLowerCase()}/${r.name} configured`).join("\n");
@@ -1331,7 +1573,7 @@ function clusterScoped<T extends { metadata?: { name?: string; labels?: Record<s
 }
 
 function findByName(
-  resource: GetResource,
+  resource: string,
   name: string,
   namespace: string,
   snapshot: ClusterSnapshot,
@@ -1346,8 +1588,47 @@ function findByName(
       replicasets: snapshot.replicaSets,
       endpointslices: snapshot.endpointSlices,
     };
-  return (map[resource] ?? []).find(
+  const core = map[resource as GetResource]?.find(
     (item) => item.metadata?.name === name && (item.metadata?.namespace ?? "default") === namespace,
+  );
+  return core ?? findGenericResource(snapshot, resource, name, namespace);
+}
+
+function genericResourcesFor(
+  snapshot: ClusterSnapshot,
+  requestedKind: string,
+): NonNullable<ClusterSnapshot["resources"]> {
+  return (snapshot.resources ?? []).filter((resource) =>
+    resourceTokenMatchesKind(requestedKind, resource.kind),
+  );
+}
+
+function findGenericResource(
+  snapshot: ClusterSnapshot,
+  requestedKind: string,
+  name: string,
+  namespace: string,
+): NonNullable<ClusterSnapshot["resources"]>[number] | undefined {
+  return genericResourcesFor(snapshot, requestedKind).find(
+    (resource) =>
+      resource.metadata.name === name && (resource.metadata.namespace ?? "default") === namespace,
+  );
+}
+
+const RESOURCE_KIND_ALIASES: Readonly<Record<string, string>> = {
+  crd: "customresourcedefinition",
+  hpa: "horizontalpodautoscaler",
+  pdb: "poddisruptionbudget",
+  sc: "storageclass",
+};
+
+function resourceTokenMatchesKind(token: string, kind: string): boolean {
+  const normalizedToken = (RESOURCE_KIND_ALIASES[token] ?? token).replaceAll("-", "").toLowerCase();
+  const normalizedKind = kind.replaceAll("-", "").toLowerCase();
+  return (
+    normalizedToken === normalizedKind ||
+    normalizedToken === `${normalizedKind}s` ||
+    (normalizedKind.endsWith("s") && normalizedToken === `${normalizedKind}es`)
   );
 }
 
@@ -1416,6 +1697,11 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     command: "kubectl get <resource> <name> -o yaml",
     description: "Print a resource's full manifest",
+    category: "Read",
+  },
+  {
+    command: "kubectl kustomize <directory>",
+    description: "Render an editor-backed Kustomize overlay",
     category: "Read",
   },
   {

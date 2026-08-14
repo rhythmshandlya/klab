@@ -99,28 +99,48 @@ export const recreateStrategyOutage = {
     },
     {
       id: "keep-zero-downtime",
-      label: "Use a zero-downtime RollingUpdate strategy and keep the v2.1.0 release",
+      // The requirement is the outcome, not the field: "maxUnavailable: 0%" is the
+      // same promise as "maxUnavailable: 0" and has to be accepted.
+      label: "Keep checkout serving throughout the rollout, on the v2.1.0 release",
       kind: "manifest",
       file: "deployment.yaml",
       resource: { kind: "Deployment", name: "checkout" },
       exclusive: true,
       assertions: [
         {
-          path: "spec.strategy.type",
-          operator: "equals",
-          value: "RollingUpdate",
-        },
-        {
-          path: "spec.strategy.rollingUpdate.maxUnavailable",
-          operator: "equals",
-          value: 0,
-        },
-        {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=api].image",
           operator: "equals",
           value: "klab/checkout:2.1.0",
         },
         { path: "spec.replicas", operator: "gte", value: 2 },
+        {
+          path: "spec.selector.matchLabels.app",
+          operator: "equals",
+          value: "checkout",
+        },
+        {
+          path: "spec.selector.matchExpressions",
+          operator: "absent",
+        },
+        {
+          path: "spec.template.metadata.labels.app",
+          operator: "equals",
+          value: "checkout",
+        },
+        {
+          path: "spec.template.spec.containers[name=api].readinessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+      ],
+      goals: [
+        { goal: "zero-downtime-rollout" },
+        {
+          goal: "probe-targets-serving-port",
+          container: "api",
+          servingPort: 8080,
+          probe: "readinessProbe",
+        },
       ],
     },
   ],

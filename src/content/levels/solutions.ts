@@ -6,7 +6,7 @@
  * app imports this module, so it never reaches the client bundle.
  */
 
-import { ARCHITECTURE_BUILD_SOLUTIONS } from "./architecture-builds";
+import { ARCHITECTURE_BUILD_SOLUTIONS } from "./architecture";
 import { PRODUCTION_REPAIR_SOLUTIONS } from "./production-repairs";
 
 export interface LevelSolution {
@@ -404,7 +404,7 @@ spec:
   },
 
   "port-routing-bug": {
-    fix: "Service targetPort 3000 → 8080",
+    fix: "Service targetPort 3000 → named container port http",
     files: {
       "service.yaml": `apiVersion: v1
 kind: Service
@@ -417,7 +417,7 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 8080
+      targetPort: http
 `,
     },
   },

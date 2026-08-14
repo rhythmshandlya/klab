@@ -39,7 +39,10 @@ export class ApiImage extends BaseImage {
       try {
         const response = await ctx.fetch(upstream);
         log(`GET ${upstream} -> ${response.status}`);
-        return jsonResponse(200, { upstream, status: response.status });
+        // A DNS connection alone is not success: preserve the upstream status so a
+        // typo in its path (404) or an unhealthy dependency (5xx) remains observable
+        // to both callers and level validators.
+        return jsonResponse(response.status, { upstream, status: response.status });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log(`upstream call failed: ${message}`);

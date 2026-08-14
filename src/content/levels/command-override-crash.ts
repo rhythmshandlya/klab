@@ -102,14 +102,40 @@ export const commandOverrideCrash = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=storefront].image",
           operator: "equals",
           value: "klab/web-app:1.0.0",
         },
-        { path: "spec.template.spec.containers.0.command", operator: "absent" },
-        { path: "spec.template.spec.containers.0.args", operator: "absent" },
-        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
-        { path: "spec.template.spec.containers.0.livenessProbe", operator: "present" },
+        { path: "spec.template.spec.containers[name=storefront].command", operator: "absent" },
+        { path: "spec.template.spec.containers[name=storefront].args", operator: "absent" },
+        {
+          path: "spec.template.spec.containers[name=storefront].readinessProbe",
+          operator: "present",
+        },
+        {
+          path: "spec.template.spec.containers[name=storefront].readinessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        {
+          path: "spec.template.spec.containers[name=storefront].readinessProbe.httpGet.port",
+          operator: "equals",
+          value: 8080,
+        },
+        {
+          path: "spec.template.spec.containers[name=storefront].livenessProbe",
+          operator: "present",
+        },
+        {
+          path: "spec.template.spec.containers[name=storefront].livenessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        {
+          path: "spec.template.spec.containers[name=storefront].livenessProbe.httpGet.port",
+          operator: "equals",
+          value: 8080,
+        },
       ],
     },
   ],

@@ -123,22 +123,15 @@ export const rolloutCannotFitMaxsurge = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.strategy.rollingUpdate.maxSurge",
-          operator: "equals",
-          value: 0,
-        },
-        {
-          path: "spec.strategy.rollingUpdate.maxUnavailable",
-          operator: "gte",
-          value: 1,
-        },
-        {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=api].image",
           operator: "equals",
           value: "klab/analytics:2.0.0",
         },
         { path: "spec.replicas", operator: "gte", value: 2 },
       ],
+      // Percentage bounds that resolve to the same peak replica count are equally
+      // correct, so the requirement is stated as the capacity the cluster has.
+      goals: [{ goal: "rollout-fits-capacity", schedulableReplicas: 2 }],
     },
   ],
   files: [
@@ -294,6 +287,7 @@ export const rolloutCannotFitMaxsurge = {
     prevention:
       "Match rollout parameters to real capacity. On full or near-full clusters prefer maxSurge: 0 with a small maxUnavailable, size clusters for surge, or add nodes before rolling large or resource-heavy workloads.",
     relatedConcepts: ["deployments", "rollouts", "scheduling", "resources"],
+    docsHref: "/docs/workloads/deployments",
     recommendedNextSlugs: ["graceful-shutdown-502s"],
   },
 } satisfies ProblemLevel;

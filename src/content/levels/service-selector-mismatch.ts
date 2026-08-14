@@ -93,8 +93,12 @@ export const serviceSelectorMismatch = {
       resource: { kind: "Service", name: "web-svc" },
       exclusive: true,
       assertions: [
-        { path: "spec.ports.0.port", operator: "equals", value: 80 },
-        { path: "spec.ports.0.targetPort", operator: "equals", value: 8080 },
+        { path: "spec.ports[name=http].port", operator: "equals", value: 80 },
+        {
+          path: "spec.ports[name=http].targetPort",
+          operator: "matches",
+          value: "^(8080|http)$",
+        },
       ],
     },
   ],
@@ -116,7 +120,10 @@ export const serviceSelectorMismatch = {
   ],
   quickCommands: [
     { id: "command-1", command: "kubectl get pods" },
-    { id: "command-2", command: "kubectl get endpoints web-svc" },
+    {
+      id: "command-2",
+      command: "kubectl get endpointslices -l kubernetes.io/service-name=web-svc",
+    },
     { id: "command-3", command: "kubectl describe svc web-svc" },
     {
       id: "command-4",

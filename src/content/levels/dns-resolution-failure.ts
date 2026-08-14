@@ -139,12 +139,26 @@ export const dnsResolutionFailure = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=orders-api].image",
           operator: "equals",
           value: "klab/api:1.0.0",
         },
         { path: "spec.template.metadata.labels.app", operator: "equals", value: "orders-api" },
-        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
+        {
+          path: "spec.template.spec.containers[name=orders-api].readinessProbe",
+          operator: "present",
+        },
+      ],
+      goals: [
+        {
+          goal: "connects-to-service",
+          container: "orders-api",
+          env: "UPSTREAM_URL",
+          service: "web-svc",
+          namespace: "default",
+          port: 80,
+          path: "/",
+        },
       ],
     },
   ],

@@ -63,9 +63,8 @@ const VALIDATORS: LevelValidatorDefinition[] = [
     title: "No readiness failures",
     successLabel: "No failing readiness probes",
     failureLabel: "A pod is failing readiness",
-    kind: "no-recent-readiness-failures",
+    kind: "no-pods-failing-readiness",
     namespace: "default",
-    withinSeconds: 30,
   },
 ];
 

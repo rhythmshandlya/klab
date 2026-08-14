@@ -94,8 +94,27 @@ export function ValidationDialog({
                   <Cross className="text-red mt-0.5 size-4 shrink-0" aria-hidden />
                 )}
                 <div className="min-w-0">
-                  <p className="text-foreground text-sm font-medium">{result.title}</p>
+                  <p className="text-foreground flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                    <span
+                      className={cn(
+                        "rounded border px-1.5 py-0.5 text-[10px] leading-none font-semibold uppercase",
+                        result.passed
+                          ? "border-green/30 bg-green/10 text-green"
+                          : "border-red/30 bg-red/10 text-red",
+                      )}
+                    >
+                      {result.passed ? "Passed" : "Failed"}
+                    </span>
+                    <span>{result.title}</span>
+                  </p>
                   <p className="text-subtle text-xs">{result.detail}</p>
+                  {/* The prescriptive breakdown is the reward for submitting: it is
+                      deliberately absent from the always-visible checks panel. */}
+                  {result.diagnostic ? (
+                    <pre className="border-border text-muted mt-1.5 overflow-x-auto rounded border-l-2 pl-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                      {result.diagnostic}
+                    </pre>
+                  ) : null}
                 </div>
               </li>
             ))}

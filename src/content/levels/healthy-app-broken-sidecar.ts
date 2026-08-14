@@ -98,36 +98,35 @@ export const healthyAppBrokenSidecar = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=checkout].image",
           operator: "equals",
           value: "klab/web-app:1.0.0",
         },
         {
-          path: "spec.template.spec.containers.1.image",
+          path: "spec.template.spec.containers[name=queue-sidecar].image",
           operator: "equals",
           value: "klab/worker:1.0.0",
         },
         {
-          path: "spec.template.spec.containers.1.env.0.name",
-          operator: "equals",
-          value: "PORT",
-        },
-        {
-          path: "spec.template.spec.containers.1.env.0.value",
+          path: "spec.template.spec.containers[name=queue-sidecar].env[name=PORT].value",
           operator: "equals",
           value: "9090",
         },
         {
-          path: "spec.template.spec.containers.1.env.1.name",
-          operator: "equals",
-          value: "DATABASE_URL",
-        },
-        {
-          path: "spec.template.spec.containers.1.env.1.value",
+          path: "spec.template.spec.containers[name=queue-sidecar].env[name=DATABASE_URL].value",
           operator: "equals",
           value: "postgres://queue.internal:5432/jobs",
         },
-        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
+        {
+          path: "spec.template.spec.containers[name=checkout].readinessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        {
+          path: "spec.template.spec.containers[name=checkout].readinessProbe.httpGet.port",
+          operator: "equals",
+          value: 8080,
+        },
       ],
     },
   ],

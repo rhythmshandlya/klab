@@ -93,7 +93,7 @@ export const podCrashloopMystery = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=worker].image",
           operator: "equals",
           value: "klab/worker:1.0.0",
         },

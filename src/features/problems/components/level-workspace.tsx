@@ -13,6 +13,7 @@ import { ClusterExplorer } from "@/components/object-explorer/cluster-explorer";
 import { ObjectDetails } from "@/components/object-explorer/object-details";
 import { XtermTerminal, type TerminalRunResult } from "@/components/terminal/xterm-terminal";
 import { Badge } from "@/components/ui/badge";
+import { handleTabKeyDown } from "@/components/ui/tabs";
 import { BRAND } from "@/config/brand";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import {
@@ -29,6 +30,7 @@ import type { LogLine } from "@/lib/kube/images/log-sink";
 import { isPodReady, readyEndpointCount } from "@/lib/kube/kubectl/format";
 import { resolveQuickCommand } from "@/lib/kube/quick-command";
 import type { ClusterSnapshot } from "@/lib/kube/simulator";
+import { flushLevelWorkspace } from "@/lib/storage/level-workspace";
 import { createClientMutationId } from "@/lib/storage/progress-intent";
 import { mutateProgress } from "@/lib/storage/progress-store";
 import { cn } from "@/lib/utils/cn";
@@ -123,6 +125,14 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const initLevel = useLevelStore((s) => s.initLevel);
   useEffect(() => {
     initLevel(level);
+    const flush = () => flushLevelWorkspace(level.slug);
+    window.addEventListener("pagehide", flush);
+    // Saved edits are debounced; flush on the way out so the last keystroke before a
+    // navigation or refresh is never the one that gets lost.
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
   }, [level, initLevel]);
 
   const files = useLevelStore((s) => s.files);
@@ -142,6 +152,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const setSolved = useLevelStore((s) => s.setSolved);
   const solved = useLevelStore((s) => s.solved);
   const revealedHintIds = useLevelStore((s) => s.revealedHintIds);
+  const restoredFromStorage = useLevelStore((s) => s.restoredFromStorage);
 
   const sim = useProblemEngine(level);
   const isBuild = level.challengeMode === "build";
@@ -152,6 +163,10 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
   const [validating, setValidating] = useState(false);
   const [refreshingChecks, setRefreshingChecks] = useState(false);
   const [applyFeedback, setApplyFeedback] = useState<ApplyFeedback | null>(null);
+  // Keyed by slug rather than reset in an effect, so navigating to another level
+  // brings the notice back without a cascading render.
+  const [restoreNoticeDismissedFor, setRestoreNoticeDismissedFor] = useState<string | null>(null);
+  const restoreNoticeDismissed = restoreNoticeDismissedFor === level.slug;
 
   // Persisted, user-resizable pane layouts (drag the separators; arrow keys work too).
   const columnsLayout = usePersistedLayout("klab:layout:level-workspace:columns:v2");
@@ -402,13 +417,13 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
     [revealHint, level.slug],
   );
 
-  // ⌘R runs validation from anywhere on the level (Cmd+Shift+R still reloads).
+  // Submit from anywhere on the level without stealing the browser's reload shortcut.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "r" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
-        e.preventDefault();
-        void handleValidate();
-      }
+      const submitChord = (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "Enter";
+      if (!submitChord) return;
+      e.preventDefault();
+      void handleValidate();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -416,6 +431,10 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
 
   const activeFile = level.files.find((f) => f.path === activeFilePath);
   const visibleFiles = level.files.filter((file) => file.access !== "hidden");
+  const activeFileTabIndex = visibleFiles.findIndex((file) => file.path === activeFilePath);
+  const activeFileTabId =
+    activeFileTabIndex >= 0 ? `problem-file-tab-${activeFileTabIndex}` : undefined;
+  const activeInvestigationTabId = `investigation-tab-${centerTab}`;
 
   // Namespaces that actually hold workload objects (multi-namespace levels).
   // Control-plane namespaces (kube-*) are simulator machinery and stay hidden.
@@ -426,6 +445,7 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
       ...sim.snapshot.services,
       ...sim.snapshot.deployments,
       ...sim.snapshot.replicaSets,
+      ...(sim.snapshot.resources ?? []),
     ]) {
       const ns = object.metadata?.namespace ?? "default";
       if (isWorkloadNamespace(ns)) set.add(ns);
@@ -528,15 +548,18 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                   aria-label="Problem files"
                   className="border-border flex h-9 min-w-0 shrink-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-b px-1.5"
                 >
-                  {visibleFiles.map((file) => {
+                  {visibleFiles.map((file, index) => {
                     const active = file.path === activeFilePath;
                     return (
                       <button
                         key={file.path}
+                        id={`problem-file-tab-${index}`}
                         type="button"
                         role="tab"
                         aria-selected={active}
                         aria-controls="problem-file-editor"
+                        tabIndex={active ? 0 : -1}
+                        onKeyDown={handleTabKeyDown}
                         onClick={() => setActiveFile(file.path)}
                         className={cn(
                           "flex h-9 shrink-0 items-center gap-1.5 border-b-2 px-2 font-mono text-xs transition-colors",
@@ -609,8 +632,21 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                     feedback={applyFeedback}
                     onDismiss={() => setApplyFeedback(null)}
                   />
+                ) : restoredFromStorage && !restoreNoticeDismissed ? (
+                  <RestoredWorkBanner
+                    onStartOver={() => {
+                      setRestoreNoticeDismissedFor(level.slug);
+                      void handleReset();
+                    }}
+                    onDismiss={() => setRestoreNoticeDismissedFor(level.slug)}
+                  />
                 ) : null}
-                <div id="problem-file-editor" role="tabpanel" className="min-h-0 flex-1">
+                <div
+                  id="problem-file-editor"
+                  role="tabpanel"
+                  aria-labelledby={activeFileTabId}
+                  className="min-h-0 flex-1"
+                >
                   <ErrorBoundary label="Editor">
                     <YamlEditor
                       path={activeFilePath || "manifest.yaml"}
@@ -632,13 +668,23 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
             <ResizablePane id="center-tools" minSize="18%" className="h-full">
               <Panel className="h-full">
                 <div className="border-border flex h-10 shrink-0 items-center justify-between gap-2 border-b pr-2">
-                  <div className="flex items-center">
+                  <div
+                    className="flex items-center"
+                    role="tablist"
+                    aria-label="Investigation tools"
+                  >
                     {CENTER_TABS.map((tab) => {
                       const Icon = icons[tab.icon];
                       return (
                         <button
                           key={tab.id}
+                          id={`investigation-tab-${tab.id}`}
                           type="button"
+                          role="tab"
+                          aria-selected={centerTab === tab.id}
+                          aria-controls="investigation-panel"
+                          tabIndex={centerTab === tab.id ? 0 : -1}
+                          onKeyDown={handleTabKeyDown}
                           onClick={() => setCenterTab(tab.id)}
                           className={cn(
                             "flex h-10 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors",
@@ -662,75 +708,82 @@ export function LevelWorkspace({ level }: { level: ProblemLevel }) {
                   </div>
                 </div>
 
-                {/* Quick commands: one-click investigation starters (beginner training wheels). */}
-                {centerTab === "terminal" ? (
-                  <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
-                    <span className="text-subtle text-[11px] font-medium tracking-wide uppercase">
-                      Try:
-                    </span>
-                    {level.quickCommands.map((quickCommand) => {
-                      const resolvable =
-                        resolveQuickCommand(quickCommand, sim.snapshot.pods) !== null;
-                      return (
-                        <button
-                          key={quickCommand.id}
-                          type="button"
-                          disabled={!sim.ready || !resolvable}
-                          onClick={() => runQuickCommand(quickCommand)}
-                          className="border-border bg-panel-elevated text-muted hover:border-border-strong hover:text-foreground rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors disabled:opacity-40"
-                        >
-                          {quickCommand.command}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
-
-                <div className="min-h-0 flex-1">
+                <div
+                  id="investigation-panel"
+                  role="tabpanel"
+                  aria-labelledby={activeInvestigationTabId}
+                  className="flex min-h-0 flex-1 flex-col"
+                >
+                  {/* Quick commands: one-click investigation starters (beginner training wheels). */}
                   {centerTab === "terminal" ? (
-                    <ErrorBoundary label="Terminal">
-                      <XtermTerminal
-                        onCommand={runCommand}
-                        registerRunner={(run) => {
-                          terminalRunnerRef.current = run;
-                        }}
-                        welcome={[
-                          `${BRAND.name} simulated shell, type 'help' for commands.`,
-                          `Engine: ${
-                            level.engine.kind === "webernetes"
-                              ? "Webernetes"
-                              : isBuild
-                                ? "static architecture policy review"
-                                : "scripted incident"
-                          }`,
-                          `Try: ${level.quickCommands[0]?.command ?? "kubectl get pods"}`,
-                        ]}
-                      />
-                    </ErrorBoundary>
-                  ) : centerTab === "logs" ? (
-                    <LogsView
-                      snapshot={sim.snapshot}
-                      getLogs={(namespace, pod) => sim.engine.getLogs(namespace, pod)}
-                      onInspect={inspectLogs}
-                    />
-                  ) : centerTab === "events" ? (
-                    <div className="h-full overflow-auto">
-                      <EventsTimeline
-                        events={sim.snapshot.events}
-                        namespace={NAMESPACE}
-                        onInspect={inspectEvents}
-                      />
+                    <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
+                      <span className="text-subtle text-[11px] font-medium tracking-wide uppercase">
+                        Try:
+                      </span>
+                      {level.quickCommands.map((quickCommand) => {
+                        const resolvable =
+                          resolveQuickCommand(quickCommand, sim.snapshot.pods) !== null;
+                        return (
+                          <button
+                            key={quickCommand.id}
+                            type="button"
+                            disabled={!sim.ready || !resolvable}
+                            onClick={() => runQuickCommand(quickCommand)}
+                            className="border-border bg-panel-elevated text-muted hover:border-border-strong hover:text-foreground rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors disabled:opacity-40"
+                          >
+                            {quickCommand.command}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ) : centerTab === "network" ? (
-                    <NetworkProbe onProbe={handleProbe} presets={level.probeTargets} />
-                  ) : (
-                    <ErrorBoundary label="Diff">
-                      <DiffView
-                        original={activeFile?.initialValue ?? ""}
-                        modified={files[activeFilePath] ?? ""}
+                  ) : null}
+
+                  <div className="min-h-0 flex-1">
+                    {centerTab === "terminal" ? (
+                      <ErrorBoundary label="Terminal">
+                        <XtermTerminal
+                          onCommand={runCommand}
+                          registerRunner={(run) => {
+                            terminalRunnerRef.current = run;
+                          }}
+                          welcome={[
+                            `${BRAND.name} simulated shell, type 'help' for commands.`,
+                            `Engine: ${
+                              level.engine.kind === "webernetes"
+                                ? "Webernetes"
+                                : isBuild
+                                  ? "static architecture policy review"
+                                  : "scripted incident"
+                            }`,
+                            `Try: ${level.quickCommands[0]?.command ?? "kubectl get pods"}`,
+                          ]}
+                        />
+                      </ErrorBoundary>
+                    ) : centerTab === "logs" ? (
+                      <LogsView
+                        snapshot={sim.snapshot}
+                        getLogs={(namespace, pod) => sim.engine.getLogs(namespace, pod)}
+                        onInspect={inspectLogs}
                       />
-                    </ErrorBoundary>
-                  )}
+                    ) : centerTab === "events" ? (
+                      <div className="h-full overflow-auto">
+                        <EventsTimeline
+                          events={sim.snapshot.events}
+                          namespace={NAMESPACE}
+                          onInspect={inspectEvents}
+                        />
+                      </div>
+                    ) : centerTab === "network" ? (
+                      <NetworkProbe onProbe={handleProbe} presets={level.probeTargets} />
+                    ) : (
+                      <ErrorBoundary label="Diff">
+                        <DiffView
+                          original={activeFile?.initialValue ?? ""}
+                          modified={files[activeFilePath] ?? ""}
+                        />
+                      </ErrorBoundary>
+                    )}
+                  </div>
                 </div>
               </Panel>
             </ResizablePane>
@@ -861,6 +914,47 @@ function ApplyFeedbackBanner({
         onClick={onDismiss}
         className="focus-visible:ring-ring -mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
         aria-label="Dismiss apply status"
+      >
+        <icons.close className="size-3.5" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Restoring silently would be worse than losing the work: the learner needs to know
+ * the editor is not showing the authored starting point, and needs one obvious way
+ * back to it.
+ */
+function RestoredWorkBanner({
+  onStartOver,
+  onDismiss,
+}: {
+  onStartOver: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="border-blue/30 bg-blue/10 text-blue flex shrink-0 items-start gap-2 border-b px-3 py-2 text-xs"
+    >
+      <icons.reset className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+      <p className="min-w-0 flex-1">
+        Your previous edits were restored from this browser.
+        <button
+          type="button"
+          onClick={onStartOver}
+          className="focus-visible:ring-ring ml-1.5 font-medium underline focus-visible:ring-2 focus-visible:outline-none"
+        >
+          Reset files
+        </button>
+      </p>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="focus-visible:ring-ring -mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+        aria-label="Dismiss restored work notice"
       >
         <icons.close className="size-3.5" aria-hidden />
       </button>

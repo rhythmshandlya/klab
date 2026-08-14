@@ -1,4 +1,11 @@
-import type { ProblemLevel } from "@/lib/domain/types";
+import type {
+  ContainerResourceBudget,
+  NetworkPolicyContract,
+  PipelineContract,
+  ProblemLevel,
+  SignaturePolicyContract,
+  WorkspaceSemanticPolicy,
+} from "@/lib/domain/types";
 
 import { parseKubernetesManifests, type ParsedKubernetesManifest } from "./manifest-parser";
 
@@ -26,6 +33,7 @@ export function evaluateWorkspaceSemantics(
   const parsed = parseWorkspace(level, files);
   if (parsed.errors.length > 0) return parsed.errors;
 
+  const policy: WorkspaceSemanticPolicy = level.semanticPolicy ?? {};
   const issues: string[] = [];
   const resources = parsed.resources;
   const workloads = resources.filter((resource) => WORKLOAD_KINDS.has(resource.kind));
@@ -72,7 +80,7 @@ export function evaluateWorkspaceSemantics(
     }
 
     if (WORKLOAD_KINDS.has(resource.kind)) {
-      validateWorkload(level.slug, resource, issues);
+      validateWorkload(policy, resource, issues);
     }
 
     if (resource.kind === "Deployment") {
@@ -120,7 +128,7 @@ export function evaluateWorkspaceSemantics(
 
     if (resource.kind === "PodDisruptionBudget") {
       const selector = labelsAt(resource.raw, "spec.selector.matchLabels");
-      validateDisruptionBudget(level.slug, resource, issues);
+      validateDisruptionBudget(policy, resource, issues);
       if (requireClosedGraph && selector && workloads.length > 0) {
         const matches = resources.some(
           (candidate) =>
@@ -240,7 +248,7 @@ export function evaluateWorkspaceSemantics(
     }
 
     if (resource.kind === "Role" || resource.kind === "ClusterRole") {
-      validateRoleSafety(level.slug, resource, issues);
+      validateRoleSafety(policy, resource, issues);
     }
 
     if (requireClosedGraph && resource.kind === "NetworkPolicy") {
@@ -253,16 +261,29 @@ export function evaluateWorkspaceSemantics(
         const name = typeof gateway?.name === "string" ? gateway.name : undefined;
         const namespace =
           typeof gateway?.namespace === "string" ? gateway.namespace : resource.namespace;
+        const submittedGateway = name
+          ? resources.find(
+              (candidate) =>
+                candidate.kind === "Gateway" &&
+                candidate.name === name &&
+                candidate.namespace === namespace,
+            )
+          : undefined;
+        if (name && !submittedGateway) {
+          issues.push(`HTTPRoute/${resource.name} references missing Gateway/${name}`);
+        }
+        const sectionName =
+          typeof gateway?.sectionName === "string" ? gateway.sectionName : undefined;
         if (
-          name &&
-          !resources.some(
-            (candidate) =>
-              candidate.kind === "Gateway" &&
-              candidate.name === name &&
-              candidate.namespace === namespace,
+          submittedGateway &&
+          sectionName &&
+          !arrayAt(submittedGateway.raw, "spec.listeners").some(
+            (listener) => objectValue(listener)?.name === sectionName,
           )
         ) {
-          issues.push(`HTTPRoute/${resource.name} references missing Gateway/${name}`);
+          issues.push(
+            `HTTPRoute/${resource.name} references missing listener ${sectionName} on Gateway/${name}`,
+          );
         }
       }
       for (const ruleValue of arrayAt(resource.raw, "spec.rules")) {
@@ -273,16 +294,28 @@ export function evaluateWorkspaceSemantics(
           const name = typeof backend?.name === "string" ? backend.name : undefined;
           const namespace =
             typeof backend?.namespace === "string" ? backend.namespace : resource.namespace;
-          if (
-            name &&
-            !resources.some(
-              (candidate) =>
-                candidate.kind === kind &&
-                candidate.name === name &&
-                candidate.namespace === namespace,
-            )
-          ) {
+          const submittedBackend = name
+            ? resources.find(
+                (candidate) =>
+                  candidate.kind === kind &&
+                  candidate.name === name &&
+                  candidate.namespace === namespace,
+              )
+            : undefined;
+          if (name && !submittedBackend) {
             issues.push(`HTTPRoute/${resource.name} references missing ${kind}/${name}`);
+          }
+          if (submittedBackend?.kind === "Service") {
+            const backendPort = backend?.port;
+            const exposesPort = arrayAt(submittedBackend.raw, "spec.ports").some((portValue) => {
+              const port = objectValue(portValue);
+              return port?.port === backendPort || port?.name === backendPort;
+            });
+            if (backendPort === undefined || !exposesPort) {
+              issues.push(
+                `HTTPRoute/${resource.name} backend Service/${name} does not expose port ${String(backendPort)}`,
+              );
+            }
           }
         }
       }
@@ -306,8 +339,8 @@ export function evaluateWorkspaceSemantics(
           issues.push(`Pipeline/${resource.name} references missing ${taskKind}/${taskName}`);
         }
       }
-      if (level.slug === "build-signed-promotion-pipeline") {
-        validateSignedPromotionPipeline(resource, issues);
+      if (policy.pipelineContract) {
+        validatePipelineContract(policy.pipelineContract, resource, issues);
       }
     }
 
@@ -339,7 +372,7 @@ export function evaluateWorkspaceSemantics(
     }
 
     if (requireClosedGraph && resource.kind === "Task") {
-      validateTask(level.slug, resource, issues);
+      validateTask(policy, resource, issues);
     }
 
     if (
@@ -393,8 +426,149 @@ export function evaluateWorkspaceSemantics(
     }
   }
 
+  validateNetworkPolicyContracts(policy.networkPolicyContracts ?? [], resources, issues);
+  validateResourceBudgets(policy.resourceBudgets ?? [], resources, issues);
+  if (policy.signaturePolicyContract) {
+    validateSignaturePolicyContract(policy.signaturePolicyContract, resources, issues);
+  }
   issues.push(...immutableChangeIssues(level, files));
   return [...new Set(issues)];
+}
+
+function validateResourceBudgets(
+  contracts: readonly ContainerResourceBudget[],
+  resources: readonly ParsedKubernetesManifest[],
+  issues: string[],
+): void {
+  for (const contract of contracts) {
+    const resource = resources.find(
+      (candidate) =>
+        candidate.kind === contract.kind &&
+        candidate.name === contract.name &&
+        (contract.namespace === undefined || candidate.namespace === contract.namespace),
+    );
+    const identity = `${contract.kind}/${contract.name} container ${contract.container}`;
+    if (!resource) {
+      issues.push(`${identity} is missing from the submitted resource budget`);
+      continue;
+    }
+
+    const containerResources = resourceRequirementsForBudget(resource, contract);
+    if (!containerResources) {
+      issues.push(`${identity} is missing its resource requirements`);
+      continue;
+    }
+
+    const requests = objectValue(containerResources.requests);
+    const limits = objectValue(containerResources.limits);
+    validateResourceCeiling(
+      identity,
+      "requests.cpu",
+      requests?.cpu,
+      contract.maxRequestCpu,
+      issues,
+    );
+    validateResourceCeiling(
+      identity,
+      "requests.memory",
+      requests?.memory,
+      contract.maxRequestMemory,
+      issues,
+    );
+    validateResourceCeiling(identity, "limits.cpu", limits?.cpu, contract.maxLimitCpu, issues);
+    validateResourceCeiling(
+      identity,
+      "limits.memory",
+      limits?.memory,
+      contract.maxLimitMemory,
+      issues,
+    );
+
+    validateRequestFitsLimit(identity, "cpu", requests?.cpu, limits?.cpu, issues);
+    validateRequestFitsLimit(identity, "memory", requests?.memory, limits?.memory, issues);
+  }
+}
+
+function resourceRequirementsForBudget(
+  resource: ParsedKubernetesManifest,
+  contract: ContainerResourceBudget,
+): Record<string, unknown> | undefined {
+  if (contract.resourcesPath) return objectValue(valueAt(resource.raw, contract.resourcesPath));
+
+  const podSpecPath =
+    resource.kind === "Pod"
+      ? "spec"
+      : resource.kind === "CronJob"
+        ? "spec.jobTemplate.spec.template.spec"
+        : "spec.template.spec";
+  const podSpec = objectValue(valueAt(resource.raw, podSpecPath));
+  const container = arrayAt(podSpec, "containers")
+    .map(objectValue)
+    .find((candidate) => candidate?.name === contract.container);
+  return objectValue(container?.resources);
+}
+
+function validateResourceCeiling(
+  identity: string,
+  field: "requests.cpu" | "requests.memory" | "limits.cpu" | "limits.memory",
+  actual: unknown,
+  maximum: string | undefined,
+  issues: string[],
+): void {
+  if (maximum === undefined) return;
+  const parser = field.endsWith("cpu") ? parseCpuQuantity : parseMemoryQuantity;
+  const parsedActual = parser(actual);
+  const parsedMaximum = parser(maximum);
+  if (parsedActual === undefined || parsedMaximum === undefined || parsedActual > parsedMaximum) {
+    issues.push(`${identity} must set ${field} at or below ${maximum}`);
+  }
+}
+
+function validateRequestFitsLimit(
+  identity: string,
+  resource: "cpu" | "memory",
+  request: unknown,
+  limit: unknown,
+  issues: string[],
+): void {
+  if (request === undefined || limit === undefined) return;
+  const parser = resource === "cpu" ? parseCpuQuantity : parseMemoryQuantity;
+  const parsedRequest = parser(request);
+  const parsedLimit = parser(limit);
+  if (parsedRequest !== undefined && parsedLimit !== undefined && parsedRequest > parsedLimit) {
+    issues.push(`${identity} ${resource} request must not exceed its limit`);
+  }
+}
+
+function parseCpuQuantity(value: unknown): number | undefined {
+  const match = /^(\d+(?:\.\d*)?|\.\d+)(n|u|m)?$/.exec(String(value ?? ""));
+  if (!match) return undefined;
+  const multipliers: Record<string, number> = { n: 1e-9, u: 1e-6, m: 1e-3, "": 1 };
+  const amount = Number(match[1]) * multipliers[match[2] ?? ""]!;
+  return Number.isFinite(amount) && amount > 0 ? amount : undefined;
+}
+
+function parseMemoryQuantity(value: unknown): number | undefined {
+  const match = /^(\d+(?:\.\d*)?|\.\d+)(Ki|Mi|Gi|Ti|Pi|Ei|[kKMGTPE])?$/.exec(String(value ?? ""));
+  if (!match) return undefined;
+  const binaryPowers: Record<string, number> = {
+    Ki: 1,
+    Mi: 2,
+    Gi: 3,
+    Ti: 4,
+    Pi: 5,
+    Ei: 6,
+  };
+  const decimalPowers: Record<string, number> = { k: 1, K: 1, M: 2, G: 3, T: 4, P: 5, E: 6 };
+  const suffix = match[2] ?? "";
+  const multiplier =
+    suffix in binaryPowers
+      ? 1024 ** binaryPowers[suffix]!
+      : suffix in decimalPowers
+        ? 1000 ** decimalPowers[suffix]!
+        : 1;
+  const amount = Number(match[1]) * multiplier;
+  return Number.isFinite(amount) && amount > 0 ? amount : undefined;
 }
 
 function parseWorkspace(
@@ -522,7 +696,7 @@ function validatePrometheusSelectors(
 }
 
 function validateDisruptionBudget(
-  slug: string,
+  policy: WorkspaceSemanticPolicy,
   budget: ParsedKubernetesManifest,
   issues: string[],
 ): void {
@@ -537,7 +711,7 @@ function validateDisruptionBudget(
     return;
   }
 
-  const requirement = disruptionRequirement(slug, budget.name);
+  const requirement = policy.disruptionBudgets?.[budget.name];
   if (!requirement) return;
   const resolved = resolvedPodCount(
     minAvailable !== undefined ? minAvailable : maxUnavailable,
@@ -556,27 +730,6 @@ function validateDisruptionBudget(
   }
 }
 
-function disruptionRequirement(
-  slug: string,
-  name: string,
-): { baseline: number; minimumAvailable: number } | undefined {
-  const requirements: Record<string, { baseline: number; minimumAvailable: number }> = {
-    "build-three-zone-api/checkout-api": { baseline: 4, minimumAvailable: 3 },
-    "build-recoverable-stateful-data-plane/orders-db": { baseline: 3, minimumAvailable: 2 },
-    "build-flash-sale-scaling-system/sale-api": { baseline: 6, minimumAvailable: 4 },
-    "build-flash-sale-scaling-system/sale-worker": { baseline: 10, minimumAvailable: 8 },
-    "build-incident-survivable-observability/blackbox-exporter": {
-      baseline: 2,
-      minimumAvailable: 1,
-    },
-    "build-incident-survivable-observability/platform-prometheus": {
-      baseline: 2,
-      minimumAvailable: 1,
-    },
-  };
-  return requirements[`${slug}/${name}`];
-}
-
 function resolvedPodCount(value: unknown, baseline: number): number | undefined {
   if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
   if (typeof value !== "string") return undefined;
@@ -593,7 +746,7 @@ function producedPodLabels(resource: ParsedKubernetesManifest): Record<string, s
 }
 
 function validateWorkload(
-  slug: string,
+  policy: WorkspaceSemanticPolicy,
   resource: ParsedKubernetesManifest,
   issues: string[],
 ): void {
@@ -651,7 +804,7 @@ function validateWorkload(
     }
   }
 
-  if (slug === "build-hardened-admin-workload") {
+  if (policy.podSecurity === "hardened") {
     if (podSpec.hostNetwork === true || podSpec.hostPID === true || podSpec.hostIPC === true) {
       issues.push(`${resource.kind}/${resource.name} must not join host namespaces`);
     }
@@ -758,6 +911,127 @@ function validateNetworkPolicy(policy: ParsedKubernetesManifest, issues: string[
   }
 }
 
+function validateNetworkPolicyContracts(
+  contracts: readonly NetworkPolicyContract[],
+  resources: readonly ParsedKubernetesManifest[],
+  issues: string[],
+): void {
+  for (const contract of contracts) {
+    const policy = resources.find(
+      (candidate) =>
+        candidate.kind === "NetworkPolicy" &&
+        candidate.name === contract.name &&
+        (contract.namespace === undefined || candidate.namespace === contract.namespace),
+    );
+    if (!policy) {
+      issues.push(`NetworkPolicy/${contract.name} is missing from the submitted traffic graph`);
+      continue;
+    }
+
+    const actualPodSelector = selectorSignature(valueAt(policy.raw, "spec.podSelector"));
+    const requiredPodSelector = contractSelectorSignature(contract.podSelector);
+    if (actualPodSelector !== requiredPodSelector) {
+      issues.push(`NetworkPolicy/${contract.name} selects the wrong protected Pods`);
+    }
+
+    const actualPolicyTypes = arrayAt(policy.raw, "spec.policyTypes")
+      .filter((value): value is string => typeof value === "string")
+      .sort();
+    const requiredPolicyTypes = [...contract.policyTypes].sort();
+    if (JSON.stringify(actualPolicyTypes) !== JSON.stringify(requiredPolicyTypes)) {
+      issues.push(`NetworkPolicy/${contract.name} has the wrong policy directions`);
+    }
+
+    for (const direction of ["ingress", "egress"] as const) {
+      const actual = networkTrafficSignatures(policy.raw, direction);
+      const required = (contract[direction] ?? [])
+        .map((traffic) =>
+          JSON.stringify({
+            namespaceSelector:
+              traffic.namespaceSelector === undefined
+                ? null
+                : contractSelectorSignature(traffic.namespaceSelector),
+            podSelector:
+              traffic.podSelector === undefined
+                ? null
+                : contractSelectorSignature(traffic.podSelector),
+            ipBlock: null,
+            port: {
+              protocol: traffic.port.protocol,
+              port: traffic.port.port,
+              endPort: null,
+            },
+          }),
+        )
+        .sort();
+      if (JSON.stringify(actual) !== JSON.stringify(required)) {
+        issues.push(
+          `NetworkPolicy/${contract.name} does not match its exact ${direction} traffic contract`,
+        );
+      }
+    }
+  }
+}
+
+/** Normalize NetworkPolicy rules into their effective peer x port tuples. */
+function networkTrafficSignatures(
+  raw: Record<string, unknown>,
+  direction: "ingress" | "egress",
+): string[] {
+  const peerField = direction === "ingress" ? "from" : "to";
+  return arrayAt(raw, `spec.${direction}`)
+    .flatMap((ruleValue) => {
+      const rule = objectValue(ruleValue);
+      const rawPeers = rule?.[peerField];
+      const rawPorts = rule?.ports;
+      const peers = Array.isArray(rawPeers) && rawPeers.length > 0 ? rawPeers : [undefined];
+      const ports = Array.isArray(rawPorts) && rawPorts.length > 0 ? rawPorts : [undefined];
+      return peers.flatMap((peerValue) => {
+        const peer = objectValue(peerValue);
+        return ports.map((portValue) => {
+          const port = objectValue(portValue);
+          return JSON.stringify({
+            namespaceSelector:
+              peer?.namespaceSelector === undefined
+                ? null
+                : selectorSignature(peer.namespaceSelector),
+            podSelector:
+              peer?.podSelector === undefined ? null : selectorSignature(peer.podSelector),
+            ipBlock: peer?.ipBlock ?? (peer ? null : "*"),
+            port:
+              port === undefined
+                ? "*"
+                : {
+                    protocol: typeof port.protocol === "string" ? port.protocol : "TCP",
+                    port: port.port ?? "*",
+                    endPort: port.endPort ?? null,
+                  },
+          });
+        });
+      });
+    })
+    .sort();
+}
+
+function contractSelectorSignature(labels: Readonly<Record<string, string>>): string {
+  return JSON.stringify({ matchLabels: sortedLabels(labels), matchExpressions: [] });
+}
+
+function selectorSignature(value: unknown): string {
+  const selector = objectValue(value);
+  if (!selector) return "missing";
+  return JSON.stringify({
+    matchLabels: sortedLabels(stringLabels(objectValue(selector.matchLabels) ?? {})),
+    matchExpressions: Array.isArray(selector.matchExpressions) ? selector.matchExpressions : [],
+  });
+}
+
+function sortedLabels(labels: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(labels).sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
 function isEmptyLabelSelector(selector: Record<string, unknown>): boolean {
   const matchLabels = objectValue(selector.matchLabels);
   const matchExpressions = Array.isArray(selector.matchExpressions)
@@ -769,7 +1043,11 @@ function isEmptyLabelSelector(selector: Record<string, unknown>): boolean {
   );
 }
 
-function validateTask(slug: string, resource: ParsedKubernetesManifest, issues: string[]): void {
+function validateTask(
+  policy: WorkspaceSemanticPolicy,
+  resource: ParsedKubernetesManifest,
+  issues: string[],
+): void {
   const steps = arrayAt(resource.raw, "spec.steps");
   if (steps.length === 0) {
     issues.push(`Task/${resource.name} has no executable steps`);
@@ -785,74 +1063,47 @@ function validateTask(slug: string, resource: ParsedKubernetesManifest, issues: 
       issues.push(`Task/${resource.name} step ${index + 1} needs an image and executable action`);
     }
   }
-  if (slug === "build-signed-promotion-pipeline" && resource.name === "cosign-verify") {
-    const step = objectValue(steps[0]);
-    const args = stringArray(step?.args);
-    const expectedArgs = [
-      "verify",
-      "--certificate-identity=https://github.com/rhythmshandlya/klab/.github/workflows/release.yml@refs/heads/main",
-      "--certificate-oidc-issuer=https://token.actions.githubusercontent.com",
-      "$(params.image)",
-    ];
-    if (
-      steps.length !== 1 ||
-      step?.image !==
-        "registry.example/tools/cosign@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" ||
-      !sameSet(args, expectedArgs)
-    ) {
-      issues.push(
-        "Task/cosign-verify must verify the submitted image with the trusted CI keyless identity",
-      );
-    }
-  }
-  if (slug === "build-signed-promotion-pipeline" && resource.name === "patch-deployment-digest") {
-    const step = objectValue(steps[0]);
-    const script = typeof step?.script === "string" ? step.script : "";
-    if (
-      steps.length !== 1 ||
-      step?.image !==
-        "registry.example/tools/kubectl@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" ||
-      !script.includes("deployment/$(params.deployment)") ||
-      !script.includes("checkout=$(params.image)") ||
-      !script.includes("-n production")
-    ) {
-      issues.push(
-        "Task/patch-deployment-digest must promote only the submitted digest to checkout in production",
-      );
-    }
-  }
+
+  const contract = policy.taskContracts?.find((candidate) => candidate.task === resource.name);
+  if (!contract) return;
+  const step = objectValue(steps[0]);
+  const script = typeof step?.script === "string" ? step.script : "";
+  const satisfied =
+    steps.length === contract.stepCount &&
+    step?.image === contract.image &&
+    (contract.args === undefined ||
+      (script === "" && sameSet(stringArray(step?.args), contract.args))) &&
+    (contract.scriptIncludes ?? []).every((fragment) => script.includes(fragment));
+  if (!satisfied) issues.push(`Task/${resource.name} ${contract.violation}`);
 }
 
-function validateSignedPromotionPipeline(
+/**
+ * A promotion pipeline is only trustworthy if every stage acts on the same pinned
+ * artifact, in order. The specific tasks, param name, and image are level data.
+ */
+function validatePipelineContract(
+  contract: PipelineContract,
   pipeline: ParsedKubernetesManifest,
   issues: string[],
 ): void {
   const tasks = arrayAt(pipeline.raw, "spec.tasks")
     .map(objectValue)
     .filter((task): task is Record<string, unknown> => task !== undefined);
-  const verify = tasks.find((task) => task.name === "verify-signature");
-  const promote = tasks.find((task) => task.name === "promote-checkout");
-  const pipelineParams = arrayAt(pipeline.raw, "spec.params")
+  const hasDigestParam = arrayAt(pipeline.raw, "spec.params")
     .map(objectValue)
-    .filter((param): param is Record<string, unknown> => param !== undefined);
-  const hasDigestParam = pipelineParams.some(
-    (param) => param.name === "imageDigest" && param.type === "string",
-  );
-  const verifyImage = namedParamValue(verify, "image");
-  const promoteImage = namedParamValue(promote, "image");
-  const expectedImage = "registry.example/checkout@$(params.imageDigest)";
-  if (
-    tasks.length !== 2 ||
-    !hasDigestParam ||
-    objectValue(verify?.taskRef)?.name !== "cosign-verify" ||
-    objectValue(promote?.taskRef)?.name !== "patch-deployment-digest" ||
-    !stringArray(promote?.runAfter).includes("verify-signature") ||
-    verifyImage !== expectedImage ||
-    promoteImage !== expectedImage
-  ) {
-    issues.push(
-      `Pipeline/${pipeline.name} must verify and promote the same checkout digest in sequence`,
-    );
+    .some((param) => param?.name === contract.digestParam && param?.type === "string");
+
+  const ordered = contract.tasks.every((expected, index) => {
+    const task = tasks.find((candidate) => candidate.name === expected.name);
+    if (!task) return false;
+    if (objectValue(task.taskRef)?.name !== expected.taskRef) return false;
+    if (namedParamValue(task, "image") !== contract.pinnedImage) return false;
+    const previous = contract.tasks[index - 1];
+    return previous === undefined || stringArray(task.runAfter).includes(previous.name);
+  });
+
+  if (tasks.length !== contract.tasks.length || !hasDigestParam || !ordered) {
+    issues.push(`Pipeline/${pipeline.name} ${contract.violation}`);
   }
 }
 
@@ -907,7 +1158,11 @@ function validateSignaturePolicy(resource: ParsedKubernetesManifest, issues: str
       .map((validation) => objectValue(validation)?.expression)
       .filter((expression): expression is string => typeof expression === "string");
     const registryRule = expressions.find(
-      (expression) => expression.includes("registry.example/") && expression.includes("@sha256:"),
+      (expression) =>
+        expression.includes("registry") &&
+        expression.includes("sha256:") &&
+        expression.includes("{64}") &&
+        expression.includes(".matches("),
     );
     const signatureRule = expressions.find((expression) =>
       expression.includes("verifyImageSignatures"),
@@ -920,7 +1175,7 @@ function validateSignaturePolicy(resource: ParsedKubernetesManifest, issues: str
     if (
       !signatureRule ||
       signatureRule.replaceAll(/\s/g, "") !==
-        "images.containers.map(image,verifyImageSignatures(image,[attestors.trustedCi])).all(result,result>0)"
+        "variables.allImages.map(image,verifyImageSignatures(image,[attestors.trustedCi])).all(result,result>0)"
     ) {
       issues.push(
         `ImageValidatingPolicy/${resource.name} must enforce signature verification in CEL`,
@@ -964,95 +1219,83 @@ function validateSignaturePolicy(resource: ParsedKubernetesManifest, issues: str
   }
 }
 
-function validateRoleSafety(slug: string, role: ParsedKubernetesManifest, issues: string[]): void {
+function validateSignaturePolicyContract(
+  contract: SignaturePolicyContract,
+  resources: readonly ParsedKubernetesManifest[],
+  issues: string[],
+): void {
+  const policy = resources.find(
+    (candidate) => candidate.kind === "ImageValidatingPolicy" && candidate.name === contract.name,
+  );
+  if (!policy) {
+    issues.push(`ImageValidatingPolicy/${contract.name} is missing its signature contract`);
+    return;
+  }
+
+  const variables = arrayAt(policy.raw, "spec.variables")
+    .map(objectValue)
+    .filter((value): value is Record<string, unknown> => value !== undefined);
+  const exactVariable =
+    variables.length === 1 &&
+    variables[0]?.name === contract.imageVariable.name &&
+    variables[0]?.expression === contract.imageVariable.expression;
+  const validations = arrayAt(policy.raw, "spec.validations")
+    .map(objectValue)
+    .map((validation) => validation?.expression)
+    .filter((expression): expression is string => typeof expression === "string");
+
+  if (!exactVariable || !sameSet(validations, contract.validations)) {
+    issues.push(`ImageValidatingPolicy/${contract.name} ${contract.violation}`);
+  }
+}
+
+/**
+ * Wildcard authority is always wrong. Beyond that, a level can declare the exact set
+ * of rule shapes its RBAC contract permits, and any authored rule outside that set is
+ * privilege the design did not ask for.
+ */
+function validateRoleSafety(
+  policy: WorkspaceSemanticPolicy,
+  role: ParsedKubernetesManifest,
+  issues: string[],
+): void {
   const rules = arrayAt(role.raw, "rules");
+  const contracts = (policy.rbacContracts ?? []).filter(
+    (contract) => contract.appliesTo === role.kind,
+  );
+
   for (const ruleValue of rules) {
     const rule = objectValue(ruleValue);
     const apiGroups = stringArray(rule?.apiGroups);
     const resources = stringArray(rule?.resources);
     const verbs = stringArray(rule?.verbs);
+    const resourceNames = stringArray(rule?.resourceNames);
 
     if (apiGroups.includes("*") || resources.includes("*") || verbs.includes("*")) {
       issues.push(`${role.kind}/${role.name} contains wildcard authority`);
     }
-    if (
-      slug === "build-hardened-admin-workload" &&
-      !isHardenedAdminRule(apiGroups, resources, stringArray(rule?.resourceNames), verbs)
-    ) {
-      issues.push(`Role/${role.name} grants authority outside the maintenance contract`);
-    }
-    if (slug === "build-two-team-platform" && !isTenantDeveloperRule(apiGroups, resources, verbs)) {
-      issues.push(`Role/${role.name} crosses the tenant security boundary`);
-    }
-    if (slug === "build-signed-promotion-pipeline") {
-      const resourceNames = stringArray(rule?.resourceNames);
-      if (
-        !sameSet(apiGroups, ["apps"]) ||
-        !sameSet(resources, ["deployments"]) ||
-        !sameSet(verbs, ["get", "patch"]) ||
-        !sameSet(resourceNames, ["checkout"])
-      ) {
-        issues.push(`Role/${role.name} exceeds checkout-only promotion authority`);
-      }
-    }
-    if (
-      slug === "build-incident-survivable-observability" &&
-      role.kind === "ClusterRole" &&
-      !isPrometheusDiscoveryRule(apiGroups, resources, verbs)
-    ) {
-      issues.push(`ClusterRole/${role.name} exceeds read-only target discovery authority`);
-    }
-  }
-  if (
-    slug === "build-incident-survivable-observability" &&
-    role.kind === "ClusterRole" &&
-    rules.length !== 2
-  ) {
-    issues.push(`ClusterRole/${role.name} must contain exactly two discovery rules`);
-  }
-}
 
-function isPrometheusDiscoveryRule(
-  apiGroups: string[],
-  resources: string[],
-  verbs: string[],
-): boolean {
-  if (!sameSet(verbs, ["get", "list", "watch"])) return false;
-  if (sameSet(apiGroups, ["discovery.k8s.io"])) {
-    return sameSet(resources, ["endpointslices"]);
+    for (const contract of contracts) {
+      const permitted = contract.allowedRules.some(
+        (allowed) =>
+          sameSet(apiGroups, allowed.apiGroups) &&
+          sameSet(resources, allowed.resources) &&
+          sameSet(verbs, allowed.verbs) &&
+          (allowed.resourceNames === undefined || sameSet(resourceNames, allowed.resourceNames)),
+      );
+      if (!permitted) issues.push(`${role.kind}/${role.name} ${contract.violation}`);
+    }
   }
-  if (sameSet(apiGroups, [""])) {
-    return sameSet(resources, ["nodes", "nodes/metrics", "pods", "services", "endpoints"]);
-  }
-  return false;
-}
 
-function isHardenedAdminRule(
-  apiGroups: string[],
-  resources: string[],
-  resourceNames: string[],
-  verbs: string[],
-): boolean {
-  if (!sameSet(apiGroups, [""]) || resources.length !== 1) return false;
-  if (resources[0] === "secrets") {
-    return sameSet(resourceNames, ["maintenance-token"]) && sameSet(verbs, ["get"]);
+  for (const contract of contracts) {
+    if (contract.exactRuleCount !== undefined && rules.length !== contract.exactRuleCount) {
+      issues.push(
+        `${role.kind}/${role.name} must contain exactly ${contract.exactRuleCount} rule${
+          contract.exactRuleCount === 1 ? "" : "s"
+        }`,
+      );
+    }
   }
-  if (resources[0] === "configmaps") {
-    return sameSet(resourceNames, ["maintenance-window"]) && sameSet(verbs, ["get", "patch"]);
-  }
-  return false;
-}
-
-function isTenantDeveloperRule(apiGroups: string[], resources: string[], verbs: string[]): boolean {
-  const allowedVerbs = ["create", "delete", "get", "list", "patch", "update", "watch"];
-  if (!sameSet(verbs, allowedVerbs)) return false;
-  if (sameSet(apiGroups, ["apps"])) {
-    return sameSet(resources, ["deployments", "statefulsets"]);
-  }
-  if (sameSet(apiGroups, [""])) {
-    return sameSet(resources, ["configmaps", "pods", "services"]);
-  }
-  return false;
 }
 
 function sameSet(actual: string[], expected: string[]): boolean {

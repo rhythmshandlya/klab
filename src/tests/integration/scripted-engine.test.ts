@@ -17,6 +17,13 @@ describe("ScriptedIncidentEngine reference scenario", () => {
       expect((await engine.boot(level)).ok).toBe(true);
       const brokenSnapshot = JSON.stringify(engine.getSnapshot());
       expect(engine.getSnapshot().pods[0]?.status?.phase).toBe("Pending");
+      expect(engine.getSnapshot().resources).toContainEqual(
+        expect.objectContaining({
+          kind: "Secret",
+          metadata: expect.objectContaining({ name: "registry-credentials" }),
+          type: "kubernetes.io/dockerconfigjson",
+        }),
+      );
 
       const currentFiles = Object.fromEntries(
         level.files
@@ -35,6 +42,32 @@ describe("ScriptedIncidentEngine reference scenario", () => {
           expect.objectContaining({ type: "event-reason", reason: "Failed" }),
         ]),
       );
+      expect(events.output).toMatch(/pull access denied.*authorization failed/i);
+      expect(events.output).not.toContain("secret registry-credentials not found");
+      const secret = await engine.runCommand(
+        "kubectl get secret registry-credentials -o yaml",
+        "default",
+        currentFiles,
+      );
+      expect(secret.isError).toBe(false);
+      expect(secret.output).toContain("kubernetes.io/dockerconfigjson");
+      const deployment = await engine.runCommand(
+        "kubectl get deployment private-api -o yaml",
+        "default",
+        currentFiles,
+      );
+      expect(deployment.isError).toBe(false);
+      expect(deployment.output).not.toContain("imagePullSecrets");
+
+      const scaledToZero = solution.files["deployment.yaml"]!.replace("replicas: 1", "replicas: 0");
+      expect((await engine.applyFiles({ "deployment.yaml": scaledToZero })).ok).toBe(true);
+      const unsafeReport = await engine.validate(level, {
+        ...currentFiles,
+        "deployment.yaml": scaledToZero,
+      });
+      expect(unsafeReport.passed).toBe(false);
+      expect((await engine.probe("http://private-api-svc/")).status).toBe(503);
+      expect(engine.getSnapshot().pods[0]?.status?.phase).toBe("Pending");
 
       expect((await engine.applyFiles(solution.files)).ok).toBe(true);
       const solvedFiles = { ...currentFiles, ...solution.files };
@@ -42,6 +75,9 @@ describe("ScriptedIncidentEngine reference scenario", () => {
       expect(solvedReport.passed, JSON.stringify(solvedReport, null, 2)).toBe(true);
       expect((await engine.probe("http://private-api-svc/")).status).toBe(200);
       expect(engine.getSnapshot().pods[0]?.status?.phase).toBe("Running");
+      expect(engine.getSnapshot().pods[0]?.spec?.imagePullSecrets).toEqual([
+        { name: "registry-credentials" },
+      ]);
 
       expect((await engine.reset(level)).ok).toBe(true);
       expect(JSON.stringify(engine.getSnapshot())).toBe(brokenSnapshot);

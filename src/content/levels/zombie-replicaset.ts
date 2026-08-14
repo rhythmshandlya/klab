@@ -8,7 +8,8 @@ import { PUBLISHED_PROBLEM_V1 } from "./metadata";
  * An orphaned ReplicaSet from a pre-Deployment era still runs one legacy pod. Its
  * /healthz passes (so it's READY and joins web-svc), but every real request answers
  * 500: poisoning a share of traffic. Teaches: Services select by LABELS, not by
- * ownership; count your endpoints. Fix: scale the zombie to 0 (or delete it).
+ * ownership; count your endpoints. Fix: scale the zombie to 0, then remove the
+ * retired controller later through the normal reviewed change process.
  *
  * (The reference design lists "StatefulSet Orphaned PVCs" in this slot: the
  * simulator has no StatefulSet/PVC support, so the same "orphaned workload
@@ -114,7 +115,7 @@ export const zombieReplicaset = {
   ],
   prerequisites: ["service-selector-mismatch", "service-has-no-endpoints"],
   learningPaths: ["reliability", "sre-on-call"],
-  capabilities: ["pods", "services", "replicasets", "http-probes"],
+  capabilities: ["pods", "services", "deployments", "replicasets", "http-probes"],
   engine: { kind: "webernetes" },
   constraints: [
     {
@@ -131,12 +132,13 @@ export const zombieReplicaset = {
       resource: { kind: "ReplicaSet", name: "web-legacy" },
       exclusive: true,
       assertions: [
-        { path: "spec.replicas", operator: "lte", value: 0 },
+        { path: "spec.replicas", operator: "equals", value: 0 },
         { path: "spec.selector.matchLabels.app", operator: "equals", value: "web" },
         { path: "spec.selector.matchLabels.track", operator: "equals", value: "legacy" },
+        { path: "spec.template.metadata.labels.app", operator: "equals", value: "web" },
         { path: "spec.template.metadata.labels.track", operator: "equals", value: "legacy" },
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=web-app].image",
           operator: "equals",
           value: "klab/web-app:0.9.0",
         },
@@ -171,6 +173,16 @@ export const zombieReplicaset = {
     { id: "command-2", command: "kubectl get rs" },
     { id: "command-3", command: "kubectl get endpoints web-svc" },
     { id: "command-4", command: "kubectl describe svc web-svc" },
+    {
+      id: "command-legacy-pod",
+      command: "kubectl describe pod <pod>",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "web", track: "legacy" },
+        prefer: "first",
+      },
+    },
   ],
   probeTargets: ["http://web-svc/", "http://web-svc/healthz"],
   validators: [
@@ -223,7 +235,7 @@ export const zombieReplicaset = {
     {
       id: "hint-3",
       title: "Retire the zombie",
-      body: "web-legacy is an orphaned ReplicaSet running the retired 0.9.0 build: healthy enough to pass probes, broken for real traffic. Scale it to replicas: 0 in legacy-rs.yaml and Apply (deleting it works too).",
+      body: "web-legacy is an orphaned ReplicaSet running the retired 0.9.0 build: healthy enough to pass probes, broken for real traffic. Scale it to replicas: 0 in legacy-rs.yaml and Apply.",
       xpPenalty: 80,
       unlockAfter: ["r-legacy-rs"],
     },
@@ -314,10 +326,10 @@ export const zombieReplicaset = {
     whyItFailed:
       "Services route by labels, not by ownership. The legacy pod's /healthz still returned 200, so it was Ready and took a full share of traffic, then answered 500 to every real request. Three endpoints, one poisoned: a stable ~33% error rate that no Deployment dashboard would ever show.",
     whatFixedIt:
-      "Scaling web-legacy to zero removed the poisoned pod from the EndpointSlice, leaving only the stable pods behind web-svc. Every request now returns 200. (Longer term: delete the orphan and tighten the Service selector, e.g. app=web,track=stable.)",
+      "Scaling web-legacy to zero removed the poisoned pod from the EndpointSlice, leaving only the stable pods behind web-svc. Every request now returns 200. After the incident, delete the retired controller through the normal reviewed change process and tighten the Service selector, for example app=web,track=stable.",
     prevention:
       "Use release-specific labels, garbage-collect orphaned controllers, and audit Service endpoint ownership rather than relying only on Deployment health.",
     relatedConcepts: ["replicasets", "labels-selectors", "services"],
-    recommendedNextSlugs: [],
+    recommendedNextSlugs: ["all-replicas-one-failure-domain"],
   },
 } satisfies ProblemLevel;

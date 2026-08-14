@@ -16,8 +16,17 @@ export interface ValidatorResult {
   id: string;
   title: string;
   passed: boolean;
-  /** Human-readable current state (e.g. "0/2 ready replicas"). */
+  /**
+   * Observational current state (e.g. "0/2 ready replicas"). Safe to display for
+   * free, before the learner submits: it says what is broken, never what to type.
+   */
   detail: string;
+  /**
+   * Prescriptive breakdown (which requirement, expected vs found). Withheld from the
+   * always-visible checks panel and revealed only after a formal submission, so the
+   * free surface can never state the answer.
+   */
+  diagnostic?: string;
   label: string;
 }
 
@@ -128,11 +137,9 @@ async function evaluate(
       };
     }
 
-    case "no-recent-readiness-failures": {
-      // Robust current-state interpretation: pass when no Running pod in the namespace
-      // is failing readiness. (Event-history scraping is timing-fragile; the window
-      // field is retained for future use.) `withinSeconds` referenced to stay in type.
-      void validator.withinSeconds;
+    case "no-pods-failing-readiness": {
+      // Current-state interpretation rather than event-history scraping, which is
+      // timing-fragile. The kind is named for what it actually checks.
       const notReady = snapshot.pods.filter(
         (p) =>
           (p.metadata?.namespace ?? "default") === validator.namespace &&
@@ -145,6 +152,21 @@ async function evaluate(
           notReady.length === 0
             ? "no failing readiness probes"
             : `${notReady.length} pod(s) Running but not Ready`,
+      };
+    }
+
+    case "no-warning-events": {
+      const warnings = snapshot.events.filter(
+        (event) =>
+          (event.metadata?.namespace ?? "default") === validator.namespace &&
+          event.type === "Warning",
+      );
+      return {
+        passed: warnings.length === 0,
+        detail:
+          warnings.length === 0
+            ? `0 Warning events remain in ${validator.namespace}`
+            : `${warnings.length} Warning event${warnings.length === 1 ? "" : "s"} remain in ${validator.namespace}`,
       };
     }
 

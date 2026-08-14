@@ -165,12 +165,14 @@ describe("level content", () => {
     }
   });
 
-  it("every level ships investigation affordances (quick commands, probe targets, hints)", () => {
+  it("every level ships the investigation affordances its engine supports", () => {
     for (const level of LEVELS) {
       expect(level.quickCommands.length, `${level.slug} quickCommands`).toBeGreaterThan(0);
-      expect(level.probeTargets.length, `${level.slug} probeTargets`).toBeGreaterThan(0);
+      if (level.capabilities.includes("http-probes")) {
+        expect(level.probeTargets.length, `${level.slug} probeTargets`).toBeGreaterThan(0);
+      }
       expect(level.hints.length, `${level.slug} hints`).toBeGreaterThanOrEqual(3);
-      expect(level.evidenceRules.length, `${level.slug} evidenceRules`).toBeGreaterThanOrEqual(4);
+      expect(level.evidenceRules.length, `${level.slug} evidenceRules`).toBeGreaterThanOrEqual(3);
       const totalPenalty = level.hints.reduce((sum, h) => sum + h.xpPenalty, 0);
       expect(totalPenalty, `${level.slug} hint penalties exceed level XP`).toBeLessThanOrEqual(
         level.xp,

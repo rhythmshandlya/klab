@@ -49,7 +49,7 @@ test("new repair levels expose real-cluster investigation runbooks", async ({ pa
 
   await expect(page.getByRole("heading", { name: "Local Traffic Black Hole" })).toBeVisible();
   await expect(page.getByText("Incident Brief", { exact: true })).toBeVisible();
-  await expect(page.getByText("Static repair review", { exact: true })).toBeVisible();
+  await expect(page.getByText("Modelled incident", { exact: true })).toBeVisible();
   await expect(page.getByText("Production runbook", { exact: true })).toBeVisible();
   await expect(
     page.getByText("kubectl get service payments-public -n payments -o yaml", { exact: true }),

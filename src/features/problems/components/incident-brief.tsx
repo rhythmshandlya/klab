@@ -4,7 +4,7 @@ import { icons } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { BRAND } from "@/config/brand";
-import type { ProblemLearningPath, Severity } from "@/lib/domain/types";
+import type { ProblemLearningPath, ProblemLevel, Severity } from "@/lib/domain/types";
 
 import { useLevelStore } from "../level-store";
 
@@ -24,10 +24,36 @@ const PATH_LABELS: Record<ProblemLearningPath, string> = {
   "platform-architect": "Platform architect",
 };
 
+/**
+ * Say exactly how real this cluster is. A single "static review" banner used to sit
+ * on every repair level, including the ones running a live in-browser control plane —
+ * telling learners their changes would not reconcile when in fact they would. What a
+ * learner can trust from an exercise depends entirely on which engine it runs.
+ */
+function fidelityNotice(level: ProblemLevel): { title: string; body: string } {
+  if (level.challengeMode === "build") {
+    return {
+      title: "Static architecture review",
+      body: `${BRAND.name} checks submitted manifests, required fields, and resource relationships. It does not provision a real cluster or prove the stated SLO and failure scenarios.`,
+    };
+  }
+  if (level.engine.kind === "webernetes") {
+    return {
+      title: "Live cluster simulation",
+      body: `${BRAND.name} runs a Kubernetes control plane in your browser. Applying a manifest triggers real reconciliation, so probes, endpoints, and restarts respond the way they would in a cluster.`,
+    };
+  }
+  return {
+    title: "Modelled incident",
+    body: `This incident is authored rather than reconciled: ${BRAND.name} shows the cluster in its failing and repaired states and checks your fix against the production requirements. Use the runbook below to investigate the equivalent incident for real.`,
+  };
+}
+
 export function IncidentBrief() {
   const level = useLevelStore((s) => s.level);
   if (!level) return null;
   const Warning = icons.warning;
+  const fidelity = fidelityNotice(level);
   const File = icons.yaml;
 
   return (
@@ -60,16 +86,8 @@ export function IncidentBrief() {
         <p className="text-muted text-sm leading-relaxed">{level.story}</p>
 
         <div className="border-blue/30 bg-blue/10 rounded-md border p-3">
-          <p className="text-foreground text-xs font-semibold">
-            {level.challengeMode === "build"
-              ? "Static architecture review"
-              : "Static repair review"}
-          </p>
-          <p className="text-muted mt-1 text-xs leading-relaxed">
-            {level.challengeMode === "build"
-              ? `${BRAND.name} checks submitted manifests, required fields, and resource relationships. It does not provision a real cluster or prove the stated SLO and failure scenarios.`
-              : `${BRAND.name} checks the submitted repair and key Kubernetes relationships. Use the production runbook below to investigate the equivalent incident on a real cluster.`}
-          </p>
+          <p className="text-foreground text-xs font-semibold">{fidelity.title}</p>
+          <p className="text-muted mt-1 text-xs leading-relaxed">{fidelity.body}</p>
         </div>
 
         <Section label="Objective">
@@ -106,8 +124,9 @@ export function IncidentBrief() {
         {level.referenceCommands?.length ? (
           <Section label="Production runbook">
             <p className="text-subtle mb-2 text-xs leading-relaxed">
-              Reference commands for a real cluster. The simulated terminal only inspects
-              {BRAND.name}&apos;s static review runtime.
+              Reference commands for a real cluster. The simulated terminal inspects this
+              incident&apos;s modelled cluster, which covers the observations these commands would
+              surface but not their full output.
             </p>
             <ul className="space-y-1.5">
               {level.referenceCommands.map((command) => (

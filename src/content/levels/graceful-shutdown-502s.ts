@@ -121,22 +121,15 @@ export const gracefulShutdown502s = {
           value: 0,
         },
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=api].image",
           operator: "equals",
           value: "registry.example/edge-api:2.4.0",
         },
-        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
-        {
-          path: "spec.template.spec.containers.0.lifecycle.preStop.exec.command.2",
-          operator: "equals",
-          value: "sleep 10",
-        },
-        {
-          path: "spec.template.spec.terminationGracePeriodSeconds",
-          operator: "gte",
-          value: 15,
-        },
+        { path: "spec.template.spec.containers[name=api].readinessProbe", operator: "present" },
       ],
+      // Any drain action that finishes inside the grace window teaches the lesson;
+      // demanding the literal string "sleep 10" only teaches copying.
+      goals: [{ goal: "graceful-drain", container: "api", minGraceSeconds: 15 }],
     },
   ],
   files: [
@@ -158,7 +151,7 @@ export const gracefulShutdown502s = {
   quickCommands: [
     { id: "pods", command: "kubectl get pods" },
     { id: "replicasets", command: "kubectl get rs" },
-    { id: "endpoints", command: "kubectl get endpoints edge-api-svc" },
+    { id: "endpoints", command: "kubectl get endpointslices" },
     {
       id: "describe-old",
       command: "kubectl describe pod <pod>",
@@ -248,12 +241,12 @@ export const gracefulShutdown502s = {
     {
       id: "r-stale-endpoint",
       evidenceId: "terminating-endpoint-present",
-      label: "The Service still publishes the terminating Pod IP",
-      hiddenLabel: "Endpoint membership inspected during termination",
+      label: "The EndpointSlice still records the terminating Pod while routes converge",
+      hiddenLabel: "Terminating endpoint state inspected",
       source: "terminal",
       trigger: {
         type: "command",
-        commandMatches: "get endpoints edge-api-svc",
+        commandMatches: "get endpointslices",
         outputMatches: "10.0.0.30",
       },
     },
@@ -298,7 +291,7 @@ export const gracefulShutdown502s = {
     rootCause:
       "The application closed its listener as soon as SIGTERM arrived, while the external route still sent new requests to the terminating endpoint.",
     whyItFailed:
-      "Kubernetes begins container termination and endpoint removal concurrently. Internal Services usually converge quickly, but an Ingress or external load balancer can lag. During that window, the old Pod remained routable but no longer accepted connections, producing intermittent 502 responses despite healthy replica counts.",
+      "Kubernetes begins container termination and endpoint-state propagation concurrently. The terminating endpoint stops being Ready, but an Ingress or external load balancer can lag behind that update. During that window, the old Pod remained externally routable but no longer accepted connections, producing intermittent 502 responses despite healthy replica counts.",
     whatFixedIt:
       "A ten-second preStop delay kept the process serving while routing converged. A fifteen-second total termination grace period left room for the hook and process shutdown. Six-request validation then remained entirely HTTP 200.",
     prevention:

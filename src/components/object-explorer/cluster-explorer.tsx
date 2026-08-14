@@ -37,6 +37,26 @@ export function ClusterExplorer({
     items: T[],
   ): T[] => items.filter((item) => nsSet.has(item.metadata?.namespace ?? "default"));
 
+  const coreIdentities = new Set([
+    ...snapshot.deployments.map((item) => identity("Deployment", item)),
+    ...snapshot.replicaSets.map((item) => identity("ReplicaSet", item)),
+    ...snapshot.pods.map((item) => identity("Pod", item)),
+    ...snapshot.services.map((item) => identity("Service", item)),
+    ...snapshot.endpointSlices.map((item) => identity("EndpointSlice", item)),
+  ]);
+  const genericGroups = new Map<string, Row[]>();
+  for (const resource of inScope(snapshot.resources ?? [])) {
+    if (coreIdentities.has(identity(resource.kind, resource))) continue;
+    const rows = genericGroups.get(resource.kind) ?? [];
+    rows.push({
+      kind: resource.kind,
+      name: resource.metadata.name,
+      namespace: resource.metadata.namespace ?? "default",
+      icon: "config",
+    });
+    genericGroups.set(resource.kind, rows);
+  }
+
   const groups: { label: string; rows: Row[] }[] = [
     {
       label: "Deployments",
@@ -87,6 +107,9 @@ export function ClusterExplorer({
         icon: "endpointSlice",
       })),
     },
+    ...[...genericGroups.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([kind, rows]) => ({ label: kind, rows })),
   ];
 
   return (
@@ -109,6 +132,7 @@ export function ClusterExplorer({
                   <li key={`${row.namespace}/${row.kind}/${row.name}`}>
                     <button
                       type="button"
+                      aria-current={isSelected ? "true" : undefined}
                       onClick={() =>
                         onSelect({ kind: row.kind, name: row.name, namespace: row.namespace })
                       }
@@ -143,6 +167,13 @@ export function ClusterExplorer({
       ))}
     </div>
   );
+}
+
+function identity(
+  kind: string,
+  object: { metadata?: { name?: string; namespace?: string } },
+): string {
+  return `${kind}/${object.metadata?.namespace ?? "default"}/${object.metadata?.name ?? ""}`;
 }
 
 function RowIcon({ icon }: { icon: IconName }) {

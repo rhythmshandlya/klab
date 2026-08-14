@@ -191,7 +191,15 @@ export const brokenServiceChain = {
       exclusive: true,
       assertions: [
         { path: "spec.selector.app", operator: "equals", value: "web-app" },
-        { path: "spec.ports.0.port", operator: "equals", value: 80 },
+        { path: "spec.ports[name=http].port", operator: "equals", value: 80 },
+      ],
+      goals: [
+        {
+          goal: "service-targets-serving-port",
+          servicePort: 80,
+          servingPort: 8080,
+          servingPortName: "http",
+        },
       ],
     },
   ],
@@ -231,12 +239,22 @@ export const brokenServiceChain = {
     { id: "command-3", command: "curl http://web-svc/" },
     { id: "command-4", command: "kubectl describe svc web-svc" },
     {
-      id: "command-5",
-      command: "kubectl logs <pod>",
+      id: "orders-logs",
+      command: "kubectl logs <pod> -c orders-api",
       target: {
         kind: "pod",
         namespace: "default",
         selector: { app: "orders-api" },
+        prefer: "first",
+      },
+    },
+    {
+      id: "web-logs",
+      command: "kubectl logs <pod> -c web-app",
+      target: {
+        kind: "pod",
+        namespace: "default",
+        selector: { app: "web-app" },
         prefer: "first",
       },
     },
@@ -364,6 +382,7 @@ export const brokenServiceChain = {
     prevention:
       "Monitor dependency-level outcomes, keep request context across hops, and continuously probe each internal Service contract as well as the public edge.",
     relatedConcepts: ["services", "networking", "endpoints"],
+    docsHref: "/docs/networking/services",
     recommendedNextSlugs: ["zombie-replicaset"],
   },
 } satisfies ProblemLevel;

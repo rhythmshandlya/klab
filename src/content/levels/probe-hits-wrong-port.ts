@@ -90,17 +90,37 @@ export const probeHitsWrongPort = {
       exclusive: true,
       assertions: [
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=api].image",
           operator: "equals",
           value: "klab/web-app:1.0.0",
         },
+        { path: "spec.template.spec.containers[name=api].readinessProbe", operator: "present" },
         {
-          path: "spec.template.spec.containers.0.readinessProbe.httpGet.port",
+          path: "spec.template.spec.containers[name=api].readinessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        { path: "spec.template.spec.containers[name=api].livenessProbe", operator: "present" },
+        {
+          path: "spec.template.spec.containers[name=api].livenessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+        {
+          path: "spec.template.spec.containers[name=api].livenessProbe.httpGet.port",
           operator: "equals",
           value: 8080,
         },
-        { path: "spec.template.spec.containers.0.readinessProbe", operator: "present" },
-        { path: "spec.template.spec.containers.0.livenessProbe", operator: "present" },
+      ],
+      // Addressing the port by its declared name is idiomatic Kubernetes and just as
+      // correct as the number, so the goal resolves either form.
+      goals: [
+        {
+          goal: "probe-targets-serving-port",
+          container: "api",
+          servingPort: 8080,
+          probe: "readinessProbe",
+        },
       ],
     },
   ],

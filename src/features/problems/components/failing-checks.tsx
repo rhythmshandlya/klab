@@ -49,21 +49,25 @@ export function FailingChecks({
         }
         actions={
           <span className="flex items-center gap-2">
-            {checks ? (
+            {checks || refreshing ? (
               <span
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
                 className={cn(
                   "tabnums text-[11px] font-medium",
-                  failing === 0 ? "text-green" : "text-red",
+                  refreshing ? "text-subtle" : failing === 0 ? "text-green" : "text-red",
                 )}
               >
-                {total - (failing ?? 0)}/{total} passing
+                {refreshing ? "Refreshing checks…" : `${total - (failing ?? 0)}/${total} passing`}
               </span>
             ) : null}
             <button
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              aria-label="Refresh checks"
+              aria-label={refreshing ? "Refreshing checks" : "Refresh checks"}
+              aria-busy={refreshing}
               className="text-subtle hover:text-foreground rounded p-0.5 transition-colors disabled:opacity-50"
             >
               <icons.reset className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden />
@@ -71,7 +75,7 @@ export function FailingChecks({
           </span>
         }
       />
-      <PanelBody className="space-y-1">
+      <PanelBody className="space-y-1" aria-busy={refreshing}>
         {checks ? (
           checks.results.map((result) => (
             <div key={result.id} className="flex items-start gap-2.5 px-1 py-1 text-sm">
@@ -82,6 +86,7 @@ export function FailingChecks({
               )}
               <span className="min-w-0">
                 <span className={cn("block", result.passed ? "text-muted" : "text-foreground")}>
+                  <span className="sr-only">{result.passed ? "Passed: " : "Failed: "}</span>
                   {result.label}
                 </span>
                 <span className="text-subtle text-xs">{result.detail}</span>
@@ -122,7 +127,7 @@ export function FailingChecks({
           <span className="text-foreground font-medium">
             {isBuild ? "Submit Static Review" : "Run Validation"}
           </span>{" "}
-          (Cmd+R) to submit.
+          (⌘/Ctrl+Enter) to submit.
         </p>
       </PanelBody>
     </Panel>

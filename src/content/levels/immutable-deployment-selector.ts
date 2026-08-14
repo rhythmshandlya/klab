@@ -69,16 +69,16 @@ export const immutableDeploymentSelector = {
   blurb:
     "The teammate edited the wrong field and the API pushed back. The pods are healthy: they just aren't selected.",
   story:
-    "The routing team moved search-svc onto a tier-based selector so only `tier: api` pods receive traffic. A teammate tried to add the `tier: api` label by editing the Deployment's spec.selector: the apply failed with `field is immutable`, so the selector is still just {app: search}. The pods are Running and Ready, but their template labels never gained `tier: api`, so search-svc matches nothing and returns 503. Add the label the right way.",
+    "The routing team moved search-svc onto a tier-based contract so only API pods receive traffic. A teammate tried to update the search Deployment selector, but the API rejected the apply with `field is immutable`. The existing pods remain Running and Ready while search-svc has no endpoints and returns 503.",
   objective:
-    "Make search-svc route to the search pods by labeling pods correctly: without touching the immutable selector.",
+    "Restore search-svc routing while preserving both the existing Deployment selector and the Service contract.",
   learningObjectives: [
     "Recognize that a Deployment's spec.selector is immutable after creation.",
     "Migrate labels safely through the pod template rather than the selector.",
   ],
   prerequisites: ["rolling-update-gone-wrong", "service-selector-mismatch"],
   learningPaths: ["application-debugging", "reliability"],
-  capabilities: ["pods", "services", "deployments", "events", "http-probes", "rollouts"],
+  capabilities: ["pods", "services", "deployments", "http-probes", "rollouts"],
   engine: { kind: "scripted", scenarioId: "immutable-selector" },
   constraints: [
     {
@@ -89,12 +89,14 @@ export const immutableDeploymentSelector = {
     },
     {
       id: "keep-selector-add-template-label",
-      label: "Keep the original immutable selector; add tier: api to the pod template labels",
+      label:
+        "Keep the Deployment identity, immutable selector, image, and Service contract; make new pods satisfy routing",
       kind: "manifest",
       file: "deployment.yaml",
       resource: { kind: "Deployment", name: "search" },
       exclusive: true,
       assertions: [
+        { path: "spec.replicas", operator: "gte", value: 2 },
         {
           path: "spec.selector.matchLabels.app",
           operator: "equals",
@@ -102,6 +104,10 @@ export const immutableDeploymentSelector = {
         },
         {
           path: "spec.selector.matchLabels.tier",
+          operator: "absent",
+        },
+        {
+          path: "spec.selector.matchExpressions",
           operator: "absent",
         },
         {
@@ -115,9 +121,22 @@ export const immutableDeploymentSelector = {
           value: "api",
         },
         {
-          path: "spec.template.spec.containers.0.image",
+          path: "spec.template.spec.containers[name=api].image",
           operator: "equals",
           value: "klab/search:1.4.0",
+        },
+        {
+          path: "spec.template.spec.containers[name=api].readinessProbe.httpGet.path",
+          operator: "equals",
+          value: "/healthz",
+        },
+      ],
+      goals: [
+        {
+          goal: "probe-targets-serving-port",
+          container: "api",
+          servingPort: 8080,
+          probe: "readinessProbe",
         },
       ],
     },
@@ -143,7 +162,7 @@ export const immutableDeploymentSelector = {
     { id: "command-2", command: "kubectl get endpoints search-svc" },
     { id: "command-3", command: "kubectl get deployment search -o yaml" },
     { id: "command-4", command: "kubectl describe deployment search" },
-    { id: "command-5", command: "kubectl get events" },
+    { id: "command-5", command: "kubectl get service search-svc -o yaml" },
   ],
   probeTargets: ["http://search-svc/", "http://search-svc/healthz"],
   validators: [
@@ -216,24 +235,23 @@ export const immutableDeploymentSelector = {
       evidenceId: "empty-endpoints",
       label: "search-svc has zero endpoints despite Ready pods",
       hiddenLabel: "Service endpoints inspected",
-      source: "object-explorer",
+      source: "terminal",
       trigger: {
-        type: "object-view",
-        kind: "Service",
-        nameMatches: "^search-svc$",
-        namespace: "default",
+        type: "command",
+        commandMatches: "get (endpoints|ep) search-svc",
+        outputMatches: "<none>",
       },
     },
     {
       id: "r-immutable-selector",
       evidenceId: "immutable-selector",
-      label:
-        "The Deployment selector is {app: search}; tier cannot be added to an immutable selector",
+      label: "The Deployment still owns pods through its stable app=search selector",
       hiddenLabel: "Deployment selector inspected",
       source: "terminal",
       trigger: {
         type: "command",
         commandMatches: "get deployment|describe deployment",
+        outputMatches: "Selector:\\s+app=search|matchLabels:\\s+app:\\s+search",
       },
     },
     {

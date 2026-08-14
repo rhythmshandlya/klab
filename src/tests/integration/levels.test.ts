@@ -119,7 +119,12 @@ function workspaceFiles(level: ProblemLevel): Record<string, string> {
 
 function describeReport(report: ValidationReport): string {
   return report.results
-    .map((r) => `  [${r.passed ? "PASS" : "FAIL"}] ${r.title}: ${r.detail}`)
+    .map(
+      (r) =>
+        `  [${r.passed ? "PASS" : "FAIL"}] ${r.title}: ${r.detail}${
+          r.diagnostic ? `\n${r.diagnostic.replace(/^/gm, "      ")}` : ""
+        }`,
+    )
     .join("\n");
 }
 
@@ -144,7 +149,12 @@ describe("level solvability (real Webernetes boot per level)", () => {
           (level.engine.kind === "scripted" && level.engine.scenarioId === "manifest-assessment"
             ? (snapshot: ClusterSnapshot) =>
                 snapshot.pods.some((pod) => pod.metadata?.name === "manifest-assessment")
-            : undefined);
+            : // A fixture renders synchronously, and policy/storage/control-plane
+              // incidents may intentionally have no modelled Pods. The authored
+              // incident event is the common proof that the broken state exists.
+              level.engine.kind === "fixture"
+              ? (snapshot: ClusterSnapshot) => snapshot.events.length > 0
+              : undefined);
         expect(
           brokenReady,
           `level ${level.slug} is missing a broken-state predicate in this test`,
